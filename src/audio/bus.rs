@@ -8,53 +8,24 @@ use crate::audio::{
 	mixer::Mixer,
 };
 
-use std::num::Wrapping;
-
+pub struct EffectNode;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct BusID(pub(super) usize);
 
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct SoundInstanceID {
-	pub(super) bus_id: BusID,
-	instance_id: usize
-}
-
-
-#[derive(Copy, Clone, Debug)]
-struct SoundInstance {
-	instance_id: SoundInstanceID,
+pub struct Bus {
+	bus_id: BusID,
 	asset_id: SoundAssetID,
 	position: usize,
 	playing: bool,
-}
 
-
-
-pub struct Bus {
-	bus_id: BusID,
-	name: String,
-	send_bus: Option<BusID>,
-
-	active_sounds: Vec<SoundInstance>,
-	mixer: Mixer,
-
-	sound_instance_counter: Wrapping<usize>,
+	effect_chain: Vec<EffectNode>,
 }
 
 impl Bus {
 	pub fn bus_id(&self) -> BusID { self.bus_id }
-	pub fn name(&self) -> &str { &self.name }
-
-	pub fn set_send_bus(&mut self, bus_id: impl Into<Option<BusID>>) {
-		self.send_bus = bus_id.into();
-	}
-
-	pub fn send_bus(&self) -> Option<BusID> { self.send_bus }
-
-	pub fn set_gain(&mut self, gain: f32) { self.mixer.set_gain(gain); }
-	pub fn gain(&self) -> f32 { self.mixer.gain() }
+	// pub fn name(&self) -> &str { &self.name }
 
 	pub fn start_sound(&mut self, asset_id: SoundAssetID) -> SoundInstanceID {
 		let instance_id = SoundInstanceID {
@@ -78,29 +49,17 @@ impl Bus {
 		self.active_sounds.retain(|s| s.instance_id != instance_id);
 	}
 
-	pub fn set_playing(&mut self, instance_id: SoundInstanceID, playing: bool) {
-		if let Some(instance) = self.active_sounds.iter_mut()
-			.find(|s| s.instance_id == instance_id)
-		{
-			instance.playing = playing;
-		}
+	pub fn set_playing(&mut self, playing: bool) {
+		self.playing = playing;
 	}
 }
 
 
 impl Bus {
-	pub(super) fn new(name: String, buffer_size: usize, bus_id: BusID) -> Bus {
-		let mixer = Mixer::new(buffer_size);
-
+	pub(super) fn new(name: String, bus_id: BusID) -> Bus {
 		Bus {
 			bus_id,
 			name,
-			send_bus: None,
-
-			active_sounds: Vec::new(),
-			mixer,
-
-			sound_instance_counter: Wrapping(0),
 		}
 	}
 

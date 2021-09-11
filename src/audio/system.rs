@@ -1,6 +1,8 @@
 use crate::prelude::*;
 use crate::audio::{*, bus::Bus, bus::BusID};
 
+use std::num::Wrapping;
+
 pub(super) const STREAM_PREFETCH_FACTOR: usize = 1;
 pub const MASTER_BUS: BusID = BusID(0);
 
@@ -39,7 +41,7 @@ pub struct AudioSystem {
 
 	master_bus: Bus,
 	busses: Vec<Bus>,
-	bus_counter: usize,
+	bus_counter: Wrapping<usize>,
 
 	stream_updates: Vec<StreamUpdateRequest>,
 	buffer_size: usize,
@@ -71,7 +73,7 @@ impl AudioSystem {
 
 			master_bus: Bus::new("Master".into(), buffer_size, BusID(0)),
 			busses: Vec::new(),
-			bus_counter: 1,
+			bus_counter: Wrapping(1),
 
 			stream_updates: Vec::new(),
 			buffer_size,
@@ -103,11 +105,11 @@ impl AudioSystem {
 
 
 	pub fn new_bus(&mut self, name: impl Into<String>) -> BusID {
-		let bus_id = BusID(self.bus_counter);
+		let bus_id = BusID(self.bus_counter.0);
 		let name = name.into();
 
 		self.busses.push(Bus::new(name, self.buffer_size, bus_id));
-		self.bus_counter += 1;
+		self.bus_counter += Wrapping(1);
 		bus_id
 	}
 
