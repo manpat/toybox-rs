@@ -35,6 +35,13 @@ impl InputContext {
 		}
 	}
 
+	pub fn name(&self) -> &str { &self.name }
+	pub fn id(&self) -> ContextID { self.id }
+
+	pub fn actions(&self) -> impl Iterator<Item=&Action> {
+		self.actions.iter()
+	}
+
 	pub fn mouse_action(&self) -> Option<(&Action, ActionID)> {
 		let context_id = self.id;
 

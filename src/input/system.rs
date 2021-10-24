@@ -21,7 +21,7 @@ pub struct InputSystem {
 	active_contexts_changed: bool,
 
 	/// Used for remapping mouse input
-	mouse_interactive_region: Vec2,
+	window_size: Vec2,
 
 
 	/// The current mouse position in screenspace
@@ -56,7 +56,7 @@ impl InputSystem {
 			active_contexts: Vec::new(),
 			active_contexts_changed: false,
 
-			mouse_interactive_region: Vec2::new(w as f32, h as f32),
+			window_size: Vec2::new(w as f32, h as f32),
 
 			mouse_absolute: None,
 			mouse_delta: None,
@@ -94,7 +94,7 @@ impl InputSystem {
 		match event {
 			&Event::Window{ win_event: WindowEvent::Resized(w, h), .. } => {
 				// TODO(pat.m): this event doesn't get emitted on startup
-				self.mouse_interactive_region = Vec2::new(w as f32, h as f32);
+				self.window_size = Vec2::new(w as f32, h as f32);
 			}
 
 			Event::Window{ win_event: WindowEvent::Leave, .. } => {
@@ -109,7 +109,7 @@ impl InputSystem {
 			// }
 
 			&Event::MouseMotion { xrel, yrel, x, y, .. } => {
-				let Vec2{x: w, y: h} = self.mouse_interactive_region;
+				let Vec2{x: w, y: h} = self.window_size;
 				// TODO(pat.m): is it actually useful to remap coordinates like this?
 				let mouse_x =  (x as f32 / w * 2.0 - 1.0) * (w/h);
 				let mouse_y = -(y as f32 / h * 2.0 - 1.0);

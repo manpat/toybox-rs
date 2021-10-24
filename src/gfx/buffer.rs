@@ -31,6 +31,11 @@ impl UntypedBuffer {
 		self.size_bytes = data.len() * std::mem::size_of::<T>();
 	}
 
+	pub fn upload_single<T: Copy>(&mut self, data: &T) {
+		upload_untyped(self.handle, std::slice::from_ref(data), self.usage);
+		self.size_bytes = std::mem::size_of::<T>();
+	}
+
 	pub fn into_typed<T: Copy>(self) -> Buffer<T> {
 		Buffer {
 			handle: self.handle,
@@ -46,6 +51,11 @@ impl<T: Copy> Buffer<T> {
 	pub fn upload(&mut self, data: &[T]) {
 		upload_untyped(self.handle, data, self.usage);
 		self.length = data.len() as u32;
+	}
+
+	pub fn upload_single(&mut self, data: &T) {
+		upload_untyped(self.handle, std::slice::from_ref(data), self.usage);
+		self.length = 1;
 	}
 
 	pub fn len(&self) -> u32 {

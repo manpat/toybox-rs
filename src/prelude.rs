@@ -4,6 +4,7 @@ pub use sdl2;
 pub use thiserror;
 pub use bitflags::bitflags;
 pub use slotmap;
+pub use imgui;
 
 pub use crate::gfx;
 pub use crate::audio;
