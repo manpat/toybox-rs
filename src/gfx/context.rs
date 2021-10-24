@@ -333,11 +333,11 @@ impl<'ctx> RenderState<'ctx> {
 extern "system" fn gl_message_callback(source: u32, ty: u32, _id: u32, severity: u32,
 	_length: i32, msg: *const i8, _ud: *mut std::ffi::c_void)
 {
-	let severity = match severity {
-		raw::DEBUG_SEVERITY_LOW => "low",
-		raw::DEBUG_SEVERITY_MEDIUM => "medium",
+	let severity_str = match severity {
 		raw::DEBUG_SEVERITY_HIGH => "high",
-		raw::DEBUG_SEVERITY_NOTIFICATION => "notification",
+		raw::DEBUG_SEVERITY_MEDIUM => "medium",
+		raw::DEBUG_SEVERITY_LOW => "low",
+		raw::DEBUG_SEVERITY_NOTIFICATION => return,
 		_ => panic!("Unknown severity {}", severity),
 	};
 
@@ -363,7 +363,7 @@ extern "system" fn gl_message_callback(source: u32, ty: u32, _id: u32, severity:
 
 	eprintln!("GL ERROR!");
 	eprintln!("Source:   {}", source);
-	eprintln!("Severity: {}", severity);
+	eprintln!("Severity: {}", severity_str);
 	eprintln!("Type:     {}", ty);
 
 	unsafe {
@@ -371,7 +371,10 @@ extern "system" fn gl_message_callback(source: u32, ty: u32, _id: u32, severity:
 		eprintln!("Message: {}", msg);
 	}
 
-	panic!("GL ERROR!");
+	match severity {
+		raw::DEBUG_SEVERITY_HIGH | raw::DEBUG_SEVERITY_MEDIUM => panic!("GL ERROR!"),
+		_ => {}
+	}
 }
 
 
