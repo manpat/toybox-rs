@@ -8,6 +8,7 @@ pub struct ImguiBackend {
 	uniforms: gfx::Buffer<Uniforms>,
 
 	imgui_frame: Option<imgui::Ui<'static>>,
+	enabled: bool,
 }
 
 
@@ -34,7 +35,12 @@ impl ImguiBackend {
 			uniforms,
 
 			imgui_frame: None,
+			enabled: true,
 		})
+	}
+
+	pub fn set_enabled(&mut self, enabled: bool) {
+		self.enabled = enabled;
 	}
 
 	pub fn frame(&self) -> &imgui::Ui<'static> {
@@ -69,11 +75,11 @@ impl ImguiBackend {
 				io.mouse_wheel_h = x as f32;
 			}
 
-			Event::MouseButtonDown { mouse_btn, .. } => handle_mouse_button(io, &mouse_btn, true),
+			Event::MouseButtonDown { mouse_btn, .. } if self.enabled => handle_mouse_button(io, &mouse_btn, true),
 			Event::MouseButtonUp { mouse_btn, .. } => handle_mouse_button(io, &mouse_btn, false),
 			Event::TextInput { ref text, .. } => text.chars().for_each(|c| io.add_input_character(c)),
 
-			Event::KeyDown { scancode: Some(key), keymod, .. } => {
+			Event::KeyDown { scancode: Some(key), keymod, .. } => if self.enabled {
 				io.keys_down[key as usize] = true;
 				handle_key_modifier(io, &keymod);
 			}
@@ -88,6 +94,10 @@ impl ImguiBackend {
 			}
 
 			_ => {}
+		}
+
+		if !self.enabled {
+			return false;
 		}
 
 		match event {
@@ -113,7 +123,11 @@ impl ImguiBackend {
 
 	pub(crate) fn draw(&mut self, gfx: &mut gfx::Context) {
 		if let Some(frame) = self.imgui_frame.take() {
-			self.draw_internal(gfx, frame.render());
+			let frame_data = frame.render();
+
+			if self.enabled {
+				self.draw_internal(gfx, frame_data);
+			}
 		}
 	}
 
