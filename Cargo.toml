@@ -16,6 +16,7 @@ imgui = "0.8"
 
 # dasp = "0.11"
 # petgraph = "0.6"
+# symphonia = "0.4"
 
 
 
