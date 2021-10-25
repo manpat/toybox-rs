@@ -2,13 +2,10 @@ use crate::gfx;
 use common::math::*;
 
 
-
 pub struct ImguiBackend {
 	shader: gfx::Shader,
 	mesh: gfx::Mesh<imgui::DrawVert>,
 	uniforms: gfx::Buffer<Uniforms>,
-
-	font_atlas_key: gfx::TextureKey,
 
 	imgui_frame: Option<imgui::Ui<'static>>,
 }
@@ -27,7 +24,7 @@ impl ImguiBackend {
 
 		let mesh = gfx::Mesh::new(gfx);
 		let uniforms = gfx.new_buffer(gfx::BufferUsage::Stream);
-		let font_atlas_key = build_font_atlas(gfx, imgui_ctx);
+		let _font_atlas_key = build_font_atlas(gfx, imgui_ctx);
 
 		init_imgui_input(imgui_ctx);
 
@@ -35,8 +32,6 @@ impl ImguiBackend {
 			shader,
 			mesh,
 			uniforms,
-
-			font_atlas_key,
 
 			imgui_frame: None,
 		})
@@ -122,21 +117,10 @@ impl ImguiBackend {
 		}
 	}
 
-	fn draw_internal(&mut self, gfx: &mut gfx::Context, draw_data: &imgui::DrawData) {
-		assert!(std::mem::size_of::<imgui::DrawIdx>() == 2, "Imgui using non 16b indices");
-
-		let fb_width = draw_data.display_size[0] * draw_data.framebuffer_scale[0];
-		let fb_height = draw_data.display_size[1] * draw_data.framebuffer_scale[1];
-
-		self.uniforms.upload_single(&Uniforms {
-			transform: Mat4::ortho(0.0, fb_width, fb_height, 0.0, -10.0, 10.0)
-		});
-
-		let mut render_state = gfx.render_state();
-
+	fn setup_state(&self, render_state: &mut gfx::RenderState<'_>) {
 		render_state.bind_shader(self.shader);
-		render_state.bind_texture(0, self.font_atlas_key);
 		render_state.bind_uniform_buffer(0, self.uniforms);
+		render_state.bind_vao(self.mesh.vao);
 
 		unsafe {
 			gfx::raw::Enable(gfx::raw::BLEND);
@@ -152,8 +136,46 @@ impl ImguiBackend {
 			gfx::raw::Disable(gfx::raw::STENCIL_TEST);
 			gfx::raw::Enable(gfx::raw::SCISSOR_TEST);
 		}
+	}
 
-		render_state.bind_vao(self.mesh.vao);
+	fn draw_internal(&mut self, gfx: &mut gfx::Context, draw_data: &imgui::DrawData) {
+		assert!(std::mem::size_of::<imgui::DrawIdx>() == 2, "Imgui using non 16b indices");
+
+		let fb_width = draw_data.display_size[0] * draw_data.framebuffer_scale[0];
+		let fb_height = draw_data.display_size[1] * draw_data.framebuffer_scale[1];
+
+		self.uniforms.upload_single(&Uniforms {
+			transform: Mat4::ortho(0.0, fb_width, fb_height, 0.0, -10.0, 10.0)
+		});
+
+		let mut render_state = gfx.render_state();
+
+		let get_parameter = |param| unsafe {
+			let mut value = 0;
+			gfx::raw::GetIntegerv(param, &mut value);
+			value
+		};
+
+		let blend_src_rgb = get_parameter(gfx::raw::BLEND_SRC_RGB);
+		let blend_dst_rgb = get_parameter(gfx::raw::BLEND_DST_RGB);
+		let blend_src_alpha = get_parameter(gfx::raw::BLEND_SRC_ALPHA);
+		let blend_dst_alpha = get_parameter(gfx::raw::BLEND_DST_ALPHA);
+		let blend_equation_rgb = get_parameter(gfx::raw::BLEND_EQUATION_RGB);
+		let blend_equation_alpha = get_parameter(gfx::raw::BLEND_EQUATION_ALPHA);
+
+		let depth_test_enabled;
+		let stencil_test_enabled;
+		let cull_face_enabled;
+		let blend_enabled;
+
+		unsafe {
+			depth_test_enabled = gfx::raw::IsEnabled(gfx::raw::DEPTH_TEST) != 0;
+			stencil_test_enabled = gfx::raw::IsEnabled(gfx::raw::STENCIL_TEST) != 0;
+			cull_face_enabled = gfx::raw::IsEnabled(gfx::raw::CULL_FACE) != 0;
+			blend_enabled = gfx::raw::IsEnabled(gfx::raw::BLEND) != 0;
+		}
+
+		self.setup_state(&mut render_state);
 
 		for draw_list in draw_data.draw_lists() {
 			self.mesh.upload_separate(&draw_list.vtx_buffer(), &draw_list.idx_buffer());
@@ -189,9 +211,10 @@ impl ImguiBackend {
 								(clip_x2 - clip_x1) as i32,
 								(clip_y2 - clip_y1) as i32,
 							);
-
-							// gl.bind_texture(glow::TEXTURE_2D, texture_map.gl_texture(texture_id));
 						}
+
+						let texture_key = gfx::TextureKey::from(slotmap::KeyData::from_ffi(texture_id.id() as u64));
+						render_state.bind_texture(0, texture_key);
 
 						render_state.draw_indexed(gfx::DrawMode::Triangles,
 							gfx::IndexedDrawParams::from(element_count as u32)
@@ -206,38 +229,47 @@ impl ImguiBackend {
 					},
 
 					DrawCmd::ResetRenderState => {
-						render_state.bind_shader(self.shader);
-						render_state.bind_texture(0, self.font_atlas_key);
-						render_state.bind_uniform_buffer(0, self.uniforms);
-						render_state.bind_vao(self.mesh.vao);
-
-						unsafe {
-							gfx::raw::Enable(gfx::raw::BLEND);
-							gfx::raw::BlendEquation(gfx::raw::FUNC_ADD);
-							gfx::raw::BlendFuncSeparate(
-								gfx::raw::SRC_ALPHA,
-								gfx::raw::ONE_MINUS_SRC_ALPHA,
-								gfx::raw::ONE,
-								gfx::raw::ONE_MINUS_SRC_ALPHA,
-							);
-							gfx::raw::Disable(gfx::raw::CULL_FACE);
-							gfx::raw::Disable(gfx::raw::DEPTH_TEST);
-							gfx::raw::Disable(gfx::raw::STENCIL_TEST);
-							gfx::raw::Enable(gfx::raw::SCISSOR_TEST);
-						}
+						self.setup_state(&mut render_state);
 					}
 				}
 			}
 		}
 
+
+		let set_enabled = |param, enabled| unsafe {
+			if enabled {
+				gfx::raw::Enable(param);
+			} else {
+				gfx::raw::Disable(param);
+			}
+		};
+
+		set_enabled(gfx::raw::SCISSOR_TEST, false);
+		set_enabled(gfx::raw::BLEND, blend_enabled);
+		set_enabled(gfx::raw::CULL_FACE, cull_face_enabled);
+		set_enabled(gfx::raw::DEPTH_TEST, depth_test_enabled);
+		set_enabled(gfx::raw::STENCIL_TEST, stencil_test_enabled);
+
 		unsafe {
-			gfx::raw::Disable(gfx::raw::BLEND);
-			gfx::raw::Disable(gfx::raw::CULL_FACE);
-			gfx::raw::Enable(gfx::raw::DEPTH_TEST);
-			gfx::raw::Disable(gfx::raw::STENCIL_TEST);
-			gfx::raw::Disable(gfx::raw::SCISSOR_TEST);
+			gfx::raw::BlendEquationSeparate(
+				blend_equation_rgb as u32,
+				blend_equation_alpha as u32,
+			);
+
+			gfx::raw::BlendFuncSeparate(
+				blend_src_rgb as u32,
+				blend_dst_rgb as u32,
+				blend_src_alpha as u32,
+				blend_dst_alpha as u32,
+			);
 		}
 	}
+}
+
+
+pub fn texture_key_to_imgui_id(key: gfx::TextureKey) -> imgui::TextureId {
+	use slotmap::Key;
+	imgui::TextureId::new(key.data().as_ffi() as usize)
 }
 
 
@@ -309,6 +341,9 @@ fn build_font_atlas(gfx: &mut gfx::Context, imgui: &mut imgui::Context) -> gfx::
 	let mut font_atlas = gfx.resources().get_mut(font_atlas_key);
 	font_atlas.upload_rgba8_raw(atlas_texture.data);
 	font_atlas.set_filter(true, true);
+
+	imgui_fonts.tex_id = texture_key_to_imgui_id(font_atlas_key);
+
 	font_atlas_key
 }
 
@@ -353,6 +388,9 @@ thread_local! {
 }
 
 fn init_imgui() {
+	assert!(std::mem::size_of::<usize>() == std::mem::size_of::<u64>(),
+		"Imgui backend assumes that usize is the same size as u64 to get texture keys into imgui.");
+
 	IMGUI_CTX.with(|ctx| unsafe {
 		if let Some(ctx) = ctx.get().as_mut() {
 			*ctx = Some({
