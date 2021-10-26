@@ -56,13 +56,13 @@ impl Context {
 		}
 	}
 
-	pub(crate) fn on_resize(&mut self, w: u32, h: u32) {
+	pub(crate) fn on_resize(&mut self, drawable_size: Vec2i) {
 		unsafe {
-			raw::Viewport(0, 0, w as _, h as _);
+			raw::Viewport(0, 0, drawable_size.x, drawable_size.y);
 		}
 
-		self.backbuffer_size = Vec2i::new(w as _, h as _);
-		self.resources.on_resize(self.backbuffer_size);
+		self.backbuffer_size = drawable_size;
+		self.resources.on_resize(drawable_size);
 	}
 
 	pub fn backbuffer_size(&self) -> Vec2i { self.backbuffer_size }
@@ -72,6 +72,7 @@ impl Context {
 	}
 
 	pub fn capabilities(&self) -> &Capabilities { &self.capabilities }
+	pub fn resources(&mut self) -> &mut Resources { &mut self.resources }
 
 	pub fn render_state(&mut self) -> RenderState<'_> {
 		RenderState {
@@ -275,13 +276,21 @@ impl<'ctx> RenderState<'ctx> {
 		}
 	}
 
-	pub fn draw_indexed(&self, draw_mode: DrawMode, num_elements: u32) {
+	pub fn draw_indexed(&self, draw_mode: DrawMode, element_range: impl Into<IndexedDrawParams>) {
+		let IndexedDrawParams {
+			num_elements,
+			element_offset,
+			base_vertex,
+		} = element_range.into();
+
 		if num_elements == 0 {
 			return
 		}
 
+		let offset_ptr = (element_offset as usize * std::mem::size_of::<u16>()) as *const _;
+
 		unsafe {
-			raw::DrawElements(draw_mode.into_gl(), num_elements as i32, raw::UNSIGNED_SHORT, std::ptr::null());
+			raw::DrawElementsBaseVertex(draw_mode.into_gl(), num_elements as i32, raw::UNSIGNED_SHORT, offset_ptr, base_vertex as i32);
 		}
 	}
 
@@ -324,11 +333,11 @@ impl<'ctx> RenderState<'ctx> {
 extern "system" fn gl_message_callback(source: u32, ty: u32, _id: u32, severity: u32,
 	_length: i32, msg: *const i8, _ud: *mut std::ffi::c_void)
 {
-	let severity = match severity {
-		raw::DEBUG_SEVERITY_LOW => "low",
-		raw::DEBUG_SEVERITY_MEDIUM => "medium",
+	let severity_str = match severity {
 		raw::DEBUG_SEVERITY_HIGH => "high",
-		raw::DEBUG_SEVERITY_NOTIFICATION => "notification",
+		raw::DEBUG_SEVERITY_MEDIUM => "medium",
+		raw::DEBUG_SEVERITY_LOW => "low",
+		raw::DEBUG_SEVERITY_NOTIFICATION => return,
 		_ => panic!("Unknown severity {}", severity),
 	};
 
@@ -354,7 +363,7 @@ extern "system" fn gl_message_callback(source: u32, ty: u32, _id: u32, severity:
 
 	eprintln!("GL ERROR!");
 	eprintln!("Source:   {}", source);
-	eprintln!("Severity: {}", severity);
+	eprintln!("Severity: {}", severity_str);
 	eprintln!("Type:     {}", ty);
 
 	unsafe {
@@ -362,5 +371,37 @@ extern "system" fn gl_message_callback(source: u32, ty: u32, _id: u32, severity:
 		eprintln!("Message: {}", msg);
 	}
 
-	panic!("GL ERROR!");
+	match severity {
+		raw::DEBUG_SEVERITY_HIGH | raw::DEBUG_SEVERITY_MEDIUM => panic!("GL ERROR!"),
+		_ => {}
+	}
 }
+
+
+
+pub struct IndexedDrawParams {
+	pub num_elements: u32,
+	pub element_offset: u32,
+	pub base_vertex: u32,
+}
+
+impl IndexedDrawParams {
+	pub fn with_offset(self, element_offset: u32) -> IndexedDrawParams {
+		IndexedDrawParams {element_offset, ..self}
+	}
+
+	pub fn with_base_vertex(self, base_vertex: u32) -> IndexedDrawParams {
+		IndexedDrawParams {base_vertex, ..self}
+	}
+}
+
+impl<T> From<T> for IndexedDrawParams where T : Into<u32> {
+	fn from(num_elements: T) -> IndexedDrawParams {
+		IndexedDrawParams {
+			num_elements: num_elements.into(),
+			element_offset: 0,
+			base_vertex: 0,
+		}
+	}
+}
+

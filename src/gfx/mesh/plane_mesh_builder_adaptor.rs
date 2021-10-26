@@ -29,10 +29,8 @@ impl<MB> PlaneMeshBuilderAdaptor<MB>
 
 impl<MB: PolyBuilder3D> PolyBuilder2D for PlaneMeshBuilderAdaptor<MB> {
 	fn extend_2d(&mut self, vs: impl IntoIterator<Item=Vec2>, is: impl IntoIterator<Item=u16>) {
-		let uvw = self.uvw;
-		
-		let vertices_3d = vs.into_iter().map(move |v2| {
-			uvw * v2.extend(1.0)
+		let vertices_3d = vs.into_iter().map(|v2| {
+			self.uvw * v2.extend(1.0)
 		});
 
 		self.builder_3d.extend_3d(vertices_3d, is);

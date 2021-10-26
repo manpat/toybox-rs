@@ -6,6 +6,7 @@ pub mod perf;
 pub mod window;
 pub mod input;
 pub mod audio;
+pub mod imgui_backend;
 
 pub use crate::prelude::*;
 
@@ -19,6 +20,8 @@ pub struct Engine {
 	pub input: input::InputSystem,
 	pub audio: audio::AudioSystem,
 	pub instrumenter: perf::Instrumenter,
+
+	pub imgui: imgui_backend::ImguiBackend,
 
 	should_quit: bool,
 }
@@ -35,11 +38,18 @@ impl Engine {
 		let input = input::InputSystem::new(sdl_ctx.mouse(), &window);
 		let audio = audio::AudioSystem::new(sdl_audio)?;
 
+		let mut imgui = imgui_backend::ImguiBackend::new(&mut gfx)?;
 		let instrumenter = perf::Instrumenter::new(&mut gfx);
 
 		// Make sure aspect is set up correctly
 		let (w, h) = window.drawable_size();
-		gfx.on_resize(w, h);
+		let drawable_size = Vec2i::new(w as _, h as _);
+
+		let (w, h) = window.size();
+		let window_size = Vec2i::new(w as _, h as _);
+
+		gfx.on_resize(drawable_size);
+		imgui.on_resize(drawable_size, window_size);
 
 		Ok(Engine {
 			sdl_ctx,
@@ -49,6 +59,8 @@ impl Engine {
 			input,
 			audio,
 			instrumenter,
+			
+			imgui,
 
 			should_quit: false,
 		})
@@ -66,17 +78,28 @@ impl Engine {
 				Event::Quit {..} => { self.should_quit = true }
 				Event::Window{ win_event: WindowEvent::Resized(..), .. } => {
 					let (w, h) = self.window.drawable_size();
-					self.gfx.on_resize(w, h);
+					let drawable_size = Vec2i::new(w as _, h as _);
+
+					let (w, h) = self.window.size();
+					let window_size = Vec2i::new(w as _, h as _);
+
+					self.gfx.on_resize(drawable_size);
+					self.imgui.on_resize(drawable_size, window_size);
 					self.input.handle_event(&event)
 				}
 
 				_ => {
-					self.input.handle_event(&event)
+					let imgui_claimed = self.imgui.handle_event(&event);
+					if !imgui_claimed {
+						self.input.handle_event(&event);
+					}
 				},
 			}
 		}
 
 		self.input.process_events();
+
+		self.imgui.start_frame();
 	}
 
 	pub fn end_frame(&mut self) {
@@ -87,9 +110,12 @@ impl Engine {
 
 		self.instrumenter.end_frame();
 
+		self.imgui.draw(&mut self.gfx);
+
 		{
 			let _guard = self.instrumenter.scoped_section("swap");
 			self.window.gl_swap_window();
 		}
 	}
 }
+

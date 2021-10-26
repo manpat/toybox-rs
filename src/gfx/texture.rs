@@ -50,6 +50,48 @@ impl Texture {
 		}
 	}
 
+	pub fn upload_u8(&mut self, data: &[u8]) {
+		assert!(matches!(self.size_mode, TextureSize::Fixed(_)), "Texture uploads not supported for framebuffer sized textures");
+
+		let (level, offset_x, offset_y) = (0, 0, 0);
+		let Vec2i{x: width, y: height} = self.current_size;
+
+		assert!((width*height) as usize == data.len(), "Texture upload input data doesn't match allocated size");
+
+		unsafe {
+			raw::TextureSubImage2D(
+				self.texture_handle,
+				level,
+				offset_x, offset_y,
+				width, height,
+				raw::RED,
+				raw::UNSIGNED_BYTE,
+				data.as_ptr() as *const _
+			);
+		}
+	}
+
+	pub fn upload_rgba8_raw(&mut self, data: &[u8]) {
+		assert!(matches!(self.size_mode, TextureSize::Fixed(_)), "Texture uploads not supported for framebuffer sized textures");
+
+		let (level, offset_x, offset_y) = (0, 0, 0);
+		let Vec2i{x: width, y: height} = self.current_size;
+
+		assert!((width*height*4) as usize == data.len(), "Texture upload input data doesn't match allocated size");
+
+		unsafe {
+			raw::TextureSubImage2D(
+				self.texture_handle,
+				level,
+				offset_x, offset_y,
+				width, height,
+				raw::RGBA,
+				raw::UNSIGNED_BYTE,
+				data.as_ptr() as *const _
+			);
+		}
+	}
+
 	pub fn format(&self) -> TextureFormat { self.format }
 	pub fn size(&self) -> Vec2i { self.current_size }
 	pub fn size_mode(&self) -> TextureSize { self.size_mode }
@@ -183,6 +225,8 @@ impl TextureFormat {
 	pub fn hdr_color() -> Self { TextureFormat::Rgba(BaseFormat::F16) }
 	pub fn srgb() -> Self { TextureFormat::Srgb8 }
 	pub fn srgba() -> Self { TextureFormat::Srgba8 }
+
+	pub fn unorm8() -> Self { TextureFormat::Red(BaseFormat::Unorm8) }
 
 	pub fn to_gl(&self) -> u32 {
 		match self {

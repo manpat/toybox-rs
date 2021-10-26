@@ -32,12 +32,13 @@ impl Vao {
 				offset_bytes,
 				num_elements,
 				gl_type,
+				normalized,
 			} = attribute;
 
 			unsafe {
 				raw::EnableVertexArrayAttrib(self.handle, attribute_index);
 				raw::VertexArrayAttribBinding(self.handle, attribute_index, binding);
-				raw::VertexArrayAttribFormat(self.handle, attribute_index, num_elements as i32, gl_type, raw::FALSE, offset_bytes);
+				raw::VertexArrayAttribFormat(self.handle, attribute_index, num_elements as i32, gl_type, normalized as u8, offset_bytes);
 			}
 		}
 
