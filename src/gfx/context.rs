@@ -4,8 +4,9 @@ pub struct Context {
 	_sdl_ctx: sdl2::video::GLContext,
 	shader_manager: ShaderManager,
 	capabilities: Capabilities,
+	backbuffer_size: Vec2i,
 
-	canvas_size: Vec2i,
+	resources: Resources,
 }
 
 impl Context {
@@ -14,6 +15,8 @@ impl Context {
 			raw::DebugMessageCallback(Some(gl_message_callback), std::ptr::null());
 			raw::Enable(raw::DEBUG_OUTPUT_SYNCHRONOUS);
 			raw::Enable(raw::PROGRAM_POINT_SIZE);
+
+			raw::Enable(raw::FRAMEBUFFER_SRGB);
 
 			raw::Enable(raw::DEPTH_TEST);
 			// raw::Enable(raw::BLEND);
@@ -47,40 +50,39 @@ impl Context {
 			_sdl_ctx: sdl_ctx,
 			shader_manager: ShaderManager::new(),
 			capabilities: Capabilities::new(),
+			backbuffer_size: Vec2i::splat(1),
 
-			canvas_size: Vec2i::splat(1),
+			resources: Resources::new(),
 		}
 	}
 
-	pub(crate) fn on_resize(&mut self, w: u32, h: u32) {
+	pub(crate) fn on_resize(&mut self, drawable_size: Vec2i) {
 		unsafe {
-			raw::Viewport(0, 0, w as _, h as _);
-			self.canvas_size = Vec2i::new(w as _, h as _);
+			raw::Viewport(0, 0, drawable_size.x, drawable_size.y);
 		}
+
+		self.backbuffer_size = drawable_size;
+		self.resources.on_resize(drawable_size);
 	}
 
-
-	pub fn canvas_size(&self) -> Vec2i { self.canvas_size }
+	pub fn backbuffer_size(&self) -> Vec2i { self.backbuffer_size }
 	pub fn aspect(&self) -> f32 {
-		let Vec2{x, y} = self.canvas_size.to_vec2();
+		let Vec2{x, y} = self.backbuffer_size.to_vec2();
 		x / y
 	}
 
 	pub fn capabilities(&self) -> &Capabilities { &self.capabilities }
+	pub fn resources(&mut self) -> &mut Resources { &mut self.resources }
 
-
-	pub fn set_wireframe(&self, wireframe_enabled: bool) {
-		let mode = match wireframe_enabled {
-			false => raw::FILL,
-			true => raw::LINE,
-		};
-
-		unsafe {
-			raw::PolygonMode(raw::FRONT_AND_BACK, mode);
+	pub fn render_state(&mut self) -> RenderState<'_> {
+		RenderState {
+			resources: &self.resources,
+			backbuffer_size: self.backbuffer_size,
 		}
 	}
 
-	pub fn new_untyped_buffer(&self, usage: BufferUsage) -> UntypedBuffer {
+
+	pub fn new_untyped_buffer(&mut self, usage: BufferUsage) -> UntypedBuffer {
 		unsafe {
 			let mut handle = 0;
 			raw::CreateBuffers(1, &mut handle);
@@ -92,21 +94,21 @@ impl Context {
 		}
 	}
 
-	pub fn new_buffer<T: Copy>(&self, usage: BufferUsage) -> Buffer<T> {
+	pub fn new_buffer<T: Copy>(&mut self, usage: BufferUsage) -> Buffer<T> {
 		self.new_untyped_buffer(usage).into_typed()
 	}
 
-	pub fn new_texture(&self, width: u32, height: u32, format: u32) -> Texture {
-		unsafe {
-			let mut tex = 0;
-			raw::CreateTextures(raw::TEXTURE_2D, 1, &mut tex);
-			raw::TextureStorage2D(tex, 1, format, width as i32, height as i32);
-			raw::TextureParameteri(tex, raw::TEXTURE_MIN_FILTER, raw::LINEAR as _);
-			Texture(tex)
-		}
+	pub fn new_texture(&mut self, size: impl Into<TextureSize>, format: TextureFormat) -> TextureKey {
+		let texture = Texture::new(size.into(), self.backbuffer_size, format);
+		self.resources.insert_texture(texture)
 	}
 
-	pub fn new_vao(&self) -> Vao {
+	pub fn new_framebuffer(&mut self, settings: FramebufferSettings) -> FramebufferKey {
+		let framebuffer = Framebuffer::new(settings, &mut self.resources, self.backbuffer_size);
+		self.resources.insert_framebuffer(framebuffer)
+	}
+
+	pub fn new_vao(&mut self) -> Vao {
 		unsafe {
 			let mut vao = 0;
 			raw::CreateVertexArrays(1, &mut vao);
@@ -114,44 +116,11 @@ impl Context {
 		}
 	}
 
-	pub fn new_query(&self) -> QueryObject {
+	pub fn new_query(&mut self) -> QueryObject {
 		unsafe {
 			let mut handle = 0;
 			raw::GenQueries(1, &mut handle);
 			QueryObject(handle)
-		}
-	}
-
-	pub fn bind_uniform_buffer(&self, binding: u32, buffer: impl Into<UntypedBuffer>) {
-		let buffer = buffer.into();
-		unsafe {
-			raw::BindBufferBase(raw::UNIFORM_BUFFER, binding, buffer.handle);
-		}
-	}
-
-	pub fn bind_shader_storage_buffer(&self, binding: u32, buffer: impl Into<UntypedBuffer>) {
-		let buffer = buffer.into();
-		unsafe {
-			raw::BindBufferBase(raw::SHADER_STORAGE_BUFFER, binding, buffer.handle);
-		}
-	}
-
-	pub fn bind_image_rw(&self, binding: u32, texture: Texture, format: u32) {
-		unsafe {
-			let (level, layered, layer) = (0, 0, 0);
-			raw::BindImageTexture(binding, texture.0, level, layered, layer, raw::READ_WRITE, format);
-		}
-	}
-
-	pub fn bind_texture(&self, binding: u32, texture: Texture) {
-		unsafe {
-			raw::BindTextureUnit(binding, texture.0);
-		}
-	}
-
-	pub fn bind_vao(&self, vao: Vao) {
-		unsafe {
-			raw::BindVertexArray(vao.handle);
 		}
 	}
 
@@ -160,51 +129,168 @@ impl Context {
 		self.shader_manager.add_import(name, src)
 	}
 
-	pub fn new_shader(&self, shaders: &[(u32, &str)]) -> Result<Shader, shader::CompilationError> {
+	pub fn new_shader(&mut self, shaders: &[(u32, &str)]) -> Result<Shader, shader::CompilationError> {
 		self.shader_manager.get_shader(shaders)
 	}
 
-	pub fn new_simple_shader(&self, vsrc: &str, fsrc: &str) -> Result<Shader, shader::CompilationError> {
+	pub fn new_simple_shader(&mut self, vsrc: &str, fsrc: &str) -> Result<Shader, shader::CompilationError> {
 		self.shader_manager.get_shader(&[
 			(raw::VERTEX_SHADER, vsrc),
 			(raw::FRAGMENT_SHADER, fsrc),
 		])
 	}
 
-	pub fn new_compute_shader(&self, csrc: &str) -> Result<Shader, shader::CompilationError> {
+	pub fn new_compute_shader(&mut self, csrc: &str) -> Result<Shader, shader::CompilationError> {
 		self.shader_manager.get_shader(&[
 			(raw::COMPUTE_SHADER, csrc)
 		])
 	}
+}
 
-	pub fn bind_shader(&self, shader: Shader) {
+
+
+pub struct RenderState<'ctx> {
+	resources: &'ctx Resources,
+	backbuffer_size: Vec2i,
+}
+
+impl<'ctx> RenderState<'ctx> {
+	pub fn set_wireframe(&mut self, wireframe_enabled: bool) {
+		let mode = match wireframe_enabled {
+			false => raw::FILL,
+			true => raw::LINE,
+		};
+
 		unsafe {
-			raw::UseProgram(shader.0);
+			raw::PolygonMode(raw::FRONT_AND_BACK, mode);
 		}
 	}
 
-
-	pub fn set_clear_color(&self, color: impl Into<Color>) {
+	pub fn set_clear_color(&mut self, color: impl Into<Color>) {
 		let (r,g,b,a) = color.into().to_tuple();
 		unsafe {
 			raw::ClearColor(r, g, b, a);
 		}
 	}
 
-	pub fn clear(&self, mode: ClearMode) {
+	pub fn clear(&mut self, mode: ClearMode) {
 		unsafe {
 			raw::Clear(mode.into_gl());
 		}
 	}
 
+	pub fn resources(&self) -> &'ctx Resources {
+		self.resources
+	}
 
-	pub fn draw_indexed(&self, draw_mode: DrawMode, num_elements: u32) {
+	pub fn get_framebuffer(&self, framebuffer: FramebufferKey) -> ResourceLock<Framebuffer> {
+		self.resources.get(framebuffer)
+	}
+
+	pub fn get_texture(&self, texture: TextureKey) -> ResourceLock<Texture> {
+		self.resources.get(texture)
+	}
+
+	pub fn bind_uniform_buffer(&mut self, binding: u32, buffer: impl Into<UntypedBuffer>) {
+		let buffer = buffer.into();
+		unsafe {
+			raw::BindBufferBase(raw::UNIFORM_BUFFER, binding, buffer.handle);
+		}
+	}
+
+	pub fn bind_shader_storage_buffer(&mut self, binding: u32, buffer: impl Into<UntypedBuffer>) {
+		let buffer = buffer.into();
+		unsafe {
+			raw::BindBufferBase(raw::SHADER_STORAGE_BUFFER, binding, buffer.handle);
+		}
+	}
+
+	pub fn bind_image_for_rw(&mut self, binding: u32, texture: TextureKey) {
+		// https://www.khronos.org/opengl/wiki/Image_Load_Store#Images_in_the_context
+		let (level, layered, layer) = (0, 0, 0);
+		let texture = texture.get(self.resources);
+
+		unsafe {
+			raw::BindImageTexture(binding, texture.texture_handle, level, layered, layer,
+				raw::READ_WRITE, texture.format().to_gl());
+		}
+	}
+
+	pub fn bind_image_for_read(&mut self, binding: u32, texture: TextureKey) {
+		let (level, layered, layer) = (0, 0, 0);
+		let texture = texture.get(self.resources);
+
+		unsafe {
+			raw::BindImageTexture(binding, texture.texture_handle, level, layered, layer,
+				raw::READ_ONLY, texture.format().to_gl());
+		}
+	}
+
+	pub fn bind_image_for_write(&mut self, binding: u32, texture: TextureKey) {
+		let (level, layered, layer) = (0, 0, 0);
+		let texture = texture.get(self.resources);
+
+		unsafe {
+			raw::BindImageTexture(binding, texture.texture_handle, level, layered, layer,
+				raw::WRITE_ONLY, texture.format().to_gl());
+		}
+	}
+
+	pub fn bind_texture(&mut self, binding: u32, texture: TextureKey) {
+		let texture = texture.get(self.resources);
+
+		unsafe {
+			raw::BindTextureUnit(binding, texture.texture_handle);
+			raw::BindSampler(binding, texture.sampler_handle);
+		}
+	}
+
+	pub fn bind_vao(&mut self, vao: Vao) {
+		unsafe {
+			raw::BindVertexArray(vao.handle);
+		}
+	}
+
+	pub fn bind_shader(&mut self, shader: Shader) {
+		unsafe {
+			raw::UseProgram(shader.0);
+		}
+	}
+
+	pub fn bind_framebuffer(&mut self, framebuffer: impl Into<Option<FramebufferKey>>) {
+		if let Some(framebuffer) = framebuffer.into() {
+			let framebuffer = framebuffer.get(self.resources);
+			let Vec2i{x,y} = framebuffer.size_mode.resolve(self.backbuffer_size);
+
+			unsafe {
+				raw::Viewport(0, 0, x, y);
+				raw::BindFramebuffer(raw::DRAW_FRAMEBUFFER, framebuffer.handle);
+			}
+		} else {
+			let Vec2i{x,y} = self.backbuffer_size;
+
+			unsafe {
+				raw::Viewport(0, 0, x, y);
+				raw::BindFramebuffer(raw::DRAW_FRAMEBUFFER, 0);
+			}
+		}
+	}
+
+	pub fn draw_indexed(&self, draw_mode: DrawMode, element_range: impl Into<IndexedDrawParams>) {
+		let IndexedDrawParams {
+			num_elements,
+			element_offset,
+			base_vertex,
+		} = element_range.into();
+
 		if num_elements == 0 {
 			return
 		}
 
+		let offset_ptr = (element_offset as usize * std::mem::size_of::<u16>()) as *const _;
+
 		unsafe {
-			raw::DrawElements(draw_mode.into_gl(), num_elements as i32, raw::UNSIGNED_SHORT, std::ptr::null());
+			raw::DrawElementsBaseVertex(draw_mode.into_gl(), num_elements as i32, raw::UNSIGNED_SHORT, offset_ptr, base_vertex as i32);
 		}
 	}
 
@@ -229,6 +315,11 @@ impl Context {
 	}
 
 	pub fn dispatch_compute(&self, x: u32, y: u32, z: u32) {
+		// see: GL_MAX_COMPUTE_WORK_GROUP_COUNT
+		assert!(x < 65535, "Work group exceeds guaranteed minimum size along x axis");
+		assert!(y < 65535, "Work group exceeds guaranteed minimum size along y axis");
+		assert!(z < 65535, "Work group exceeds guaranteed minimum size along z axis");
+
 		unsafe {
 			raw::DispatchCompute(x, y, z);
 		}
@@ -238,14 +329,15 @@ impl Context {
 
 
 
+
 extern "system" fn gl_message_callback(source: u32, ty: u32, _id: u32, severity: u32,
 	_length: i32, msg: *const i8, _ud: *mut std::ffi::c_void)
 {
-	let severity = match severity {
-		raw::DEBUG_SEVERITY_LOW => "low",
-		raw::DEBUG_SEVERITY_MEDIUM => "medium",
+	let severity_str = match severity {
 		raw::DEBUG_SEVERITY_HIGH => "high",
-		raw::DEBUG_SEVERITY_NOTIFICATION => "notification",
+		raw::DEBUG_SEVERITY_MEDIUM => "medium",
+		raw::DEBUG_SEVERITY_LOW => "low",
+		raw::DEBUG_SEVERITY_NOTIFICATION => return,
 		_ => panic!("Unknown severity {}", severity),
 	};
 
@@ -271,7 +363,7 @@ extern "system" fn gl_message_callback(source: u32, ty: u32, _id: u32, severity:
 
 	eprintln!("GL ERROR!");
 	eprintln!("Source:   {}", source);
-	eprintln!("Severity: {}", severity);
+	eprintln!("Severity: {}", severity_str);
 	eprintln!("Type:     {}", ty);
 
 	unsafe {
@@ -279,5 +371,37 @@ extern "system" fn gl_message_callback(source: u32, ty: u32, _id: u32, severity:
 		eprintln!("Message: {}", msg);
 	}
 
-	panic!("GL ERROR!");
+	match severity {
+		raw::DEBUG_SEVERITY_HIGH | raw::DEBUG_SEVERITY_MEDIUM => panic!("GL ERROR!"),
+		_ => {}
+	}
 }
+
+
+
+pub struct IndexedDrawParams {
+	pub num_elements: u32,
+	pub element_offset: u32,
+	pub base_vertex: u32,
+}
+
+impl IndexedDrawParams {
+	pub fn with_offset(self, element_offset: u32) -> IndexedDrawParams {
+		IndexedDrawParams {element_offset, ..self}
+	}
+
+	pub fn with_base_vertex(self, base_vertex: u32) -> IndexedDrawParams {
+		IndexedDrawParams {base_vertex, ..self}
+	}
+}
+
+impl<T> From<T> for IndexedDrawParams where T : Into<u32> {
+	fn from(num_elements: T) -> IndexedDrawParams {
+		IndexedDrawParams {
+			num_elements: num_elements.into(),
+			element_offset: 0,
+			base_vertex: 0,
+		}
+	}
+}
+

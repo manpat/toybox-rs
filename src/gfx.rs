@@ -5,19 +5,23 @@ pub mod raw {
 }
 
 pub mod context;
+pub mod resources;
 pub mod vao;
 pub mod buffer;
 pub mod texture;
+pub mod framebuffer;
 pub mod vertex;
 pub mod shader;
 pub mod query;
 pub mod capabilities;
 pub mod mesh;
 
-pub use self::context::Context;
+pub use self::context::*;
+pub use self::resources::*;
 pub use self::vao::*;
 pub use self::buffer::*;
 pub use self::texture::*;
+pub use self::framebuffer::*;
 pub use self::vertex::*;
 pub use self::shader::*;
 pub use self::query::*;

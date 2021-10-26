@@ -15,13 +15,13 @@ impl Vao {
 	}
 
 
-	pub fn bind_index_buffer(&self, index_buffer: impl Into<gfx::UntypedBuffer>) {
+	pub fn bind_index_buffer(&mut self, index_buffer: impl Into<gfx::UntypedBuffer>) {
 		unsafe {
 			raw::VertexArrayElementBuffer(self.handle, index_buffer.into().handle);
 		}
 	}
 
-	pub fn bind_vertex_buffer<V: gfx::Vertex>(&self, binding: u32, vertex_buffer: gfx::Buffer<V>) {
+	pub fn bind_vertex_buffer<V: gfx::Vertex>(&mut self, binding: u32, vertex_buffer: gfx::Buffer<V>) {
 		let descriptor = V::descriptor();
 		let stride = descriptor.size_bytes as i32;
 
@@ -32,12 +32,13 @@ impl Vao {
 				offset_bytes,
 				num_elements,
 				gl_type,
+				normalized,
 			} = attribute;
 
 			unsafe {
 				raw::EnableVertexArrayAttrib(self.handle, attribute_index);
 				raw::VertexArrayAttribBinding(self.handle, attribute_index, binding);
-				raw::VertexArrayAttribFormat(self.handle, attribute_index, num_elements as i32, gl_type, raw::FALSE, offset_bytes);
+				raw::VertexArrayAttribFormat(self.handle, attribute_index, num_elements as i32, gl_type, normalized as u8, offset_bytes);
 			}
 		}
 

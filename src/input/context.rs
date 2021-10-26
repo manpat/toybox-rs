@@ -1,3 +1,4 @@
+use common::math::{Vec2, Aabb2};
 use crate::input::raw;
 use crate::input::action::{self, Action, ActionID};
 use std::collections::HashMap;
@@ -15,6 +16,9 @@ pub struct InputContext {
 	name: String,
 	id: ContextID,
 
+	/// An arbitrary sort order - contexts with higher priorities will recieve events first
+	priority: isize,
+
 	actions: Vec<Action>,
 
 	/// The active bindings from buttons to an action index
@@ -29,10 +33,19 @@ impl InputContext {
 		InputContext {
 			name,
 			id,
+			priority: 0,
 			actions: Vec::new(),
 			button_mappings: HashMap::new(),
 			mouse_sensitivity: None,
 		}
+	}
+
+	pub fn name(&self) -> &str { &self.name }
+	pub fn id(&self) -> ContextID { self.id }
+	pub fn priority(&self) -> isize { self.priority }
+
+	pub fn actions(&self) -> impl Iterator<Item=&Action> {
+		self.actions.iter()
 	}
 
 	pub fn mouse_action(&self) -> Option<(&Action, ActionID)> {
@@ -117,5 +130,9 @@ impl<'is> Builder<'is> {
 
 	pub fn new_pointer(&mut self, name: impl Into<String>) -> ActionID {
 		self.new_action(Action::new_pointer(name))
+	}
+
+	pub fn set_priority(&mut self, priority: isize) {
+		self.context.priority = priority;
 	}
 }
