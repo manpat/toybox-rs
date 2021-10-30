@@ -9,13 +9,13 @@ sdl2 = { version = ">=0.33", features = ["bundled", "static-link"] }
 common = { git = "https://github.com/manpat/common-rs.git" }
 toy = { git = "https://github.com/manpat/toy-rs.git" }
 lewton = "0.10.*"
-thiserror = "1.0"
 bitflags = "1.2.*"
 slotmap = "1.0.*"
 imgui = "0.8"
+petgraph = "0.6"
 
+# thiserror = "1.0"
 # dasp = "0.11"
-# petgraph = "0.6"
 # symphonia = "0.4"
 
 
