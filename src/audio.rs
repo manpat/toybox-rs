@@ -2,12 +2,17 @@
 // https://www.youtube.com/watch?v=UuqcgQxpfO8
 
 pub mod system;
-pub mod file_stream;
-pub mod buffer;
-pub mod mixer;
-pub mod bus;
+pub mod nodes;
+pub mod intermediate_buffer;
 
-pub use system::{AudioSystem, SoundAssetID};
-pub use file_stream::FileStream;
-pub use buffer::Buffer;
-pub use bus::{Bus, BusID, SoundInstanceID};
+mod node_graph;
+mod buffer_cache;
+
+
+pub const MAX_NODE_INPUTS: usize = 16;
+
+
+pub use system::{AudioSystem, /*SoundAssetID*/};
+
+pub type SoundAssetID = ();
+pub type SoundInstanceID = ();
