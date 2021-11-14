@@ -13,16 +13,16 @@ struct InUseBuffer {
 }
 
 
-pub(in crate::audio) struct BufferCache {
+pub(in crate::audio) struct IntermediateBufferCache {
 	unused_buffers: Vec<IntermediateBuffer>,
 	in_use_buffers: HashMap<NodeKey, InUseBuffer>,
 
 	buffer_size: usize,
 }
 
-impl BufferCache {
-	pub fn new(buffer_size: usize) -> BufferCache {
-		BufferCache {
+impl IntermediateBufferCache {
+	pub fn new(buffer_size: usize) -> IntermediateBufferCache {
+		IntermediateBufferCache {
 			unused_buffers: Vec::new(),
 			in_use_buffers: HashMap::new(),
 			buffer_size,

@@ -1,10 +1,11 @@
 use crate::prelude::*;
-use crate::audio::{system::EvaluationContext, intermediate_buffer::IntermediateBuffer};
+use crate::audio::{system, system::EvaluationContext, intermediate_buffer::IntermediateBuffer};
 
 
-pub trait Node: 'static {
-	fn has_stereo_output(&self) -> bool;
-	fn process(&mut self, eval_ctx: &EvaluationContext, inputs: &[&IntermediateBuffer], output: &mut IntermediateBuffer);
+pub trait Node: 'static + Send + Sync {
+	fn has_stereo_output(&self, _: &EvaluationContext<'_>) -> bool;
+	fn finished_playing(&self, _: &EvaluationContext<'_>) -> bool { false }
+	fn process(&mut self, _: &EvaluationContext<'_>, inputs: &[&IntermediateBuffer], output: &mut IntermediateBuffer);
 }
 
 
@@ -30,9 +31,9 @@ impl MixerNode {
 }
 
 impl Node for MixerNode {
-	fn has_stereo_output(&self) -> bool { self.stereo }
+	fn has_stereo_output(&self, _: &EvaluationContext<'_>) -> bool { self.stereo }
 
-	fn process(&mut self, _eval_ctx: &EvaluationContext, inputs: &[&IntermediateBuffer], output: &mut IntermediateBuffer) {
+	fn process(&mut self, _eval_ctx: &EvaluationContext<'_>, inputs: &[&IntermediateBuffer], output: &mut IntermediateBuffer) {
 		assert!(output.stereo() == self.stereo);
 
 		output.fill(0.0);
@@ -78,9 +79,9 @@ impl PannerNode {
 }
 
 impl Node for PannerNode {
-	fn has_stereo_output(&self) -> bool { true }
+	fn has_stereo_output(&self, _: &EvaluationContext<'_>) -> bool { true }
 
-	fn process(&mut self, _eval_ctx: &EvaluationContext, inputs: &[&IntermediateBuffer], output: &mut IntermediateBuffer) {
+	fn process(&mut self, _eval_ctx: &EvaluationContext<'_>, inputs: &[&IntermediateBuffer], output: &mut IntermediateBuffer) {
 		assert!(output.stereo());
 
 		let input = &inputs[0];
@@ -117,9 +118,9 @@ impl OscillatorNode {
 }
 
 impl Node for OscillatorNode {
-	fn has_stereo_output(&self) -> bool { false }
+	fn has_stereo_output(&self, _: &EvaluationContext<'_>) -> bool { false }
 
-	fn process(&mut self, eval_ctx: &EvaluationContext, inputs: &[&IntermediateBuffer], output: &mut IntermediateBuffer) {
+	fn process(&mut self, eval_ctx: &EvaluationContext<'_>, inputs: &[&IntermediateBuffer], output: &mut IntermediateBuffer) {
 		assert!(inputs.is_empty());
 
 		let frame_period = TAU * self.freq / eval_ctx.sample_rate;
@@ -142,9 +143,9 @@ impl WidenNode {
 }
 
 impl Node for WidenNode {
-	fn has_stereo_output(&self) -> bool { true }
+	fn has_stereo_output(&self, _: &EvaluationContext<'_>) -> bool { true }
 
-	fn process(&mut self, _eval_ctx: &EvaluationContext, inputs: &[&IntermediateBuffer], output: &mut IntermediateBuffer) {
+	fn process(&mut self, _eval_ctx: &EvaluationContext<'_>, inputs: &[&IntermediateBuffer], output: &mut IntermediateBuffer) {
 		assert!(inputs.len() == 1);
 		assert!(output.stereo());
 
@@ -157,3 +158,57 @@ impl Node for WidenNode {
 		}
 	}
 }
+
+
+
+
+pub struct SamplerNode {
+	sound_id: system::SoundId,
+	position: usize,
+}
+
+impl SamplerNode {
+	pub fn new(sound_id: system::SoundId) -> SamplerNode {
+		SamplerNode {
+			sound_id,
+			position: 0,
+		}
+	}
+}
+
+
+impl Node for SamplerNode {
+	fn has_stereo_output(&self, _: &EvaluationContext<'_>) -> bool { false }
+
+	fn finished_playing(&self, eval_ctx: &EvaluationContext<'_>) -> bool {
+		let buffer = &eval_ctx.resources.get(self.sound_id);
+		self.position >= buffer.len()
+	}
+
+	fn process(&mut self, eval_ctx: &EvaluationContext<'_>, inputs: &[&IntermediateBuffer], output: &mut IntermediateBuffer) {
+		assert!(inputs.is_empty());
+		assert!(!output.stereo());
+
+		let buffer = &eval_ctx.resources.get(self.sound_id);
+
+		if self.position >= buffer.len() {
+			output.fill(0.0);
+			return;
+		}
+
+		let buffer_remaining = &buffer[self.position..];
+
+		for (out_sample, in_sample) in output.iter_mut().zip(buffer_remaining) {
+			*out_sample = *in_sample;
+		}
+
+		// Fill rest
+		if buffer_remaining.len() < output.len() {
+			output[buffer_remaining.len()..].fill(0.0);
+		}
+
+		self.position += output.len();
+	}
+}
+
+

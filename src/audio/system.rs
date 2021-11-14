@@ -1,99 +1,265 @@
 use crate::prelude::*;
 use crate::audio::nodes::Node;
-use crate::audio::node_graph::NodeGraph;
+use crate::audio::node_graph::{NodeGraph, NodeId};
+use crate::audio::ringbuffer::{Ringbuffer, RingbufferReadLock};
 
-use crate::audio::nodes::*;
+use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread::{self, JoinHandle};
 
-pub struct EvaluationContext {
+
+pub struct EvaluationContext<'sys> {
 	pub sample_rate: f32,
+	pub resources: &'sys Resources,
 }
 
-use petgraph::graph::NodeIndex;
+
 
 pub struct AudioSystem {
-	audio_queue: sdl2::audio::AudioQueue<f32>,
-	node_graph: NodeGraph,
+	audio_device: sdl2::audio::AudioDevice<AudioSubmissionWorker>,
+	inner: Arc<Mutex<Inner>>,
+
+	running: Arc<AtomicBool>,
+	producer_thread_handle: Option<JoinHandle<()>>,
 }
+
 
 impl AudioSystem {
 	pub fn new(sdl_audio: sdl2::AudioSubsystem) -> Result<AudioSystem, Box<dyn Error>> {
 		let desired_spec = sdl2::audio::AudioSpecDesired {
 			freq: Some(44100),
 			channels: Some(2),
-			samples: Some(512),
+			samples: Some(128),
 		};
 
-		let audio_queue = sdl_audio.open_queue(None, &desired_spec)?;
-		audio_queue.resume();
-
-		let spec = audio_queue.spec();
-		assert!(spec.freq == 44100);
-		assert!(spec.channels == 2);
-
-		let mut system = AudioSystem {
-			audio_queue,
+		let inner = Inner {
 			node_graph: NodeGraph::new(),
+			resources: Resources::new(),
+			sample_rate: 44100.0,
 		};
 
-		let global_mixer_node = system.add_node_with_send(MixerNode::new_stereo(0.2), system.output_node());
+		let inner = Arc::new(Mutex::new(inner));
+		let sample_buffer = Arc::new(Ringbuffer::new(128*10));
+		let running = Arc::new(AtomicBool::new(true));
 
-		let panner_node = system.add_node_with_send(PannerNode::new(1.0), global_mixer_node);
-		let mixer_node = system.add_node_with_send(MixerNode::new(2.0), panner_node);
-		for freq in [55.0, 330.0] {
-			system.add_node_with_send(OscillatorNode::new(freq), mixer_node);
-		}
+		// TODO(pat.m): if any of the below functions fail, then its possible for this thread never to be killed.
+		// make sure its killed properly on failure
+		let producer_thread_builder = thread::Builder::new().name("audio producer".into());
+		let producer_thread_handle = producer_thread_builder.spawn({
+			let inner = inner.clone();
+			let running = running.clone();
+			let sample_buffer = sample_buffer.clone();
+ 
+			move || {
+				audio_producer_worker(inner, sample_buffer, running)
+			}
+		})?;
 
-		let panner_node = system.add_node_with_send(PannerNode::new(-1.0), global_mixer_node);
-		let mixer_node = system.add_node_with_send(MixerNode::new(1.0), panner_node);
-		for freq in [220.0, 110.0, 550.0] {
-			system.add_node_with_send(OscillatorNode::new(freq), mixer_node);
-		}
+		let create_submission_worker = |spec: sdl2::audio::AudioSpec| {
+			assert!(spec.freq == 44100);
+			assert!(spec.channels == 2);
 
-		Ok(system)
+			let inner = inner.clone();
+			let sample_buffer = sample_buffer.clone();
+
+			{
+				let mut inner_mut = inner.lock().unwrap();
+				inner_mut.sample_rate = spec.freq as f32;
+			}
+
+			AudioSubmissionWorker {
+				inner,
+				sample_buffer,
+			}
+		};
+
+		let audio_device = sdl_audio.open_playback(None, &desired_spec, create_submission_worker)?;
+		audio_device.resume();
+
+		Ok(AudioSystem {
+			audio_device,
+			inner,
+
+			running,
+			producer_thread_handle: Some(producer_thread_handle),
+		})
 	}
 
 
 	pub fn update(&mut self) {
-		let spec = self.audio_queue.spec();
+		// Doesn't have to happen that often really
+		let mut inner_lock = self.inner.lock().unwrap();
+		let inner = &mut *inner_lock;
 
-		let threshold_size = 1.0 / 60.0 * spec.freq as f32 * spec.channels as f32;
-		let threshold_size = threshold_size as u32 * std::mem::size_of::<f32>() as u32;
+		let sample_rate = inner.sample_rate;
 
 		let eval_ctx = EvaluationContext {
-			sample_rate: spec.freq as f32,
+			sample_rate,
+			resources: &inner.resources,
 		};
 
-		println!("======");
+		inner.node_graph.cleanup_finished_nodes(&eval_ctx);
+	}
 
-		self.node_graph.update();
+	pub fn output_node(&self) -> NodeId {
+		self.inner.lock().unwrap().node_graph.output_node()
+	}
 
-		while self.audio_queue.size() < threshold_size {
-			let output_buffer = self.node_graph.process(&eval_ctx);
+	pub fn add_node(&mut self, node: impl Node) -> NodeId {
+		self.inner.lock().unwrap().node_graph.add_node(node)
+	}
 
-			// Submit audio frame
-			self.audio_queue.queue(&output_buffer);
+	pub fn add_send(&mut self, node: NodeId, target: NodeId) {
+		self.inner.lock().unwrap().node_graph.add_send(node, target)
+	}
+
+	pub fn add_node_with_send(&mut self, node: impl Node, send_node: NodeId) -> NodeId {
+		let mut inner = self.inner.lock().unwrap();
+		let node_id = inner.node_graph.add_node(node);
+		inner.node_graph.add_send(node_id, send_node);
+		node_id
+	}
+
+	pub fn remove_node(&mut self, node: NodeId) {
+		self.inner.lock().unwrap().node_graph.remove_node(node)
+	}
+
+	pub fn add_sound(&mut self, buffer: Vec<f32>) -> SoundId {
+		let key = self.inner.lock().unwrap().resources.buffers.insert(buffer);
+		SoundId(key)
+	}
+}
+
+
+impl Drop for AudioSystem {
+	fn drop(&mut self) {
+		self.running.store(false, Ordering::Relaxed);
+
+		if let Some(handle) = self.producer_thread_handle.take() {
+			handle.join().unwrap();
+		}
+	}
+}
+
+
+
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+pub struct SoundId(ResourceKey);
+
+slotmap::new_key_type! { pub(in crate::audio) struct ResourceKey; }
+
+pub struct Resources {
+	buffers: slotmap::SlotMap<ResourceKey, Vec<f32>>,
+}
+
+impl Resources {
+	fn new() -> Resources {
+		let buffers = slotmap::SlotMap::with_key();
+		Resources {
+			buffers,
 		}
 	}
 
-	pub fn output_node(&self) -> NodeIndex {
-		self.node_graph.output_node()
+	pub fn get(&self, sound_id: SoundId) -> &[f32] {
+		&self.buffers[sound_id.0]
 	}
+}
 
-	pub fn add_node(&mut self, node: impl Node) -> NodeIndex {
-		self.node_graph.add_node(node)
+
+
+
+
+struct Inner {
+	node_graph: NodeGraph,
+	resources: Resources,
+	sample_rate: f32,
+}
+
+impl Inner {
+	fn generate(&mut self) -> &[f32] {
+		let eval_ctx = EvaluationContext {
+			sample_rate: self.sample_rate,
+			resources: &self.resources,
+		};
+
+		self.node_graph.process(&eval_ctx)
 	}
+}
 
-	pub fn add_send(&mut self, node: NodeIndex, target: NodeIndex) {
-		self.node_graph.add_send(node, target)
+
+
+
+struct AudioSubmissionWorker {
+	inner: Arc<Mutex<Inner>>,
+	sample_buffer: Arc<Ringbuffer<f32>>,
+}
+
+impl sdl2::audio::AudioCallback for AudioSubmissionWorker {
+	type Channel = f32;
+
+	fn callback(&mut self, output: &mut [Self::Channel]) {
+		let lock @ RingbufferReadLock {presplit, postsplit, ..} = self.sample_buffer.lock_for_read(output.len());
+		let total_len = lock.len();
+
+		output[..presplit.len()].copy_from_slice(presplit);
+		output[presplit.len()..total_len].copy_from_slice(postsplit);
+
+		if total_len < output.len() {
+			// Buffer underflow - fill with zeroes
+			output[total_len..].fill(0.0);
+		}
 	}
+}
 
-	pub fn add_node_with_send(&mut self, node: impl Node, send_node: NodeIndex) -> NodeIndex {
-		let node_index = self.node_graph.add_node(node);
-		self.node_graph.add_send(node_index, send_node);
-		node_index
+
+
+fn audio_producer_worker(inner: Arc<Mutex<Inner>>, sample_buffer: Arc<Ringbuffer<f32>>, running: Arc<AtomicBool>) {
+	set_realtime_thread_priority();
+
+	while running.load(Ordering::Relaxed) {
+		let mut inner = inner.lock().unwrap();
+		inner.node_graph.update_topology();
+
+		// TODO(pat.m): get this number from the node graph
+		let buffer_size = 2*256;
+
+		loop {
+			if sample_buffer.free_capacity() < buffer_size {
+				break
+			}
+
+			let buffer = inner.generate();
+
+			let write_lock = sample_buffer.lock_for_write(buffer.len());
+			assert!(write_lock.len() == buffer.len());
+
+			let split_len = write_lock.presplit.len();
+			write_lock.presplit.copy_from_slice(&buffer[..split_len]);
+			write_lock.postsplit.copy_from_slice(&buffer[split_len..]);
+		}
+
+		drop(inner);
+
+		thread::sleep(std::time::Duration::from_millis(2));
 	}
+}
 
-	pub fn remove_node(&mut self, node: NodeIndex) {
-		self.node_graph.remove_node(node)
+
+
+fn set_realtime_thread_priority() {
+	#[cfg(windows)] {
+		use winapi::um::processthreadsapi::{GetCurrentThread, SetThreadPriority};
+
+		let priority = winapi::um::winbase::THREAD_PRIORITY_TIME_CRITICAL;
+
+		let set_priority_succeeded = unsafe {
+			let current_thread = GetCurrentThread();
+			SetThreadPriority(current_thread, priority as i32) != 0
+		};
+
+		assert!(set_priority_succeeded);
+
+		// TODO(pat.m): GetLastError FormatMessage
 	}
 }

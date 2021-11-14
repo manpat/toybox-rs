@@ -1,8 +1,8 @@
 use crate::prelude::*;
 use crate::audio::{nodes::*};
 use crate::audio::intermediate_buffer::IntermediateBuffer;
+use crate::audio::intermediate_buffer_cache::IntermediateBufferCache;
 use crate::audio::system::EvaluationContext;
-use crate::audio::buffer_cache::BufferCache;
 use crate::audio::MAX_NODE_INPUTS;
 
 use petgraph::stable_graph::StableGraph;
@@ -12,11 +12,19 @@ use std::mem::MaybeUninit;
 
 slotmap::new_key_type! { pub(in crate::audio) struct NodeKey; }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct NodeId {
+	index: NodeIndex,
+	key: NodeKey,
+}
+
+
 pub(in crate::audio) struct NodeGraph {
 	connectivity: StableGraph<NodeKey, (), petgraph::Directed>,
 	nodes: slotmap::SlotMap<NodeKey, Box<dyn Node>>,
 
-	buffer_cache: BufferCache,
+	buffer_cache: IntermediateBufferCache,
+	output_node_key: NodeKey,
 	output_node_index: NodeIndex,
 
 	// A processed version of `connectivity` with redunant nodes removed
@@ -32,47 +40,73 @@ impl NodeGraph {
 		let mut connectivity = StableGraph::new();
 		let mut nodes: slotmap::SlotMap<_, Box<dyn Node>> = slotmap::SlotMap::with_key();
 
-		let output_node_index = MixerNode::new_stereo(1.0);
-		let output_node_index = connectivity.add_node(nodes.insert(Box::new(output_node_index)));
+		let output_node = MixerNode::new_stereo(1.0);
+		let output_node_key = nodes.insert(Box::new(output_node));
+		let output_node_index = connectivity.add_node(output_node_key);
 
 		NodeGraph {
 			connectivity,
 			nodes,
-			buffer_cache: BufferCache::new(1024),
+			buffer_cache: IntermediateBufferCache::new(256),
+			output_node_key,
 			output_node_index,
 
 			ordered_node_cache: Vec::new(),
 			pruned_connectivity: StableGraph::new(),
-			topology_dirty: false,
+			topology_dirty: true,
 		}
 	}
 
-	pub fn output_node(&self) -> NodeIndex {
-		self.output_node_index
+	pub fn output_node(&self) -> NodeId {
+		NodeId {
+			index: self.output_node_index,
+			key: self.output_node_key,
+		}
 	}
 
-	pub fn add_node(&mut self, node: impl Node) -> NodeIndex {
+	pub fn add_node(&mut self, node: impl Node) -> NodeId {
 		let node_key = self.nodes.insert(Box::new(node));
 		let node_index = self.connectivity.add_node(node_key);
 		// I guess there's no reason to recalc ordered_node_cache until nodes are connected
 		// self.topology_dirty = true;
-		node_index
+		NodeId { index: node_index, key: node_key }
 	}
 
-	pub fn add_send(&mut self, node: NodeIndex, target: NodeIndex) {
-		self.connectivity.add_edge(node, target, ());
+	pub fn add_send(&mut self, node: NodeId, target: NodeId) {
+		self.connectivity.add_edge(node.index, target.index, ());
 		self.topology_dirty = true;
 	}
 
-	pub fn remove_node(&mut self, node: NodeIndex) {
-		assert!(node != self.output_node_index, "Trying to remove output node");
-		if let Some(key) = self.connectivity.remove_node(node) {
+	pub fn remove_node(&mut self, node: NodeId) {
+		assert!(node.index != self.output_node_index, "Trying to remove output node");
+		if let Some(key) = self.connectivity.remove_node(node.index) {
+			assert!(node.key == key);
 			self.nodes.remove(key);
 			self.topology_dirty = true;
 		}
 	}
 
-	pub fn update(&mut self) {
+	pub fn cleanup_finished_nodes(&mut self, eval_ctx: &EvaluationContext<'_>) {
+		use petgraph::visit::IntoNodeReferences;
+
+		let mut finished_nodes = Vec::new();
+
+		// not sure I like doing this automatically?
+		for (node_index, &node_key) in self.connectivity.node_references() {
+			let node = &self.nodes[node_key];
+			if node.finished_playing(eval_ctx) {
+				finished_nodes.push((node_index, node_key));
+			}
+		}
+
+		// TODO(pat.m): can this be done without the temp vector?
+		for (index, key) in finished_nodes {
+			println!("removing node {:?}", index);
+			self.remove_node(NodeId{index, key});
+		}
+	}
+
+	pub fn update_topology(&mut self) {
 		use petgraph::algo::{has_path_connecting, DfsSpace};
 
 		// Recalculate node evaluation order if the topology of the connectivity graph has changed
@@ -85,6 +119,10 @@ impl NodeGraph {
 		// Remove nodes not connected to the output node
 		self.pruned_connectivity = self.connectivity.filter_map(
 			|node_idx, &node_key| {
+				if node_idx == self.output_node_index {
+					return Some(node_key);
+				}
+
 				if !has_path_connecting(&self.connectivity, node_idx, self.output_node_index, Some(&mut dfs)) {
 					None
 				} else {
@@ -95,6 +133,8 @@ impl NodeGraph {
 			|_, &edge_key| Some(edge_key),
 		);
 
+		println!("{:?}", self.pruned_connectivity);
+
 		// Calculate final evaluation order
 		self.ordered_node_cache = petgraph::algo::toposort(&self.pruned_connectivity, None)
 			.expect("Connectivity graph is not a DAG");
@@ -102,7 +142,7 @@ impl NodeGraph {
 		self.topology_dirty = false;
 	}
 
-	pub fn process(&mut self, eval_ctx: &EvaluationContext) -> &[f32] {
+	pub fn process(&mut self, eval_ctx: &EvaluationContext<'_>) -> &[f32] {
 		assert!(!self.topology_dirty);
 
 		use petgraph::Direction;
@@ -111,14 +151,14 @@ impl NodeGraph {
 		// buffers for outgoing external nodes are correctly collected.
 		self.buffer_cache.mark_all_unused();
 
-		println!("{} buffers, {} nodes", self.buffer_cache.total_buffer_count(), self.nodes.len());
+		// println!("{} buffers, {} nodes", self.buffer_cache.total_buffer_count(), self.nodes.len());
 
 		for &node_index in self.ordered_node_cache.iter() {
 			let node_key = self.pruned_connectivity[node_index];
 			let node = &mut self.nodes[node_key];
 
 			// Fetch a buffer large enough for the nodes output
-			let mut output_buffer = self.buffer_cache.new_buffer(node.has_stereo_output());
+			let mut output_buffer = self.buffer_cache.new_buffer(node.has_stereo_output(eval_ctx));
 
 			// Collect all inputs for this node
 			let incoming_nodes = self.pruned_connectivity.neighbors_directed(node_index, Direction::Incoming)
