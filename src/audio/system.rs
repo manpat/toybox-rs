@@ -58,18 +58,13 @@ impl AudioSystem {
 		let create_submission_worker = |spec: sdl2::audio::AudioSpec| {
 			assert!(spec.freq == 44100);
 			assert!(spec.channels == 2);
-
-			let inner = inner.clone();
-			let sample_buffer = sample_buffer.clone();
-
 			{
 				let mut inner_mut = inner.lock().unwrap();
 				inner_mut.sample_rate = spec.freq as f32;
 			}
 
 			AudioSubmissionWorker {
-				inner,
-				sample_buffer,
+				sample_buffer: sample_buffer.clone(),
 			}
 		};
 
@@ -147,17 +142,24 @@ impl Drop for AudioSystem {
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct SoundId(ResourceKey);
 
-slotmap::new_key_type! { pub(in crate::audio) struct ResourceKey; }
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+pub struct ParameterId(ParameterKey);
+
+slotmap::new_key_type! {
+	pub(in crate::audio) struct ResourceKey;
+	pub(in crate::audio) struct ParameterKey;
+}
 
 pub struct Resources {
 	buffers: slotmap::SlotMap<ResourceKey, Vec<f32>>,
+	parameters: slotmap::SlotMap<ParameterKey, f32>,
 }
 
 impl Resources {
 	fn new() -> Resources {
-		let buffers = slotmap::SlotMap::with_key();
 		Resources {
-			buffers,
+			buffers: slotmap::SlotMap::with_key(),
+			parameters: slotmap::SlotMap::with_key(),
 		}
 	}
 
@@ -191,7 +193,6 @@ impl Inner {
 
 
 struct AudioSubmissionWorker {
-	inner: Arc<Mutex<Inner>>,
 	sample_buffer: Arc<Ringbuffer<f32>>,
 }
 

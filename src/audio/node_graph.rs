@@ -10,9 +10,11 @@ use petgraph::graph::NodeIndex;
 use std::mem::MaybeUninit;
 
 
-slotmap::new_key_type! { pub(in crate::audio) struct NodeKey; }
+slotmap::new_key_type! {
+	pub(in crate::audio) struct NodeKey;
+}
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NodeId {
 	index: NodeIndex,
 	key: NodeKey,
@@ -173,7 +175,13 @@ impl NodeGraph {
 			let input_buffers = init_fixed_buffer_from_iterator(&mut storage, input_node_buffers);
 
 			// Update node state and completely fill output_buffer
-			node.process(&eval_ctx, input_buffers, &mut output_buffer);
+			let process_ctx = ProcessContext {
+				eval_ctx,
+				inputs: input_buffers,
+				output: &mut output_buffer,
+			};
+
+			node.process(process_ctx);
 
 			// Mark all input buffers as being used once - potentially collecting them for reuse
 			for node_key in incoming_nodes {
@@ -212,8 +220,8 @@ fn init_fixed_buffer_from_iterator<'s, T, I, const N: usize>(storage: &'s mut [M
 	}
 
 	unsafe {
-		let initialised_slice = &storage[..initialized_count];
-		std::mem::transmute::<&[MaybeUninit<T>], &[T]>(initialised_slice)
+		let initialized_slice = &storage[..initialized_count];
+		std::mem::transmute::<&[MaybeUninit<T>], &[T]>(initialized_slice)
 	}
 }
 
