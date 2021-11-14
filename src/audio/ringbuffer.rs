@@ -19,13 +19,12 @@ pub struct Ringbuffer<T: Copy> {
 	/// it is toggled every time this pointer crosses `size`.
 	read_ptr: AtomicU32,
 
-	// End of ready data - write head, exclusive read tail
-	// When head == tail, ringbuffer is empty
-	// When head == tail-1, ringbuffer is full
-	// NOTE: this does mean one sample will be unused when full - I'm sure there are solutions to this but for now it doesn't matter
+	/// Encodes end of ready data, and the start of the unused writable data.
+	/// Most significant bit stores a 1b 'loop flag' to track parity of loop count.
+	/// it is toggled every time this pointer crosses `size`.
 	write_ptr: AtomicU32,
 
-	// Bitset determining whether buffer is locked for read or write
+	/// Bitset determining whether buffer is locked for read or write
 	lock: AtomicU32,
 }
 
