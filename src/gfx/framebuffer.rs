@@ -94,7 +94,7 @@ impl Framebuffer {
 	}
 
 	// HACK: this should take &mut self probably, but can't while Resources uses RefCell nonsense
-	pub(super) fn rebind_attachments(&self, resources: &gfx::Resources) {
+	pub(super) fn rebind_attachments(&mut self, resources: &gfx::resources::ResourceStore<Texture>) {
 		if let Some(Attachment{attachment_point, texture_key}) = self.depth_stencil_attachment {
 			let texture_handle = resources.get(texture_key).texture_handle;
 			unsafe {
