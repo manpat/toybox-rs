@@ -63,10 +63,8 @@ impl<T: Resource> ResourcesRefCell<T> {
 		self.store_borrow_state.borrow();
 
 		// Now that we've locked inner for read, we can safely dereference it, and get a reference to the resource.
-		// NOTE: we are making the assumption that `f` DOES NOT modify the storage of resources, and only creates a
-		// new reference into the storage. anything else would probably cause UB.
-		// We are also assuming that there is no reentrancy, since that could create aliasing
-		// mutable references, which would also be UB.
+		// TODO(pat.m): need to check that this is actually sound - not sure how much is actually guaranteeing there are
+		// no other mutable references to inner at this point.
 		let inner = unsafe { &mut *self.inner.get() };
 		let (resource, resource_borrow_state) = &mut inner.storage[key];
 
