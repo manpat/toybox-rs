@@ -1,4 +1,5 @@
 use crate::gfx::*;
+use crate::utility::{ResourceLock};
 
 pub struct Context {
 	_sdl_ctx: sdl2::video::GLContext,

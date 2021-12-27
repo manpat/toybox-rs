@@ -4,6 +4,8 @@ use crate::gfx::{
 	Texture, TextureSize, TextureFormat, TextureKey,
 };
 
+use crate::utility::resource::ResourceStore;
+
 #[derive(Debug)]
 struct Attachment {
 	attachment_point: u32,
@@ -94,16 +96,16 @@ impl Framebuffer {
 	}
 
 	// HACK: this should take &mut self probably, but can't while Resources uses RefCell nonsense
-	pub(super) fn rebind_attachments(&mut self, resources: &gfx::resources::ResourceStore<Texture>) {
+	pub(super) fn rebind_attachments(&mut self, textures: &ResourceStore<Texture>) {
 		if let Some(Attachment{attachment_point, texture_key}) = self.depth_stencil_attachment {
-			let texture_handle = resources.get(texture_key).texture_handle;
+			let texture_handle = textures.get(texture_key).texture_handle;
 			unsafe {
 				raw::NamedFramebufferTexture(self.handle, attachment_point, texture_handle, 0);
 			}
 		}
 
 		for &Attachment{attachment_point, texture_key} in self.color_attachments.iter() {
-			let handle = resources.get(texture_key).texture_handle;
+			let handle = textures.get(texture_key).texture_handle;
 			unsafe {
 				raw::NamedFramebufferTexture(self.handle, attachment_point, handle, 0);
 			}

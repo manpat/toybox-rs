@@ -6,6 +6,7 @@ pub mod perf;
 pub mod window;
 pub mod input;
 pub mod audio;
+pub mod utility;
 pub mod imgui_backend;
 
 pub use crate::prelude::*;
