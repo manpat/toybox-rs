@@ -1,5 +1,10 @@
 use crate::prelude::*;
-use crate::audio::{system, system::EvaluationContext, intermediate_buffer::IntermediateBuffer};
+use crate::audio::{
+	system, system::EvaluationContext,
+	intermediate_buffer::IntermediateBuffer,
+	parameter::Parameter,
+};
+
 
 
 pub trait Node: 'static + Send + Sync {
@@ -20,20 +25,22 @@ pub struct ProcessContext<'ctx> {
 
 pub struct MixerNode {
 	// parameter
-	gain: f32,
+	gain: Parameter<f32>,
 	stereo: bool,
 }
 
 
 impl MixerNode {
-	pub fn new(gain: f32) -> MixerNode {
-		MixerNode { gain, stereo: false }
+	pub fn new(gain: impl Into<Parameter<f32>>) -> MixerNode {
+		MixerNode { gain: gain.into(), stereo: false }
 	}
 
-	pub fn new_stereo(gain: f32) -> MixerNode {
-		MixerNode { gain, stereo: true }
+	pub fn new_stereo(gain: impl Into<Parameter<f32>>) -> MixerNode {
+		MixerNode { gain: gain.into(), stereo: true }
 	}
 }
+
+use std::mem::MaybeUninit;
 
 impl Node for MixerNode {
 	fn has_stereo_output(&self, _: &EvaluationContext<'_>) -> bool { self.stereo }
@@ -43,17 +50,25 @@ impl Node for MixerNode {
 
 		output.fill(0.0);
 
+		let mut gain_storage = [MaybeUninit::<f32>::uninit(); 2048];
+		let gain_samples = if self.stereo { output.len()/2 } else { output.len() };
+
+		let gains = std::iter::repeat_with(|| self.gain.get()).take(gain_samples);
+		let gains = init_fixed_buffer_from_iterator(&mut gain_storage, gains);
+
+
+		// let gain = self.gain.get();
 		if self.stereo {
 			for input in inputs {
 				if input.stereo() {
-					for ([out_l, out_r], &[in_l, in_r]) in output.array_chunks_mut::<2>().zip(input.array_chunks::<2>()) {
-						*out_l += in_l * self.gain;
-						*out_r += in_r * self.gain;
+					for (([out_l, out_r], &[in_l, in_r]), &gain) in output.array_chunks_mut::<2>().zip(input.array_chunks::<2>()).zip(gains) {
+						*out_l += in_l * gain;
+						*out_r += in_r * gain;
 					}
 				} else {
-					for ([out_l, out_r], &in_sample) in output.array_chunks_mut::<2>().zip(input.iter()) {
-						*out_l += in_sample * self.gain;
-						*out_r += in_sample * self.gain;
+					for (([out_l, out_r], &in_sample), &gain) in output.array_chunks_mut::<2>().zip(input.iter()).zip(gains) {
+						*out_l += in_sample * gain;
+						*out_r += in_sample * gain;
 					}
 				}
 			}
@@ -61,13 +76,30 @@ impl Node for MixerNode {
 			for input in inputs {
 				assert!(!input.stereo(), "Trying to mix stereo signal with mono MixerNode");
 
-				for (out_sample, &in_sample) in output.iter_mut().zip(input.iter()) {
-					*out_sample += in_sample * self.gain;
+				for ((out_sample, &in_sample), &gain) in output.iter_mut().zip(input.iter()).zip(gains) {
+					*out_sample += in_sample * gain;
 				}
 			}
 		}
 	}
 }
+
+
+fn init_fixed_buffer_from_iterator<'s, T, I, const N: usize>(storage: &'s mut [MaybeUninit<T>; N], iter: I) -> &'s [T]
+	where T: Copy, I: Iterator<Item=T>
+{
+	let mut initialized_count = 0;
+	for (target, source) in storage.iter_mut().zip(iter) {
+		target.write(source);
+		initialized_count += 1;
+	}
+
+	unsafe {
+		let initialized_slice = &storage[..initialized_count];
+		std::mem::transmute::<&[MaybeUninit<T>], &[T]>(initialized_slice)
+	}
+}
+
 
 
 
@@ -106,7 +138,7 @@ impl Node for PannerNode {
 
 pub struct OscillatorNode {
 	// parameter
-	freq: f32,
+	freq: Parameter<f32>,
 
 	// state
 	phase: f32,
@@ -114,9 +146,9 @@ pub struct OscillatorNode {
 
 
 impl OscillatorNode {
-	pub fn new(freq: f32) -> OscillatorNode {
+	pub fn new(freq: impl Into<Parameter<f32>>) -> OscillatorNode {
 		OscillatorNode {
-			freq,
+			freq: freq.into(),
 			phase: 0.0,
 		}
 	}
@@ -128,9 +160,11 @@ impl Node for OscillatorNode {
 	fn process(&mut self, ProcessContext{eval_ctx, inputs, output}: ProcessContext<'_>) {
 		assert!(inputs.is_empty());
 
-		let frame_period = TAU * self.freq / eval_ctx.sample_rate;
+		let frame_inc = TAU / eval_ctx.sample_rate;
 
 		for out_sample in output.iter_mut() {
+			let frame_period = self.freq.get() * frame_inc;
+
 			*out_sample = self.phase.sin();
 			self.phase += frame_period;
 		}
