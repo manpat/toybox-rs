@@ -10,6 +10,13 @@ use petgraph::graph::NodeIndex;
 use std::mem::MaybeUninit;
 
 
+// TODO(pat.m): associate flags with nodes
+// allow nodes to be marked as 'persistent' or 'ephemeral'
+// if ephemeral, clean up if no ancestor nodes are playing audio - e.g., fx chains
+// if persistent, don't clean up even if there are no inputs generating audio - e.g., for mixer nodes with saved references
+
+
+
 slotmap::new_key_type! {
 	pub(in crate::audio) struct NodeKey;
 }
@@ -214,9 +221,9 @@ fn init_fixed_buffer_from_iterator<'s, T, I, const N: usize>(storage: &'s mut [M
 	where T: Copy, I: Iterator<Item=T>
 {
 	let mut initialized_count = 0;
-	for (index, (target, source)) in storage.iter_mut().zip(iter).enumerate() {
+	for (target, source) in storage.iter_mut().zip(iter) {
 		target.write(source);
-		initialized_count = index+1;
+		initialized_count += 1;
 	}
 
 	unsafe {

@@ -123,6 +123,15 @@ impl AudioSystem {
 		let key = self.inner.lock().unwrap().resources.buffers.insert(buffer);
 		SoundId(key)
 	}
+
+	
+	// pub fn add_parameter<T: ParameterData>(&mut self, initial_value: T) -> ParameterId<T> {
+	// 	todo!()
+	// }
+
+	// pub fn push_parameter<T: ParameterData>(&mut self, param: ParameterId<T>, value: T) {
+	// 	todo!()
+	// }
 }
 
 
@@ -142,9 +151,6 @@ impl Drop for AudioSystem {
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct SoundId(ResourceKey);
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
-pub struct ParameterId(ParameterKey);
-
 slotmap::new_key_type! {
 	pub(in crate::audio) struct ResourceKey;
 	pub(in crate::audio) struct ParameterKey;
@@ -152,14 +158,13 @@ slotmap::new_key_type! {
 
 pub struct Resources {
 	buffers: slotmap::SlotMap<ResourceKey, Vec<f32>>,
-	parameters: slotmap::SlotMap<ParameterKey, f32>,
 }
 
 impl Resources {
 	fn new() -> Resources {
 		Resources {
 			buffers: slotmap::SlotMap::with_key(),
-			parameters: slotmap::SlotMap::with_key(),
+			// f32_parameters: slotmap::SlotMap::with_key(),
 		}
 	}
 
@@ -176,17 +181,6 @@ struct Inner {
 	node_graph: NodeGraph,
 	resources: Resources,
 	sample_rate: f32,
-}
-
-impl Inner {
-	fn generate(&mut self) -> &[f32] {
-		let eval_ctx = EvaluationContext {
-			sample_rate: self.sample_rate,
-			resources: &self.resources,
-		};
-
-		self.node_graph.process(&eval_ctx)
-	}
 }
 
 
@@ -220,7 +214,9 @@ fn audio_producer_worker(inner: Arc<Mutex<Inner>>, sample_buffer: Arc<Ringbuffer
 
 	while running.load(Ordering::Relaxed) {
 		let mut inner = inner.lock().unwrap();
-		inner.node_graph.update_topology();
+		let Inner {node_graph, resources, sample_rate} = &mut *inner;
+
+		node_graph.update_topology();
 
 		// TODO(pat.m): get this number from the node graph
 		let buffer_size = 2*256;
@@ -230,7 +226,12 @@ fn audio_producer_worker(inner: Arc<Mutex<Inner>>, sample_buffer: Arc<Ringbuffer
 				break
 			}
 
-			let buffer = inner.generate();
+			let eval_ctx = EvaluationContext {
+				sample_rate: *sample_rate,
+				resources,
+			};
+
+			let buffer = node_graph.process(&eval_ctx);
 
 			let write_lock = sample_buffer.lock_for_write(buffer.len());
 			assert!(write_lock.len() == buffer.len());
