@@ -100,23 +100,35 @@ impl AudioSystem {
 		self.inner.lock().unwrap().node_graph.output_node()
 	}
 
+	pub fn update_graph<F, R>(&mut self, f: F) -> R
+		where F: FnOnce(&mut NodeGraph) -> R
+	{
+		let mut inner = self.inner.lock().unwrap();
+		f(&mut inner.node_graph)
+	}
+
 	pub fn add_node(&mut self, node: impl Node) -> NodeId {
-		self.inner.lock().unwrap().node_graph.add_node(node)
+		self.update_graph(move |graph| graph.add_node(node, false))
+	}
+
+	pub fn add_ephemeral_node(&mut self, node: impl Node) -> NodeId {
+		self.update_graph(move |graph| graph.add_node(node, true))
 	}
 
 	pub fn add_send(&mut self, node: NodeId, target: NodeId) {
-		self.inner.lock().unwrap().node_graph.add_send(node, target)
+		self.update_graph(move |graph| graph.add_send(node, target))
 	}
 
 	pub fn add_node_with_send(&mut self, node: impl Node, send_node: NodeId) -> NodeId {
-		let mut inner = self.inner.lock().unwrap();
-		let node_id = inner.node_graph.add_node(node);
-		inner.node_graph.add_send(node_id, send_node);
-		node_id
+		self.update_graph(move |graph| {
+			let node_id = graph.add_node(node, false);
+			graph.add_send(node_id, send_node);
+			node_id
+		})
 	}
 
 	pub fn remove_node(&mut self, node: NodeId) {
-		self.inner.lock().unwrap().node_graph.remove_node(node)
+		self.update_graph(move |graph| graph.remove_node(node))
 	}
 
 	pub fn add_sound(&mut self, buffer: Vec<f32>) -> SoundId {

@@ -28,9 +28,17 @@ pub struct NodeId {
 }
 
 
-pub(in crate::audio) struct NodeGraph {
+struct NodeSlot {
+	node: Box<dyn Node>,
+
+	/// Should this node be removed if it has no inputs
+	ephemeral: bool,
+}
+
+
+pub struct NodeGraph {
 	connectivity: StableGraph<NodeKey, (), petgraph::Directed>,
-	nodes: slotmap::SlotMap<NodeKey, Box<dyn Node>>,
+	nodes: slotmap::SlotMap<NodeKey, NodeSlot>,
 
 	buffer_cache: IntermediateBufferCache,
 	output_node_key: NodeKey,
@@ -47,10 +55,14 @@ pub(in crate::audio) struct NodeGraph {
 impl NodeGraph {
 	pub fn new() -> NodeGraph {
 		let mut connectivity = StableGraph::new();
-		let mut nodes: slotmap::SlotMap<_, Box<dyn Node>> = slotmap::SlotMap::with_key();
+		let mut nodes: slotmap::SlotMap<_, NodeSlot> = slotmap::SlotMap::with_key();
 
 		let output_node = MixerNode::new_stereo(1.0);
-		let output_node_key = nodes.insert(Box::new(output_node));
+		let output_node_key = nodes.insert(NodeSlot {
+			node: Box::new(output_node),
+			ephemeral: false,
+		});
+
 		let output_node_index = connectivity.add_node(output_node_key);
 
 		NodeGraph {
@@ -73,8 +85,12 @@ impl NodeGraph {
 		}
 	}
 
-	pub fn add_node(&mut self, node: impl Node) -> NodeId {
-		let node_key = self.nodes.insert(Box::new(node));
+	pub fn add_node(&mut self, node: impl Node, ephemeral: bool) -> NodeId {
+		let node_key = self.nodes.insert(NodeSlot {
+			node: Box::new(node),
+			ephemeral,
+		});
+
 		let node_index = self.connectivity.add_node(node_key);
 		// I guess there's no reason to recalc ordered_node_cache until nodes are connected
 		// self.topology_dirty = true;
@@ -86,36 +102,59 @@ impl NodeGraph {
 		self.topology_dirty = true;
 	}
 
+	pub fn add_sends(&mut self, sends: impl IntoIterator<Item=(NodeId, NodeId)>) {
+		let edges = sends.into_iter().map(|(id_a, id_b)| (id_a.index, id_b.index));
+		self.connectivity.extend_with_edges(edges);
+		self.topology_dirty = true;
+	}
+
+	pub fn add_send_chain(&mut self, chain: &[NodeId]) {
+		let edges = chain.array_windows()
+			.map(|&[id_a, id_b]| (id_a, id_b));
+
+		self.add_sends(edges);
+	}
+
 	pub fn remove_node(&mut self, node: NodeId) {
 		assert!(node.index != self.output_node_index, "Trying to remove output node");
 		if let Some(key) = self.connectivity.remove_node(node.index) {
 			assert!(node.key == key);
 			self.nodes.remove(key);
+			// println!("removing node {node:?}");
 			self.topology_dirty = true;
 		}
 	}
 
-	pub fn cleanup_finished_nodes(&mut self, eval_ctx: &EvaluationContext<'_>) {
+	pub(in crate::audio) fn cleanup_finished_nodes(&mut self, eval_ctx: &EvaluationContext<'_>) {
 		use petgraph::visit::IntoNodeReferences;
 
 		let mut finished_nodes = Vec::new();
 
 		// not sure I like doing this automatically?
 		for (node_index, &node_key) in self.connectivity.node_references() {
-			let node = &self.nodes[node_key];
-			if node.finished_playing(eval_ctx) {
+			let node_slot = &self.nodes[node_key];
+			if node_slot.node.finished_playing(eval_ctx) {
+				finished_nodes.push((node_index, node_key));
+				continue
+			}
+
+			if !node_slot.ephemeral {
+				continue
+			}
+
+			let num_incoming = self.connectivity.neighbors_directed(node_index, petgraph::Direction::Incoming).count();
+			if num_incoming == 0 {
 				finished_nodes.push((node_index, node_key));
 			}
 		}
 
 		// TODO(pat.m): can this be done without the temp vector?
 		for (index, key) in finished_nodes {
-			println!("removing node {:?}", index);
 			self.remove_node(NodeId{index, key});
 		}
 	}
 
-	pub fn update_topology(&mut self) {
+	pub(in crate::audio) fn update_topology(&mut self) {
 		use petgraph::algo::{has_path_connecting, DfsSpace};
 
 		// Recalculate node evaluation order if the topology of the connectivity graph has changed
@@ -142,16 +181,24 @@ impl NodeGraph {
 			|_, &edge_key| Some(edge_key),
 		);
 
-		println!("{:?}", self.pruned_connectivity);
+		// println!("{:?}", self.connectivity);
+		// println!("{:?}", self.pruned_connectivity);
 
 		// Calculate final evaluation order
 		self.ordered_node_cache = petgraph::algo::toposort(&self.pruned_connectivity, None)
 			.expect("Connectivity graph is not a DAG");
 
+		for &node_index in self.ordered_node_cache.iter() {
+			let num_incoming = self.pruned_connectivity.neighbors_directed(node_index, petgraph::Direction::Incoming).count();
+			if num_incoming > MAX_NODE_INPUTS {
+				println!("Node(#{node_index:?}) has too many inputs! Node graph will no longer behave correctly!");
+			}
+		}
+
 		self.topology_dirty = false;
 	}
 
-	pub fn process(&mut self, eval_ctx: &EvaluationContext<'_>) -> &[f32] {
+	pub(in crate::audio) fn process(&mut self, eval_ctx: &EvaluationContext<'_>) -> &[f32] {
 		assert!(!self.topology_dirty);
 
 		use petgraph::Direction;
@@ -164,10 +211,10 @@ impl NodeGraph {
 
 		for &node_index in self.ordered_node_cache.iter() {
 			let node_key = self.pruned_connectivity[node_index];
-			let node = &mut self.nodes[node_key];
+			let node_slot = &mut self.nodes[node_key];
 
 			// Fetch a buffer large enough for the nodes output
-			let mut output_buffer = self.buffer_cache.new_buffer(node.has_stereo_output(eval_ctx));
+			let mut output_buffer = self.buffer_cache.new_buffer(node_slot.node.has_stereo_output(eval_ctx));
 
 			// Collect all inputs for this node
 			let incoming_nodes = self.pruned_connectivity.neighbors_directed(node_index, Direction::Incoming)
@@ -188,7 +235,7 @@ impl NodeGraph {
 				output: &mut output_buffer,
 			};
 
-			node.process(process_ctx);
+			node_slot.node.process(process_ctx);
 
 			// Mark all input buffers as being used once - potentially collecting them for reuse
 			for node_key in incoming_nodes {
