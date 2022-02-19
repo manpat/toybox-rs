@@ -14,7 +14,7 @@ pub(in super) struct ResourcesRefCell<T: Resource> {
 	inner: UnsafeCell<ResourcesInner<T>>,
 
 	// ResourcesRefCell must be pinned because ResourceLock[Mut] relies on its address staying stable
-	// for the duration of its lifetime. Lifetimes are enforced by asserting not borrows are active on drop.
+	// for the duration of its lifetime. Lifetimes are enforced by asserting no borrows are active on drop.
 	_pin: PhantomPinned,
 }
 

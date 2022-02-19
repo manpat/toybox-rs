@@ -7,8 +7,8 @@ use crate::utility::BorrowState;
 
 pub struct ResourceLock<T> {
 	pub(super) resource: *const T, // Nonnull
-	pub(super) resource_borrow_state: *const BorrowState, // Can be null
 	pub(super) store_borrow_state: *const BorrowState, // Nonnull
+	pub(super) resource_borrow_state: *const BorrowState, // Can be null
 }
 
 

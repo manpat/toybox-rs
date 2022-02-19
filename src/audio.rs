@@ -10,11 +10,8 @@ mod intermediate_buffer_cache;
 mod ringbuffer;
 
 
-pub const MAX_NODE_INPUTS: usize = 16;
+pub const MAX_NODE_INPUTS: usize = 64;
 
 
 pub use system::{AudioSystem, SoundId};
 pub use node_graph::NodeId;
-
-pub type SoundAssetID = ();
-pub type SoundInstanceID = ();

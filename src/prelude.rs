@@ -6,6 +6,7 @@ pub use bitflags::bitflags;
 pub use slotmap;
 pub use imgui;
 pub use petgraph;
+pub use symphonia;
 
 pub use crate::gfx;
 pub use crate::audio;

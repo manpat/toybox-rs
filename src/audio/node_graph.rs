@@ -120,7 +120,6 @@ impl NodeGraph {
 		if let Some(key) = self.connectivity.remove_node(node.index) {
 			assert!(node.key == key);
 			self.nodes.remove(key);
-			// println!("removing node {node:?}");
 			self.topology_dirty = true;
 		}
 	}
@@ -181,9 +180,6 @@ impl NodeGraph {
 			|_, &edge_key| Some(edge_key),
 		);
 
-		// println!("{:?}", self.connectivity);
-		// println!("{:?}", self.pruned_connectivity);
-
 		// Calculate final evaluation order
 		self.ordered_node_cache = petgraph::algo::toposort(&self.pruned_connectivity, None)
 			.expect("Connectivity graph is not a DAG");
@@ -206,8 +202,6 @@ impl NodeGraph {
 		// Make sure there are no inuse buffers remaining from previous frames - this will ensure
 		// buffers for outgoing external nodes are correctly collected.
 		self.buffer_cache.mark_all_unused();
-
-		// println!("{} buffers, {} nodes", self.buffer_cache.total_buffer_count(), self.nodes.len());
 
 		for &node_index in self.ordered_node_cache.iter() {
 			let node_key = self.pruned_connectivity[node_index];

@@ -17,9 +17,8 @@ pub struct EvaluationContext<'sys> {
 
 pub struct AudioSystem {
 	audio_device: sdl2::audio::AudioDevice<AudioSubmissionWorker>,
-	inner: Arc<Mutex<Inner>>,
+	shared: Arc<Shared>,
 
-	running: Arc<AtomicBool>,
 	producer_thread_handle: Option<JoinHandle<()>>,
 }
 
@@ -38,20 +37,20 @@ impl AudioSystem {
 			sample_rate: 44100.0,
 		};
 
-		let inner = Arc::new(Mutex::new(inner));
-		let sample_buffer = Arc::new(Ringbuffer::new(128*10));
-		let running = Arc::new(AtomicBool::new(true));
+		let shared = Arc::new(Shared {
+			inner: Mutex::new(inner),
+			sample_buffer: Ringbuffer::new(128*10),
+			running: AtomicBool::new(true),
+		});
 
 		// TODO(pat.m): if any of the below functions fail, then its possible for this thread never to be killed.
 		// make sure its killed properly on failure
 		let producer_thread_builder = thread::Builder::new().name("audio producer".into());
 		let producer_thread_handle = producer_thread_builder.spawn({
-			let inner = inner.clone();
-			let running = running.clone();
-			let sample_buffer = sample_buffer.clone();
+			let shared = shared.clone();
  
 			move || {
-				audio_producer_worker(inner, sample_buffer, running)
+				audio_producer_worker(shared)
 			}
 		})?;
 
@@ -59,12 +58,12 @@ impl AudioSystem {
 			assert!(spec.freq == 44100);
 			assert!(spec.channels == 2);
 			{
-				let mut inner_mut = inner.lock().unwrap();
+				let mut inner_mut = shared.inner.lock().unwrap();
 				inner_mut.sample_rate = spec.freq as f32;
 			}
 
 			AudioSubmissionWorker {
-				sample_buffer: sample_buffer.clone(),
+				shared: shared.clone(),
 			}
 		};
 
@@ -73,9 +72,8 @@ impl AudioSystem {
 
 		Ok(AudioSystem {
 			audio_device,
-			inner,
+			shared,
 
-			running,
 			producer_thread_handle: Some(producer_thread_handle),
 		})
 	}
@@ -83,7 +81,7 @@ impl AudioSystem {
 
 	pub fn update(&mut self) {
 		// Doesn't have to happen that often really
-		let mut inner_lock = self.inner.lock().unwrap();
+		let mut inner_lock = self.shared.inner.lock().unwrap();
 		let inner = &mut *inner_lock;
 
 		let sample_rate = inner.sample_rate;
@@ -97,13 +95,13 @@ impl AudioSystem {
 	}
 
 	pub fn output_node(&self) -> NodeId {
-		self.inner.lock().unwrap().node_graph.output_node()
+		self.shared.inner.lock().unwrap().node_graph.output_node()
 	}
 
 	pub fn update_graph<F, R>(&mut self, f: F) -> R
 		where F: FnOnce(&mut NodeGraph) -> R
 	{
-		let mut inner = self.inner.lock().unwrap();
+		let mut inner = self.shared.inner.lock().unwrap();
 		f(&mut inner.node_graph)
 	}
 
@@ -132,7 +130,7 @@ impl AudioSystem {
 	}
 
 	pub fn add_sound(&mut self, buffer: Vec<f32>) -> SoundId {
-		let key = self.inner.lock().unwrap().resources.buffers.insert(buffer);
+		let key = self.shared.inner.lock().unwrap().resources.buffers.insert(buffer);
 		SoundId(key)
 	}
 
@@ -149,7 +147,7 @@ impl AudioSystem {
 
 impl Drop for AudioSystem {
 	fn drop(&mut self) {
-		self.running.store(false, Ordering::Relaxed);
+		self.shared.running.store(false, Ordering::Relaxed);
 
 		if let Some(handle) = self.producer_thread_handle.take() {
 			handle.join().unwrap();
@@ -176,7 +174,6 @@ impl Resources {
 	fn new() -> Resources {
 		Resources {
 			buffers: slotmap::SlotMap::with_key(),
-			// f32_parameters: slotmap::SlotMap::with_key(),
 		}
 	}
 
@@ -196,17 +193,22 @@ struct Inner {
 }
 
 
+struct Shared {
+	inner: Mutex<Inner>,
+	sample_buffer: Ringbuffer<f32>,
+	running: AtomicBool,
+}
 
 
 struct AudioSubmissionWorker {
-	sample_buffer: Arc<Ringbuffer<f32>>,
+	shared: Arc<Shared>,
 }
 
 impl sdl2::audio::AudioCallback for AudioSubmissionWorker {
 	type Channel = f32;
 
 	fn callback(&mut self, output: &mut [Self::Channel]) {
-		let lock @ RingbufferReadLock {presplit, postsplit, ..} = self.sample_buffer.lock_for_read(output.len());
+		let lock @ RingbufferReadLock {presplit, postsplit, ..} = self.shared.sample_buffer.lock_for_read(output.len());
 		let total_len = lock.len();
 
 		output[..presplit.len()].copy_from_slice(presplit);
@@ -221,11 +223,11 @@ impl sdl2::audio::AudioCallback for AudioSubmissionWorker {
 
 
 
-fn audio_producer_worker(inner: Arc<Mutex<Inner>>, sample_buffer: Arc<Ringbuffer<f32>>, running: Arc<AtomicBool>) {
+fn audio_producer_worker(shared: Arc<Shared>) {
 	set_realtime_thread_priority();
 
-	while running.load(Ordering::Relaxed) {
-		let mut inner = inner.lock().unwrap();
+	while shared.running.load(Ordering::Relaxed) {
+		let mut inner = shared.inner.lock().unwrap();
 		let Inner {node_graph, resources, sample_rate} = &mut *inner;
 
 		node_graph.update_topology();
@@ -234,7 +236,7 @@ fn audio_producer_worker(inner: Arc<Mutex<Inner>>, sample_buffer: Arc<Ringbuffer
 		let buffer_size = 2*256;
 
 		loop {
-			if sample_buffer.free_capacity() < buffer_size {
+			if shared.sample_buffer.free_capacity() < buffer_size {
 				break
 			}
 
@@ -245,7 +247,7 @@ fn audio_producer_worker(inner: Arc<Mutex<Inner>>, sample_buffer: Arc<Ringbuffer
 
 			let buffer = node_graph.process(&eval_ctx);
 
-			let write_lock = sample_buffer.lock_for_write(buffer.len());
+			let write_lock = shared.sample_buffer.lock_for_write(buffer.len());
 			assert!(write_lock.len() == buffer.len());
 
 			let split_len = write_lock.presplit.len();
