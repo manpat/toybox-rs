@@ -1,4 +1,4 @@
-use crate::gfx;
+use crate::prelude::*;
 use std::marker::PhantomData;
 
 #[derive(Copy, Clone, Debug)]
@@ -81,7 +81,7 @@ impl<T: Copy> From<Buffer<T>> for UntypedBuffer {
 
 
 
-
+#[instrument(skip_all, name="gfx::buffer::upload_untyped")]
 fn upload_untyped<T: Copy>(handle: u32, data: &[T], usage: BufferUsage) {
 	if data.is_empty() {
 		// TODO(pat.m): is this what I want? 

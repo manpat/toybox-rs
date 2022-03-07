@@ -124,6 +124,7 @@ impl NodeGraph {
 		}
 	}
 
+	#[instrument(skip_all, name = "audio::NodeGraph::cleanup_finished_nodes")]
 	pub(in crate::audio) fn cleanup_finished_nodes(&mut self, eval_ctx: &EvaluationContext<'_>) {
 		use petgraph::visit::IntoNodeReferences;
 
@@ -153,6 +154,7 @@ impl NodeGraph {
 		}
 	}
 
+	#[instrument(skip_all, name = "audio::NodeGraph::update_topology")]
 	pub(in crate::audio) fn update_topology(&mut self) {
 		use petgraph::algo::{has_path_connecting, DfsSpace};
 
@@ -194,6 +196,7 @@ impl NodeGraph {
 		self.topology_dirty = false;
 	}
 
+	#[instrument(skip_all, name = "audio::NodeGraph::process")]
 	pub(in crate::audio) fn process(&mut self, eval_ctx: &EvaluationContext<'_>) -> &[f32] {
 		assert!(!self.topology_dirty);
 

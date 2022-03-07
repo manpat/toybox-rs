@@ -30,6 +30,9 @@ pub struct Engine {
 
 impl Engine {
 	pub fn new(window_name: &str) -> Result<Engine, Box<dyn Error>> {
+		#[cfg(feature="tracy")]
+		init_tracy();
+
 		let sdl_ctx = sdl2::init()?;
 		let sdl_video = sdl_ctx.video()?;
 		let sdl_audio = sdl_ctx.audio()?;
@@ -69,6 +72,7 @@ impl Engine {
 
 	pub fn should_quit(&self) -> bool { self.should_quit }
 
+	#[instrument(skip_all, name="Engine::process_events")]
 	pub fn process_events(&mut self) {
 		self.input.clear();
 
@@ -103,6 +107,7 @@ impl Engine {
 		self.imgui.start_frame();
 	}
 
+	#[instrument(skip_all, name="Engine::end_frame")]
 	pub fn end_frame(&mut self) {
 		{
 			let _guard = self.instrumenter.scoped_section("audio");
@@ -117,6 +122,22 @@ impl Engine {
 			let _guard = self.instrumenter.scoped_section("swap");
 			self.window.gl_swap_window();
 		}
+
+		tracing::info!(tracy.frame_mark=true);
 	}
 }
 
+
+
+#[cfg(feature="tracy")]
+fn init_tracy() {
+    use tracing_subscriber::layer::SubscriberExt;
+
+    let subscriber = tracing_subscriber::registry()
+        .with(tracing_tracy::TracyLayer::new());
+
+    tracing::subscriber::set_global_default(subscriber)
+    	.expect("set up the subscriber");
+    	
+	println!("tracy init");
+}

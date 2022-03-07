@@ -1,4 +1,4 @@
-use crate::gfx;
+use crate::prelude::*;
 use common::math::*;
 
 
@@ -8,7 +8,8 @@ pub struct ImguiBackend {
 	uniforms: gfx::Buffer<Uniforms>,
 
 	imgui_frame: Option<imgui::Ui<'static>>,
-	enabled: bool,
+	input_enabled: bool,
+	visible: bool,
 }
 
 
@@ -35,12 +36,17 @@ impl ImguiBackend {
 			uniforms,
 
 			imgui_frame: None,
-			enabled: true,
+			input_enabled: false,
+			visible: false,
 		})
 	}
 
-	pub fn set_enabled(&mut self, enabled: bool) {
-		self.enabled = enabled;
+	pub fn set_input_enabled(&mut self, input_enabled: bool) {
+		self.input_enabled = input_enabled;
+	}
+
+	pub fn set_visible(&mut self, visible: bool) {
+		self.visible = visible;
 	}
 
 	pub fn frame(&self) -> &imgui::Ui<'static> {
@@ -69,17 +75,19 @@ impl ImguiBackend {
 		let imgui_ctx = imgui_mut();
 		let io = imgui_ctx.io_mut();
 
+		let handle_input = self.visible && self.input_enabled;
+
 		match *event {
 			Event::MouseWheel { x, y, .. } => {
 				io.mouse_wheel = y as f32;
 				io.mouse_wheel_h = x as f32;
 			}
 
-			Event::MouseButtonDown { mouse_btn, .. } if self.enabled => handle_mouse_button(io, &mouse_btn, true),
+			Event::MouseButtonDown { mouse_btn, .. } if handle_input => handle_mouse_button(io, &mouse_btn, true),
 			Event::MouseButtonUp { mouse_btn, .. } => handle_mouse_button(io, &mouse_btn, false),
 			Event::TextInput { ref text, .. } => text.chars().for_each(|c| io.add_input_character(c)),
 
-			Event::KeyDown { scancode: Some(key), keymod, .. } => if self.enabled {
+			Event::KeyDown { scancode: Some(key), keymod, .. } => if handle_input {
 				io.keys_down[key as usize] = true;
 				handle_key_modifier(io, &keymod);
 			}
@@ -96,7 +104,7 @@ impl ImguiBackend {
 			_ => {}
 		}
 
-		if !self.enabled {
+		if !handle_input {
 			return false;
 		}
 
@@ -121,11 +129,12 @@ impl ImguiBackend {
 		self.imgui_frame = Some(imgui_ctx.frame());
 	}
 
+	#[instrument(skip_all, name="ImguiBackend::draw")]
 	pub(crate) fn draw(&mut self, gfx: &mut gfx::Context) {
 		if let Some(frame) = self.imgui_frame.take() {
 			let frame_data = frame.render();
 
-			if self.enabled {
+			if self.visible {
 				self.draw_internal(gfx, frame_data);
 			}
 		}

@@ -79,6 +79,7 @@ impl AudioSystem {
 	}
 
 
+	#[instrument(skip_all, name="AudioSystem::update")]
 	pub fn update(&mut self) {
 		// Doesn't have to happen that often really
 		let mut inner_lock = self.shared.inner.lock().unwrap();
@@ -207,6 +208,7 @@ struct AudioSubmissionWorker {
 impl sdl2::audio::AudioCallback for AudioSubmissionWorker {
 	type Channel = f32;
 
+	#[instrument(skip_all, name = "AudioSubmissionWorker::callback")]
 	fn callback(&mut self, output: &mut [Self::Channel]) {
 		let lock @ RingbufferReadLock {presplit, postsplit, ..} = self.shared.sample_buffer.lock_for_read(output.len());
 		let total_len = lock.len();
@@ -223,6 +225,7 @@ impl sdl2::audio::AudioCallback for AudioSubmissionWorker {
 
 
 
+#[instrument(skip_all)]
 fn audio_producer_worker(shared: Arc<Shared>) {
 	set_realtime_thread_priority();
 

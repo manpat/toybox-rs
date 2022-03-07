@@ -19,6 +19,14 @@ petgraph = "0.6"
 
 symphonia = "0.4"
 
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+
+[dependencies.tracing-tracy]
+version = "0.8"
+optional = true
+
 
 # for thread priority
 [target.'cfg(unix)'.dependencies]
@@ -31,3 +39,8 @@ winapi = { version = "0.3", features = ["errhandlingapi", "processthreadsapi", "
 
 [build-dependencies]
 gl_generator = "0.14.0"
+
+
+
+[features]
+tracy = ["tracing-tracy"]
