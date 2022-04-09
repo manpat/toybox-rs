@@ -39,3 +39,22 @@ impl std::ops::DerefMut for IntermediateBuffer {
 	fn deref_mut(&mut self) -> &mut [f32] { &mut self.samples }
 }
 
+
+impl<'a> std::iter::IntoIterator for &'a IntermediateBuffer {
+    type Item = &'a f32;
+    type IntoIter = std::slice::Iter<'a, f32>;
+
+    fn into_iter(self) -> std::slice::Iter<'a, f32> {
+        self.samples.iter()
+    }
+}
+
+
+impl<'a> std::iter::IntoIterator for &'a mut IntermediateBuffer {
+    type Item = &'a mut f32;
+    type IntoIter = std::slice::IterMut<'a, f32>;
+
+    fn into_iter(self) -> std::slice::IterMut<'a, f32> {
+        self.samples.iter_mut()
+    }
+}
