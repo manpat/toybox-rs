@@ -30,9 +30,11 @@ impl Framebuffer {
 			color_attachments,
 		} = settings;
 
-		let mut generate_depth_stencil_attachment = || {
+		let depth_stencil_attachment = loop {
 			let (depth_stencil_format, depth_stencil_attachment_point) = match (depth_attachment, stencil_attachment) {
-				(false, false) => return None,
+				(false, false) => {
+					break None
+				}
 				(true, false) => (TextureFormat::Depth, raw::DEPTH_ATTACHMENT),
 				(false, true) => (TextureFormat::Stencil, raw::STENCIL_ATTACHMENT),
 				(true, true) => (TextureFormat::DepthStencil, raw::DEPTH_STENCIL_ATTACHMENT),
@@ -41,13 +43,11 @@ impl Framebuffer {
 			let mut depth_stencil_tex = Texture::new(size_mode, backbuffer_size, depth_stencil_format);
 			depth_stencil_tex.set_filter(false, false);
 
-			Some(Attachment {
+			break Some(Attachment {
 				attachment_point: depth_stencil_attachment_point,
 				texture_key: resources.insert_texture(depth_stencil_tex)
 			})
 		};
-
-		let depth_stencil_attachment = generate_depth_stencil_attachment();
 
 		let color_attachments = color_attachments.iter()
 			.enumerate()
@@ -95,7 +95,6 @@ impl Framebuffer {
 		}
 	}
 
-	// HACK: this should take &mut self probably, but can't while Resources uses RefCell nonsense
 	pub(super) fn rebind_attachments(&mut self, textures: &ResourceStore<Texture>) {
 		if let Some(Attachment{attachment_point, texture_key}) = self.depth_stencil_attachment {
 			let texture_handle = textures.get(texture_key).texture_handle;
@@ -114,10 +113,7 @@ impl Framebuffer {
 
 	pub fn is_complete(&self) -> bool {
 		let status = unsafe {raw::CheckNamedFramebufferStatus(self.handle, raw::DRAW_FRAMEBUFFER)};
-		match status {
-			0 => true,
-			_ => false,
-		}
+		status == raw::FRAMEBUFFER_COMPLETE
 	}
 
 	pub fn depth_stencil_attachment(&self) -> Option<TextureKey> {

@@ -186,7 +186,7 @@ impl Node for SamplerNode {
 	fn has_stereo_output(&self, _: &EvaluationContext<'_>) -> bool { false }
 
 	fn finished_playing(&self, eval_ctx: &EvaluationContext<'_>) -> bool {
-		let buffer = &eval_ctx.resources.get(self.sound_id);
+		let buffer = eval_ctx.resources.get(self.sound_id);
 		self.position >= buffer.len()
 	}
 
@@ -194,7 +194,7 @@ impl Node for SamplerNode {
 		assert!(inputs.is_empty());
 		assert!(!output.stereo());
 
-		let buffer = &eval_ctx.resources.get(self.sound_id);
+		let buffer = eval_ctx.resources.get(self.sound_id);
 
 		if self.position >= buffer.len() {
 			output.fill(0.0);

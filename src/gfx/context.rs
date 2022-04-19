@@ -63,7 +63,7 @@ impl Context {
 		}
 
 		self.backbuffer_size = drawable_size;
-		self.resources.on_resize(drawable_size);
+		self.resources.on_backbuffer_resize(drawable_size);
 	}
 
 	pub fn backbuffer_size(&self) -> Vec2i { self.backbuffer_size }
@@ -206,35 +206,27 @@ impl<'ctx> RenderState<'ctx> {
 		}
 	}
 
-	pub fn bind_image_for_rw(&mut self, binding: u32, texture: TextureKey) {
+	fn bind_image_raw(&mut self, binding: u32, texture: TextureKey, rw_flags: u32) {
 		// https://www.khronos.org/opengl/wiki/Image_Load_Store#Images_in_the_context
 		let (level, layered, layer) = (0, 0, 0);
 		let texture = texture.get(self.resources);
 
 		unsafe {
 			raw::BindImageTexture(binding, texture.texture_handle, level, layered, layer,
-				raw::READ_WRITE, texture.format().to_gl());
+				rw_flags, texture.format().to_gl());
 		}
+	}
+
+	pub fn bind_image_for_rw(&mut self, binding: u32, texture: TextureKey) {
+		self.bind_image_raw(binding, texture, raw::READ_WRITE)
 	}
 
 	pub fn bind_image_for_read(&mut self, binding: u32, texture: TextureKey) {
-		let (level, layered, layer) = (0, 0, 0);
-		let texture = texture.get(self.resources);
-
-		unsafe {
-			raw::BindImageTexture(binding, texture.texture_handle, level, layered, layer,
-				raw::READ_ONLY, texture.format().to_gl());
-		}
+		self.bind_image_raw(binding, texture, raw::READ_ONLY)
 	}
 
 	pub fn bind_image_for_write(&mut self, binding: u32, texture: TextureKey) {
-		let (level, layered, layer) = (0, 0, 0);
-		let texture = texture.get(self.resources);
-
-		unsafe {
-			raw::BindImageTexture(binding, texture.texture_handle, level, layered, layer,
-				raw::WRITE_ONLY, texture.format().to_gl());
-		}
+		self.bind_image_raw(binding, texture, raw::WRITE_ONLY)
 	}
 
 	pub fn bind_texture(&mut self, binding: u32, texture: TextureKey) {
@@ -277,6 +269,16 @@ impl<'ctx> RenderState<'ctx> {
 		}
 	}
 
+	pub fn draw_arrays(&self, draw_mode: DrawMode, num_vertices: u32) {
+		if num_vertices == 0 {
+			return
+		}
+
+		unsafe {
+			raw::DrawArrays(draw_mode.into_gl(), 0, num_vertices as i32);
+		}
+	}
+
 	pub fn draw_indexed(&self, draw_mode: DrawMode, element_range: impl Into<IndexedDrawParams>) {
 		let IndexedDrawParams {
 			num_elements,
@@ -305,21 +307,11 @@ impl<'ctx> RenderState<'ctx> {
 		}
 	}
 
-	pub fn draw_arrays(&self, draw_mode: DrawMode, num_vertices: u32) {
-		if num_vertices == 0 {
-			return
-		}
-
-		unsafe {
-			raw::DrawArrays(draw_mode.into_gl(), 0, num_vertices as i32);
-		}
-	}
-
 	pub fn dispatch_compute(&self, x: u32, y: u32, z: u32) {
 		// see: GL_MAX_COMPUTE_WORK_GROUP_COUNT
-		assert!(x < 65535, "Work group exceeds guaranteed minimum size along x axis");
-		assert!(y < 65535, "Work group exceeds guaranteed minimum size along y axis");
-		assert!(z < 65535, "Work group exceeds guaranteed minimum size along z axis");
+		assert!(x < 65536, "Work group exceeds guaranteed minimum size along x axis");
+		assert!(y < 65536, "Work group exceeds guaranteed minimum size along y axis");
+		assert!(z < 65536, "Work group exceeds guaranteed minimum size along z axis");
 
 		unsafe {
 			raw::DispatchCompute(x, y, z);

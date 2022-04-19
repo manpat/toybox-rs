@@ -29,6 +29,10 @@ impl IntermediateBufferCache {
 		}
 	}
 
+	pub fn buffer_size(&self) -> usize {
+		self.buffer_size
+	}
+
 	pub fn new_buffer(&mut self, stereo: bool) -> IntermediateBuffer {
 		let mut buffer = self.unused_buffers.pop()
 			.unwrap_or_else(|| IntermediateBuffer::new());

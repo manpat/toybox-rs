@@ -18,6 +18,20 @@ pub struct Resources {
 }
 
 impl Resources {
+	pub fn get<H>(&self, handle: H) -> ResourceLock<H::Resource>
+		where H: ResourceKey
+	{
+		handle.get(self)
+	}
+
+	pub fn get_mut<H>(&mut self, handle: H) -> ResourceLockMut<H::Resource>
+		where H: ResourceKey
+	{
+		handle.get_mut(self)
+	}
+}
+
+impl Resources {
 	pub(super) fn new() -> Resources {
 		Resources {
 			textures: ResourceStore::new(),
@@ -33,26 +47,14 @@ impl Resources {
 		self.framebuffers.insert(framebuffer)
 	}
 
-	pub(super) fn on_resize(&mut self, backbuffer_size: Vec2i) {
+	pub(super) fn on_backbuffer_resize(&mut self, backbuffer_size: Vec2i) {
 		self.textures.foreach_mut(|texture| {
-			texture.on_resize(backbuffer_size);
+			texture.on_backbuffer_resize(backbuffer_size);
 		});
 
 		self.framebuffers.foreach_mut(|framebuffer| {
 			framebuffer.rebind_attachments(&self.textures);
 		});
-	}
-
-	pub fn get<H>(&self, handle: H) -> ResourceLock<H::Resource>
-		where H: ResourceKey
-	{
-		handle.get(self)
-	}
-
-	pub fn get_mut<H>(&mut self, handle: H) -> ResourceLockMut<H::Resource>
-		where H: ResourceKey
-	{
-		handle.get_mut(self)
 	}
 }
 
@@ -91,10 +93,10 @@ impl ResourceKey for FramebufferKey {
 }
 
 
-impl utility::resource::Resource for Texture {
+impl Resource for Texture {
 	type Key = TextureKey;
 }
 
-impl utility::resource::Resource for Framebuffer {
+impl Resource for Framebuffer {
 	type Key = FramebufferKey;
 }

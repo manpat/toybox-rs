@@ -44,10 +44,10 @@ pub struct NodeGraph {
 	output_node_key: NodeKey,
 	output_node_index: NodeIndex,
 
-	// A processed version of `connectivity` with redunant nodes removed
+	/// A processed version of `connectivity` with redunant nodes removed
 	pruned_connectivity: StableGraph<NodeKey, (), petgraph::Directed>,
 
-	// Node indices of `pruned_connectivity` sorted in evaluation order.
+	/// Node indices of `pruned_connectivity` sorted in evaluation order.
 	ordered_node_cache: Vec<NodeIndex>,
 	topology_dirty: bool,
 }
@@ -68,7 +68,7 @@ impl NodeGraph {
 		NodeGraph {
 			connectivity,
 			nodes,
-			buffer_cache: IntermediateBufferCache::new(256),
+			buffer_cache: IntermediateBufferCache::new(128),
 			output_node_key,
 			output_node_index,
 
@@ -76,6 +76,10 @@ impl NodeGraph {
 			pruned_connectivity: StableGraph::new(),
 			topology_dirty: true,
 		}
+	}
+
+	pub fn buffer_size(&self) -> usize {
+		self.buffer_cache.buffer_size()
 	}
 
 	pub fn output_node(&self) -> NodeId {

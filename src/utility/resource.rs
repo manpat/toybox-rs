@@ -45,4 +45,3 @@ impl<T: Resource> ResourceStore<T> {
 		self.inner.foreach_mut(f)
 	}
 }
-

@@ -128,7 +128,7 @@ impl Texture {
 
 	/// Called when the size of the backbuffer changes.
 	/// Returns whether or not the gl handle was invalidated.
-	pub(super) fn on_resize(&mut self, backbuffer_size: Vec2i) -> bool {
+	pub(super) fn on_backbuffer_resize(&mut self, backbuffer_size: Vec2i) -> bool {
 		// fixed size textures don't care about backbuffer changes
 		if matches!(self.size_mode, TextureSize::Fixed(_)) {
 			return false

@@ -68,6 +68,14 @@ impl<T: Copy + Default> Ringbuffer<T> {
 		}
 	}
 
+	pub fn available_samples(&self) -> usize {
+		self.size as usize - self.free_capacity()
+	}
+
+	pub fn capacity(&self) -> usize {
+		self.size as usize
+	}
+
 	unsafe fn get_ref(&self, begin: u32, end: u32) -> &[T] {
 		assert!(begin <= self.size);
 		assert!(end <= self.size);
