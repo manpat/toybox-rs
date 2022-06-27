@@ -44,7 +44,6 @@ impl AudioSystem {
 		let inner = Inner {
 			node_graph: NodeGraph::new(),
 			resources: Resources::new(),
-			sample_rate: sample_rate as f32,
 		};
 
 		let requested_ringbuffer_size = (2 * sample_rate as usize) / 60;
@@ -53,6 +52,7 @@ impl AudioSystem {
 			inner: Mutex::new(inner),
 			sample_buffer: Ringbuffer::new(requested_ringbuffer_size),
 			running: AtomicBool::new(true),
+			sample_rate: sample_rate as f32,
 		});
 
 		{
@@ -80,10 +80,6 @@ impl AudioSystem {
 		let create_submission_worker = |spec: sdl2::audio::AudioSpec| {
 			assert!(spec.freq == sample_rate);
 			assert!(spec.channels == 2);
-			{
-				let mut inner_mut = shared.inner.lock().unwrap();
-				inner_mut.sample_rate = spec.freq as f32;
-			}
 
 			AudioSubmissionWorker {
 				shared: shared.clone(),
@@ -107,10 +103,10 @@ impl AudioSystem {
 	pub(crate) fn update(&mut self) {
 		// Doesn't have to happen that often really
 		let mut inner_lock = self.shared.inner.lock().unwrap();
-		let Inner { ref mut node_graph, ref resources, sample_rate} = *inner_lock;
+		let Inner { ref mut node_graph, ref resources } = *inner_lock;
 
 		let eval_ctx = EvaluationContext {
-			sample_rate,
+			sample_rate: self.shared.sample_rate,
 			resources,
 		};
 
@@ -215,7 +211,6 @@ impl Resources {
 struct Inner {
 	node_graph: NodeGraph,
 	resources: Resources,
-	sample_rate: f32,
 }
 
 /// State that is shared between audio worker threads and main thread.
@@ -229,6 +224,9 @@ struct Shared {
 	/// Stores whether the audio system is currently running. Set to false on shutdown so producer thread can
 	/// shut down gracefully.
 	running: AtomicBool,
+
+	/// The audio sample rate. Typically 44100Hz or 48000Hz.
+	sample_rate: f32,
 }
 
 
@@ -283,9 +281,11 @@ impl sdl2::audio::AudioCallback for AudioSubmissionWorker {
 fn audio_producer_worker(shared: Arc<Shared>, command_rx: Receiver<ProducerCommand>) {
 	set_realtime_thread_priority();
 
+	let sample_rate = shared.sample_rate;
+
 	while shared.running.load(Ordering::Relaxed) {
 		let mut inner = shared.inner.lock().unwrap();
-		let Inner {ref mut node_graph, ref resources, sample_rate} = *inner;
+		let Inner {ref mut node_graph, ref resources} = *inner;
 
 		for cmd in command_rx.try_iter() {
 			match cmd {
