@@ -31,6 +31,7 @@ pub use self::mesh::*;
 pub enum DrawMode {
 	Points,
 	Lines,
+	LineStrip,
 	Triangles,
 }
 
@@ -50,6 +51,7 @@ impl DrawMode {
 		match self {
 			DrawMode::Points => raw::POINTS,
 			DrawMode::Lines => raw::LINES,
+			DrawMode::LineStrip => raw::LINE_STRIP,
 			DrawMode::Triangles => raw::TRIANGLES,
 		}
 	}

@@ -73,6 +73,47 @@ impl<V: gfx::Vertex> Mesh<V> {
 
 
 
+pub struct BasicMesh<V: gfx::Vertex> {
+	pub vao: gfx::Vao,
+	pub vertex_buffer: gfx::Buffer<V>,
+}
+
+
+impl<V: gfx::Vertex> BasicMesh<V> {
+	pub fn with_buffer_usage(gfx: &mut gfx::Context, buffer_usage: gfx::BufferUsage) -> Self {
+		let mut vao = gfx.new_vao();
+
+		let vertex_buffer = gfx.new_buffer(buffer_usage);
+		vao.bind_vertex_buffer(0, vertex_buffer);
+
+		BasicMesh {
+			vao,
+			vertex_buffer,
+		}
+	}
+
+	pub fn new(gfx: &mut gfx::Context) -> Self {
+		BasicMesh::with_buffer_usage(gfx, gfx::BufferUsage::Stream)
+	}
+
+	pub fn from_vertices(gfx: &mut gfx::Context, vertices: &[V]) -> Self {
+		let mut mesh = BasicMesh::with_buffer_usage(gfx, gfx::BufferUsage::Static);
+		mesh.upload(vertices);
+		mesh
+	}
+
+	pub fn draw(&self, gfx: &mut gfx::RenderState<'_>, draw_mode: gfx::DrawMode) {
+		gfx.bind_vao(self.vao);
+		gfx.draw_arrays(draw_mode, self.vertex_buffer.len());
+	}
+
+	pub fn upload(&mut self, vertices: &[V]) {
+		self.vertex_buffer.upload(vertices);
+	}
+}
+
+
+
 pub struct MeshData<V: gfx::Vertex> {
 	pub vertices: Vec<V>,
 	pub indices: Vec<u16>,
