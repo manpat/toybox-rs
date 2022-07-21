@@ -4,9 +4,6 @@ use crate::input::action::{ActionID, ActionKind};
 use crate::input::context::{self, ContextID, InputContext};
 use std::collections::HashMap;
 
-// TODO(pat.m): is this actually useful if everything will go through 'sensitivty' anyway?
-const RELATIVE_MOUSE_PIXELS_TO_AXIS_FACTOR: f32 = 1.0 / 100.0;
-
 
 pub struct InputSystem {
 	/// All declared input contexts
@@ -40,6 +37,9 @@ pub struct InputSystem {
 	new_buttons: Vec<raw::Button>,
 
 
+	pub raw: raw::RawState,
+
+
 	frame_state: FrameState,
 	prev_frame_state: FrameState,
 
@@ -64,6 +64,8 @@ impl InputSystem {
 			active_buttons: Vec::new(),
 			new_buttons: Vec::new(),
 
+			raw: raw::RawState::new(),
+
 			frame_state: FrameState::default(),
 			prev_frame_state: FrameState::default(),
 
@@ -74,6 +76,8 @@ impl InputSystem {
 	pub(crate) fn clear(&mut self) {
 		self.mouse_delta.take();
 		self.new_buttons.clear();
+
+		self.raw.track_new_frame();
 
 		if self.active_contexts_changed {
 			self.active_contexts_changed = false;
@@ -100,48 +104,31 @@ impl InputSystem {
 				self.window_size = Vec2::new(w as f32, h as f32);
 			}
 
-			Event::Window{ win_event: WindowEvent::Leave, .. } => {
-				self.mouse_absolute = None;
-			}
+			// &Event::MouseMotion { xrel, yrel, x, y, .. } => {
+			// 	let Vec2{x: w, y: h} = self.window_size;
+			// 	let aspect = w/h;
 
-			Event::Window{ win_event: WindowEvent::FocusLost, .. } => {
-				self.active_buttons.clear();
-			}
+			// 	let mouse_x = x as f32 / w * 2.0 - 1.0;
+			// 	let mouse_y = -(y as f32 / h * 2.0 - 1.0);
 
-			// Event::MouseWheel { y, .. } => {
+			// 	// Maintain a 1x1 safe region in center screen
+			// 	let (mouse_x, mouse_y) = if aspect > 1.0 {
+			// 		(mouse_x * aspect, mouse_y)
+			// 	} else {
+			// 		(mouse_x, mouse_y / aspect)
+			// 	};
+
+			// 	self.mouse_absolute = Some(Vec2::new(mouse_x, mouse_y));
+
+			// 	let mouse_dx =  xrel as f32;
+			// 	let mouse_dy = -yrel as f32;
+
+			// 	let mouse_delta = Vec2::new(mouse_dx, mouse_dy);
+			// 	let current_delta = self.mouse_delta.get_or_insert_with(Vec2::zero);
+			// 	*current_delta += mouse_delta;
 			// }
 
-			&Event::MouseMotion { xrel, yrel, x, y, .. } => {
-				let Vec2{x: w, y: h} = self.window_size;
-				let aspect = w/h;
-
-				let mouse_x = x as f32 / w * 2.0 - 1.0;
-				let mouse_y = -(y as f32 / h * 2.0 - 1.0);
-
-				// Maintain a 1x1 safe region in center screen
-				let (mouse_x, mouse_y) = if aspect > 1.0 {
-					(mouse_x * aspect, mouse_y)
-				} else {
-					(mouse_x, mouse_y / aspect)
-				};
-
-				self.mouse_absolute = Some(Vec2::new(mouse_x, mouse_y));
-
-				let mouse_dx =  xrel as f32 * RELATIVE_MOUSE_PIXELS_TO_AXIS_FACTOR;
-				let mouse_dy = -yrel as f32 * RELATIVE_MOUSE_PIXELS_TO_AXIS_FACTOR;
-
-				let mouse_delta = Vec2::new(mouse_dx, mouse_dy);
-				let current_delta = self.mouse_delta.get_or_insert_with(Vec2::zero);
-				*current_delta += mouse_delta;
-			}
-
-			Event::MouseButtonDown { mouse_btn, .. } => self.track_button_change(mouse_btn.into(), true),
-			Event::MouseButtonUp { mouse_btn, .. } => self.track_button_change(mouse_btn.into(), false),
-
-			Event::KeyDown { scancode: Some(scancode), .. } => self.track_button_change(scancode.into(), true),
-			Event::KeyUp { scancode: Some(scancode), .. } => self.track_button_change(scancode.into(), false),
-
-			_ => {}
+			event => push_event_to_raw_state(&mut self.raw, event),
 		}
 	}
 
@@ -166,7 +153,7 @@ impl InputSystem {
 		}
 
 		// Collect new button actions
-		for &button in self.new_buttons.iter() {
+		for &button in self.raw.new_buttons.iter() {
 			let most_appropriate_action = self.active_contexts.iter().rev()
 				.flat_map(|&ContextID(id)| self.contexts.get(id))
 				.find_map(|ctx| ctx.action_for_button(button));
@@ -177,7 +164,7 @@ impl InputSystem {
 		}
 
 		// Collect stateful button actions - triggers _only_ run on button down events
-		for &button in self.active_buttons.iter() {
+		for &button in self.raw.active_buttons.iter() {
 			let most_appropriate_action = self.active_contexts.iter().rev()
 				.flat_map(|&ContextID(id)| self.contexts.get(id))
 				.flat_map(|ctx| ctx.action_for_button(button))
@@ -247,19 +234,6 @@ impl InputSystem {
 		self.active_contexts.iter()
 			.filter_map(move |id| self.contexts.get(id.0))
 	}
-
-	fn track_button_change(&mut self, button: raw::Button, down: bool) {
-		let button_is_active = self.active_buttons.contains(&button);
-
-		if down && !button_is_active {
-			self.active_buttons.push(button);
-			self.new_buttons.push(button);
-		}
-
-		if !down && button_is_active {
-			self.active_buttons.retain(|&b| b != button);
-		}
-	}
 }
 
 
@@ -308,5 +282,35 @@ impl FrameState {
 		self.mouse
 			.filter(|&(mouse_action, _)| mouse_action == action)
 			.map(|(_, state)| state)
+	}
+}
+
+
+
+
+
+fn push_event_to_raw_state(raw: &mut raw::RawState, event: &sdl2::event::Event) {
+	use sdl2::event::{Event, WindowEvent};
+
+	match event {
+		Event::Window{ win_event: WindowEvent::Leave, .. } => raw.track_mouse_leave(),
+		Event::Window{ win_event: WindowEvent::FocusLost, .. } => raw.track_focus_lost(),
+
+		// Event::MouseWheel { y, .. } => {
+		// }
+
+		&Event::MouseMotion { xrel, yrel, x, y, .. } => {
+			let absolute = Vec2i::new(x, y);
+			let relative = Vec2i::new(xrel, yrel);
+			raw.track_mouse_move(absolute, relative);
+		}
+
+		Event::MouseButtonDown { mouse_btn, .. } => raw.track_button_down(mouse_btn.into()),
+		Event::MouseButtonUp { mouse_btn, .. } => raw.track_button_up(mouse_btn.into()),
+
+		Event::KeyDown { scancode: Some(scancode), .. } => raw.track_button_down(scancode.into()),
+		Event::KeyUp { scancode: Some(scancode), .. } => raw.track_button_up(scancode.into()),
+
+		_ => {}
 	}
 }
