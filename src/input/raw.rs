@@ -54,19 +54,21 @@ use common::math::Vec2i;
 
 #[derive(Debug)]
 pub struct RawState {
-	/// The current mouse position in screenspace
-	/// Normalised to window height, and will be None if a capturing input context is active
-	/// and also if focus is lost
+	/// The current mouse position in screenspace.
+	/// Will be None if focus is lost.
 	pub mouse_absolute: Option<Vec2i>,
 
-	/// The mouse delta recorded this frame - if there is one
-	/// Used for mouse capturing input contexts
+	/// The mouse delta recorded this frame - if there is one.
+	/// Used for mouse capturing input contexts.
 	pub mouse_delta: Option<Vec2i>,
 
-	/// Buttons currently being held
+	/// The mouse wheel delta recorded this frame - if there is one.
+	pub wheel_delta: Option<i32>,
+
+	/// Buttons currently being held.
 	pub active_buttons: Vec<Button>,
 
-	/// Buttons that have become pressed this frame
+	/// Buttons that have become pressed this frame.
 	pub new_buttons: Vec<Button>,
 }
 
@@ -76,6 +78,7 @@ impl RawState {
 		RawState {
 			mouse_absolute: None,
 			mouse_delta: None,
+			wheel_delta: None,
 
 			active_buttons: Vec::new(),
 			new_buttons: Vec::new(),
@@ -97,6 +100,11 @@ impl RawState {
 		*current_delta += relative;
 	}
 
+	pub fn track_wheel_move(&mut self, delta: i32) {
+		let current_delta = self.wheel_delta.get_or_insert(0);
+		*current_delta += delta;
+	}
+
 	pub fn track_button_down(&mut self, button: Button) {
 		let button_is_active = self.active_buttons.contains(&button);
 
@@ -107,15 +115,12 @@ impl RawState {
 	}
 
 	pub fn track_button_up(&mut self, button: Button) {
-		let button_is_active = self.active_buttons.contains(&button);
-
-		if button_is_active {
-			self.active_buttons.retain(|&b| b != button);
-		}
+		self.active_buttons.retain(|&b| b != button);
 	}
 
 	pub fn track_new_frame(&mut self) {
 		self.mouse_delta = None;
+		self.wheel_delta = None;
 		self.new_buttons.clear();
 	}
 }

@@ -30,12 +30,6 @@ pub struct InputSystem {
 	/// Used for mouse capturing input contexts
 	mouse_delta: Option<Vec2>,
 
-	/// Buttons currently being held
-	active_buttons: Vec<raw::Button>,
-
-	/// Buttons that have become pressed this frame
-	new_buttons: Vec<raw::Button>,
-
 
 	pub raw: raw::RawState,
 
@@ -61,9 +55,6 @@ impl InputSystem {
 			mouse_absolute: None,
 			mouse_delta: None,
 
-			active_buttons: Vec::new(),
-			new_buttons: Vec::new(),
-
 			raw: raw::RawState::new(),
 
 			frame_state: FrameState::default(),
@@ -75,7 +66,6 @@ impl InputSystem {
 
 	pub(crate) fn clear(&mut self) {
 		self.mouse_delta.take();
-		self.new_buttons.clear();
 
 		self.raw.track_new_frame();
 
@@ -218,6 +208,16 @@ impl InputSystem {
 		self.active_contexts_changed = true;
 	}
 
+	pub fn set_context_active(&mut self, context_id: ContextID, active: bool) {
+		let currently_active = self.is_context_active(context_id);
+		
+		match (currently_active, active) {
+			(false, true) => self.enter_context(context_id),
+			(true, false) => self.leave_context(context_id),
+			_ => {}
+		}
+	}
+
 	pub fn is_context_active(&self, context_id: ContextID) -> bool {
 		self.active_contexts.contains(&context_id)
 	}
@@ -291,15 +291,16 @@ impl FrameState {
 
 fn push_event_to_raw_state(raw: &mut raw::RawState, event: &sdl2::event::Event) {
 	use sdl2::event::{Event, WindowEvent};
+	use sdl2::mouse::MouseWheelDirection;
 
-	match event {
+	match *event {
 		Event::Window{ win_event: WindowEvent::Leave, .. } => raw.track_mouse_leave(),
 		Event::Window{ win_event: WindowEvent::FocusLost, .. } => raw.track_focus_lost(),
 
-		// Event::MouseWheel { y, .. } => {
-		// }
+		Event::MouseWheel { y, direction: MouseWheelDirection::Normal, .. } => raw.track_wheel_move(y),
+		Event::MouseWheel { y, direction: MouseWheelDirection::Flipped, .. } => raw.track_wheel_move(-y),
 
-		&Event::MouseMotion { xrel, yrel, x, y, .. } => {
+		Event::MouseMotion { xrel, yrel, x, y, .. } => {
 			let absolute = Vec2i::new(x, y);
 			let relative = Vec2i::new(xrel, yrel);
 			raw.track_mouse_move(absolute, relative);
@@ -314,3 +315,6 @@ fn push_event_to_raw_state(raw: &mut raw::RawState, event: &sdl2::event::Event) 
 		_ => {}
 	}
 }
+
+
+
