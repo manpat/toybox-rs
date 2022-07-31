@@ -94,7 +94,11 @@ impl Engine {
 				}
 
 				_ => {
-					let imgui_claimed = self.imgui.handle_event(&event);
+					let imgui_claimed = match self.input.is_mouse_captured() {
+						false => self.imgui.handle_event(&event),
+						true => false,
+					};
+
 					if !imgui_claimed {
 						self.input.handle_event(&event);
 					}

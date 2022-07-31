@@ -21,17 +21,7 @@ pub struct InputSystem {
 	window_size: Vec2,
 
 
-	/// The current mouse position in screenspace
-	/// Normalised to window height, and will be None if a capturing input context is active
-	/// and also if focus is lost
-	mouse_absolute: Option<Vec2>,
-
-	/// The mouse delta recorded this frame - if there is one
-	/// Used for mouse capturing input contexts
-	mouse_delta: Option<Vec2>,
-
-
-	pub raw: raw::RawState,
+	pub raw_state: raw::RawState,
 
 
 	frame_state: FrameState,
@@ -41,150 +31,8 @@ pub struct InputSystem {
 	sdl2_mouse: sdl2::mouse::MouseUtil,
 }
 
+
 impl InputSystem {
-	pub(crate) fn new(sdl2_mouse: sdl2::mouse::MouseUtil, window: &sdl2::video::Window) -> InputSystem {
-		let (w, h) = window.drawable_size();
-
-		InputSystem {
-			contexts: Vec::new(),
-			active_contexts: Vec::new(),
-			active_contexts_changed: false,
-
-			window_size: Vec2::new(w as f32, h as f32),
-
-			mouse_absolute: None,
-			mouse_delta: None,
-
-			raw: raw::RawState::new(),
-
-			frame_state: FrameState::default(),
-			prev_frame_state: FrameState::default(),
-
-			sdl2_mouse,
-		}
-	}
-
-	pub(crate) fn clear(&mut self) {
-		self.mouse_delta.take();
-
-		self.raw.track_new_frame();
-
-		if self.active_contexts_changed {
-			self.active_contexts_changed = false;
-
-			let contexts = &self.contexts;
-			self.active_contexts.sort_by_key(move |id| contexts.get(id.0).map(|ctx| ctx.priority()));
-
-			// Find last active context using mouse input; we want to enable relative mouse mode if it's relative
-			let should_capture_mouse = self.active_contexts.iter().rev()
-				.flat_map(|&ContextID(id)| self.contexts.get(id))
-				.find_map(InputContext::mouse_action)
-				.map_or(false, |(action, _)| action.kind() == ActionKind::Mouse);
-
-			self.sdl2_mouse.set_relative_mouse_mode(should_capture_mouse);
-		}
-	}
-
-	pub(crate) fn handle_event(&mut self, event: &sdl2::event::Event) {
-		use sdl2::event::{Event, WindowEvent};
-
-		match event {
-			&Event::Window{ win_event: WindowEvent::Resized(w, h), .. } => {
-				// TODO(pat.m): this event doesn't get emitted on startup
-				self.window_size = Vec2::new(w as f32, h as f32);
-			}
-
-			// &Event::MouseMotion { xrel, yrel, x, y, .. } => {
-			// 	let Vec2{x: w, y: h} = self.window_size;
-			// 	let aspect = w/h;
-
-			// 	let mouse_x = x as f32 / w * 2.0 - 1.0;
-			// 	let mouse_y = -(y as f32 / h * 2.0 - 1.0);
-
-			// 	// Maintain a 1x1 safe region in center screen
-			// 	let (mouse_x, mouse_y) = if aspect > 1.0 {
-			// 		(mouse_x * aspect, mouse_y)
-			// 	} else {
-			// 		(mouse_x, mouse_y / aspect)
-			// 	};
-
-			// 	self.mouse_absolute = Some(Vec2::new(mouse_x, mouse_y));
-
-			// 	let mouse_dx =  xrel as f32;
-			// 	let mouse_dy = -yrel as f32;
-
-			// 	let mouse_delta = Vec2::new(mouse_dx, mouse_dy);
-			// 	let current_delta = self.mouse_delta.get_or_insert_with(Vec2::zero);
-			// 	*current_delta += mouse_delta;
-			// }
-
-			event => push_event_to_raw_state(&mut self.raw, event),
-		}
-	}
-
-	pub(crate) fn process_events(&mut self) {
-		std::mem::swap(&mut self.frame_state, &mut self.prev_frame_state);
-
-		self.frame_state.button.clear();
-		self.frame_state.mouse.take();
-
-		// Calculate mouse action
-		let mouse_action = self.active_contexts.iter().rev()
-			.flat_map(|&ContextID(id)| self.contexts.get(id))
-			.find_map(|ctx| ctx.mouse_action().zip(Some(ctx)));
-
-		if let Some(((action, action_id), context)) = mouse_action {
-			if action.kind().is_relative() {
-				let sensitivity = context.mouse_sensitivity().unwrap_or(1.0);
-				self.frame_state.mouse = self.mouse_delta.map(|state| (action_id, state * sensitivity));
-			} else {
-				self.frame_state.mouse = self.mouse_absolute.map(|state| (action_id, state));
-			}
-		}
-
-		// Collect new button actions
-		for &button in self.raw.new_buttons.iter() {
-			let most_appropriate_action = self.active_contexts.iter().rev()
-				.flat_map(|&ContextID(id)| self.contexts.get(id))
-				.find_map(|ctx| ctx.action_for_button(button));
-
-			if let Some((_, action_id)) = most_appropriate_action {
-				self.frame_state.button.insert(action_id, ActionState::Entered);
-			}
-		}
-
-		// Collect stateful button actions - triggers _only_ run on button down events
-		for &button in self.raw.active_buttons.iter() {
-			let most_appropriate_action = self.active_contexts.iter().rev()
-				.flat_map(|&ContextID(id)| self.contexts.get(id))
-				.flat_map(|ctx| ctx.action_for_button(button))
-				.find(|(action, _)| action.kind() == ActionKind::State);
-
-			if let Some((_, action_id)) = most_appropriate_action {
-				// If this button was previously entered or active, remain active
-				if self.prev_frame_state.button.get(&action_id)
-					.filter(|&&state| state != ActionState::Left)
-					.is_some()
-				{
-					self.frame_state.button.insert(action_id, ActionState::Active);
-				} else {
-					self.frame_state.button.insert(action_id, ActionState::Entered);
-				}
-			}
-		}
-
-
-		// Combine current active actions with previous frame state
-		for (&action_id, _) in self.prev_frame_state.button.iter()
-			.filter(|(_, state)| **state != ActionState::Left)
-		{
-			// If a previously active action doesn't appear in the new framestate
-			// register it as a deactivation
-			self.frame_state.button.entry(action_id)
-				.or_insert(ActionState::Left);
-		}
-	}
-
 	pub fn new_context(&mut self, name: impl Into<String>) -> context::Builder<'_> {
 		let context_id = context::ContextID(self.contexts.len());
 		let context = InputContext::new_empty(name.into(), context_id);
@@ -234,6 +82,163 @@ impl InputSystem {
 		self.active_contexts.iter()
 			.filter_map(move |id| self.contexts.get(id.0))
 	}
+
+	pub fn is_mouse_captured(&self) -> bool {
+		self.sdl2_mouse.relative_mouse_mode()
+	}
+}
+
+
+impl InputSystem {
+	pub(crate) fn new(sdl2_mouse: sdl2::mouse::MouseUtil, window: &sdl2::video::Window) -> InputSystem {
+		let (w, h) = window.drawable_size();
+
+		InputSystem {
+			contexts: Vec::new(),
+			active_contexts: Vec::new(),
+			active_contexts_changed: false,
+
+			window_size: Vec2::new(w as f32, h as f32),
+
+			raw_state: raw::RawState::new(),
+
+			frame_state: FrameState::default(),
+			prev_frame_state: FrameState::default(),
+
+			sdl2_mouse,
+		}
+	}
+
+	pub(crate) fn clear(&mut self) {
+		self.raw_state.track_new_frame();
+
+		if self.active_contexts_changed {
+			self.active_contexts_changed = false;
+
+			let contexts = &self.contexts;
+			self.active_contexts.sort_by_key(move |id| contexts.get(id.0).map(|ctx| ctx.priority()));
+
+			// Find last active context using mouse input; we want to enable relative mouse mode if it's relative
+			let should_capture_mouse = self.active_contexts.iter().rev()
+				.flat_map(|&ContextID(id)| self.contexts.get(id))
+				.find_map(InputContext::mouse_action)
+				.map_or(false, |(action, _)| action.kind() == ActionKind::Mouse);
+
+			self.sdl2_mouse.set_relative_mouse_mode(should_capture_mouse);
+		}
+	}
+
+	pub(crate) fn handle_event(&mut self, event: &sdl2::event::Event) {
+		use sdl2::event::{Event, WindowEvent};
+
+		match event {
+			&Event::Window{ win_event: WindowEvent::Resized(w, h), .. } => {
+				// TODO(pat.m): this event doesn't get emitted on startup
+				self.window_size = Vec2::new(w as f32, h as f32);
+			}
+
+			// &Event::MouseMotion { xrel, yrel, x, y, .. } => {
+				// let Vec2{x: w, y: h} = self.window_size;
+				// let aspect = w/h;
+
+				// let mouse_x = x as f32 / w * 2.0 - 1.0;
+				// let mouse_y = -(y as f32 / h * 2.0 - 1.0);
+
+				// // Maintain a 1x1 safe region in center screen
+				// let (mouse_x, mouse_y) = if aspect > 1.0 {
+				// 	(mouse_x * aspect, mouse_y)
+				// } else {
+				// 	(mouse_x, mouse_y / aspect)
+				// };
+
+			// 	self.mouse_absolute = Some(Vec2::new(mouse_x, mouse_y));
+
+			// 	let mouse_dx =  xrel as f32;
+			// 	let mouse_dy = -yrel as f32;
+
+			// 	let mouse_delta = Vec2::new(mouse_dx, mouse_dy);
+			// 	let current_delta = self.mouse_delta.get_or_insert_with(Vec2::zero);
+			// 	*current_delta += mouse_delta;
+			// }
+
+			event => push_event_to_raw_state(&mut self.raw_state, event),
+		}
+	}
+
+	pub(crate) fn process_events(&mut self) {
+		std::mem::swap(&mut self.frame_state, &mut self.prev_frame_state);
+
+		self.frame_state.button.clear();
+		self.frame_state.mouse = None;
+
+		// Calculate mouse action
+		let mouse_action = self.active_contexts.iter().rev()
+			.flat_map(|&ContextID(id)| self.contexts.get(id))
+			.find_map(|ctx| ctx.mouse_action().zip(Some(ctx)));
+
+		if let Some(((action, action_id), context)) = mouse_action {
+			let remap = |value: Vec2i, absolute| {
+				let Vec2{x: w, y: h} = self.window_size;
+				let aspect = w/h;
+
+				let offset = match absolute {
+					true => Vec2::new(-1.0, 1.0),
+					false => Vec2::zero()
+				};
+
+				value.to_vec2() / self.window_size * Vec2::new(2.0, -2.0) + offset
+			};
+
+			if action.kind().is_relative() {
+				let sensitivity = context.mouse_sensitivity().unwrap_or(1.0);
+				self.frame_state.mouse = self.raw_state.mouse_delta.map(|state| (action_id, remap(state, false) * sensitivity));
+			} else {
+				self.frame_state.mouse = self.raw_state.mouse_absolute.map(|state| (action_id, remap(state, true)));
+			}
+		}
+
+		// Collect new button actions
+		for &button in self.raw_state.new_buttons.iter() {
+			let most_appropriate_action = self.active_contexts.iter().rev()
+				.flat_map(|&ContextID(id)| self.contexts.get(id))
+				.find_map(|ctx| ctx.action_for_button(button));
+
+			if let Some((_, action_id)) = most_appropriate_action {
+				self.frame_state.button.insert(action_id, ActionState::Entered);
+			}
+		}
+
+		// Collect stateful button actions - triggers _only_ run on button down events
+		for &button in self.raw_state.active_buttons.iter() {
+			let most_appropriate_action = self.active_contexts.iter().rev()
+				.flat_map(|&ContextID(id)| self.contexts.get(id))
+				.flat_map(|ctx| ctx.action_for_button(button))
+				.find(|(action, _)| action.kind() == ActionKind::State);
+
+			if let Some((_, action_id)) = most_appropriate_action {
+				// If this button was previously entered or active, remain active
+				if self.prev_frame_state.button.get(&action_id)
+					.filter(|&&state| state != ActionState::Left)
+					.is_some()
+				{
+					self.frame_state.button.insert(action_id, ActionState::Active);
+				} else {
+					self.frame_state.button.insert(action_id, ActionState::Entered);
+				}
+			}
+		}
+
+
+		// Combine current active actions with previous frame state
+		for (&action_id, _) in self.prev_frame_state.button.iter()
+			.filter(|(_, state)| **state != ActionState::Left)
+		{
+			// If a previously active action doesn't appear in the new framestate
+			// register it as a deactivation
+			self.frame_state.button.entry(action_id)
+				.or_insert(ActionState::Left);
+		}
+	}
 }
 
 
@@ -262,8 +267,12 @@ impl FrameState {
 	/// For Triggers: returns whether action was triggered this frame
 	/// For States: returns whether action is currently active (button is being held)
 	pub fn active(&self, action: ActionID) -> bool {
-		self.button.get(&action)
-			.map_or(false, |state| matches!(state, ActionState::Entered | ActionState::Active))
+		let button_active = self.button.get(&action)
+			.map_or(false, |state| matches!(state, ActionState::Entered | ActionState::Active));
+
+		let mouse_active = matches!(self.mouse, Some((id, _)) if id == action);
+
+		button_active || mouse_active
 	}
 
 	/// Whether a state or trigger was actived this frame
@@ -289,28 +298,28 @@ impl FrameState {
 
 
 
-fn push_event_to_raw_state(raw: &mut raw::RawState, event: &sdl2::event::Event) {
+fn push_event_to_raw_state(raw_state: &mut raw::RawState, event: &sdl2::event::Event) {
 	use sdl2::event::{Event, WindowEvent};
 	use sdl2::mouse::MouseWheelDirection;
 
 	match *event {
-		Event::Window{ win_event: WindowEvent::Leave, .. } => raw.track_mouse_leave(),
-		Event::Window{ win_event: WindowEvent::FocusLost, .. } => raw.track_focus_lost(),
+		Event::Window{ win_event: WindowEvent::Leave, .. } => raw_state.track_mouse_leave(),
+		Event::Window{ win_event: WindowEvent::FocusLost, .. } => raw_state.track_focus_lost(),
 
-		Event::MouseWheel { y, direction: MouseWheelDirection::Normal, .. } => raw.track_wheel_move(y),
-		Event::MouseWheel { y, direction: MouseWheelDirection::Flipped, .. } => raw.track_wheel_move(-y),
+		Event::MouseWheel { y, direction: MouseWheelDirection::Normal, .. } => raw_state.track_wheel_move(y),
+		Event::MouseWheel { y, direction: MouseWheelDirection::Flipped, .. } => raw_state.track_wheel_move(-y),
 
 		Event::MouseMotion { xrel, yrel, x, y, .. } => {
 			let absolute = Vec2i::new(x, y);
 			let relative = Vec2i::new(xrel, yrel);
-			raw.track_mouse_move(absolute, relative);
+			raw_state.track_mouse_move(absolute, relative);
 		}
 
-		Event::MouseButtonDown { mouse_btn, .. } => raw.track_button_down(mouse_btn.into()),
-		Event::MouseButtonUp { mouse_btn, .. } => raw.track_button_up(mouse_btn.into()),
+		Event::MouseButtonDown { mouse_btn, .. } => raw_state.track_button_down(mouse_btn.into()),
+		Event::MouseButtonUp { mouse_btn, .. } => raw_state.track_button_up(mouse_btn.into()),
 
-		Event::KeyDown { scancode: Some(scancode), .. } => raw.track_button_down(scancode.into()),
-		Event::KeyUp { scancode: Some(scancode), .. } => raw.track_button_up(scancode.into()),
+		Event::KeyDown { scancode: Some(scancode), .. } => raw_state.track_button_down(scancode.into()),
+		Event::KeyUp { scancode: Some(scancode), .. } => raw_state.track_button_up(scancode.into()),
 
 		_ => {}
 	}

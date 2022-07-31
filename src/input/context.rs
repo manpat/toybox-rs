@@ -47,6 +47,13 @@ impl InputContext {
 		self.actions.iter()
 	}
 
+	pub fn action_ids(&self) -> impl Iterator<Item=ActionID> {
+		let context_id = self.id;
+
+		(0..self.actions.len())
+			.map(move |index| ActionID {context_id, index})
+	}
+
 	pub fn mouse_action(&self) -> Option<(&Action, ActionID)> {
 		let context_id = self.id;
 
