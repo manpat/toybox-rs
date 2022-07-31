@@ -90,15 +90,14 @@ impl InputSystem {
 
 
 impl InputSystem {
-	pub(crate) fn new(sdl2_mouse: sdl2::mouse::MouseUtil, window: &sdl2::video::Window) -> InputSystem {
-		let (w, h) = window.drawable_size();
-
+	pub(crate) fn new(sdl2_mouse: sdl2::mouse::MouseUtil) -> InputSystem {
 		InputSystem {
 			contexts: Vec::new(),
 			active_contexts: Vec::new(),
 			active_contexts_changed: false,
 
-			window_size: Vec2::new(w as f32, h as f32),
+			// We're assuming on_resize will be called soon after construction by Engine
+			window_size: Vec2::zero(),
 
 			raw_state: raw::RawState::new(),
 
@@ -128,41 +127,59 @@ impl InputSystem {
 		}
 	}
 
+	pub(crate) fn on_resize(&mut self, window_size: Vec2i) {
+		self.window_size = window_size.to_vec2();
+	}
+
 	pub(crate) fn handle_event(&mut self, event: &sdl2::event::Event) {
 		use sdl2::event::{Event, WindowEvent};
+		use sdl2::mouse::MouseWheelDirection;
 
-		match event {
-			&Event::Window{ win_event: WindowEvent::Resized(w, h), .. } => {
-				// TODO(pat.m): this event doesn't get emitted on startup
-				self.window_size = Vec2::new(w as f32, h as f32);
+		match *event {
+			Event::Window{ win_event: WindowEvent::Leave, .. } => self.raw_state.track_mouse_leave(),
+			Event::Window{ win_event: WindowEvent::FocusLost, .. } => self.raw_state.track_focus_lost(),
+
+			Event::MouseWheel { y, direction: MouseWheelDirection::Normal, .. } => self.raw_state.track_wheel_move(y),
+			Event::MouseWheel { y, direction: MouseWheelDirection::Flipped, .. } => self.raw_state.track_wheel_move(-y),
+
+			Event::MouseMotion { xrel, yrel, x, y, .. } => {
+				let absolute = Vec2i::new(x, y);
+				let relative = Vec2i::new(xrel, yrel);
+				self.raw_state.track_mouse_move(absolute, relative);
 			}
 
-			// &Event::MouseMotion { xrel, yrel, x, y, .. } => {
-				// let Vec2{x: w, y: h} = self.window_size;
-				// let aspect = w/h;
+			Event::MouseButtonDown { mouse_btn, .. } => self.raw_state.track_button_down(mouse_btn.into()),
+			Event::MouseButtonUp { mouse_btn, .. } => self.raw_state.track_button_up(mouse_btn.into()),
 
-				// let mouse_x = x as f32 / w * 2.0 - 1.0;
-				// let mouse_y = -(y as f32 / h * 2.0 - 1.0);
+			Event::KeyDown { scancode: Some(scancode), .. } => self.raw_state.track_button_down(scancode.into()),
+			Event::KeyUp { scancode: Some(scancode), .. } => self.raw_state.track_button_up(scancode.into()),
 
-				// // Maintain a 1x1 safe region in center screen
-				// let (mouse_x, mouse_y) = if aspect > 1.0 {
-				// 	(mouse_x * aspect, mouse_y)
-				// } else {
-				// 	(mouse_x, mouse_y / aspect)
-				// };
-
-			// 	self.mouse_absolute = Some(Vec2::new(mouse_x, mouse_y));
-
-			// 	let mouse_dx =  xrel as f32;
-			// 	let mouse_dy = -yrel as f32;
-
-			// 	let mouse_delta = Vec2::new(mouse_dx, mouse_dy);
-			// 	let current_delta = self.mouse_delta.get_or_insert_with(Vec2::zero);
-			// 	*current_delta += mouse_delta;
-			// }
-
-			event => push_event_to_raw_state(&mut self.raw_state, event),
+			_ => {}
 		}
+
+		// &Event::MouseMotion { xrel, yrel, x, y, .. } => {
+			// let Vec2{x: w, y: h} = self.window_size;
+			// let aspect = w/h;
+
+			// let mouse_x = x as f32 / w * 2.0 - 1.0;
+			// let mouse_y = -(y as f32 / h * 2.0 - 1.0);
+
+			// // Maintain a 1x1 safe region in center screen
+			// let (mouse_x, mouse_y) = if aspect > 1.0 {
+			// 	(mouse_x * aspect, mouse_y)
+			// } else {
+			// 	(mouse_x, mouse_y / aspect)
+			// };
+
+		// 	self.mouse_absolute = Some(Vec2::new(mouse_x, mouse_y));
+
+		// 	let mouse_dx =  xrel as f32;
+		// 	let mouse_dy = -yrel as f32;
+
+		// 	let mouse_delta = Vec2::new(mouse_dx, mouse_dy);
+		// 	let current_delta = self.mouse_delta.get_or_insert_with(Vec2::zero);
+		// 	*current_delta += mouse_delta;
+		// }
 	}
 
 	pub(crate) fn process_events(&mut self) {
@@ -178,8 +195,8 @@ impl InputSystem {
 
 		if let Some(((action, action_id), context)) = mouse_action {
 			let remap = |value: Vec2i, absolute| {
-				let Vec2{x: w, y: h} = self.window_size;
-				let aspect = w/h;
+				// let Vec2{x: w, y: h} = self.window_size;
+				// let aspect = w/h;
 
 				let offset = match absolute {
 					true => Vec2::new(-1.0, 1.0),
@@ -217,9 +234,8 @@ impl InputSystem {
 
 			if let Some((_, action_id)) = most_appropriate_action {
 				// If this button was previously entered or active, remain active
-				if self.prev_frame_state.button.get(&action_id)
-					.filter(|&&state| state != ActionState::Left)
-					.is_some()
+				if let Some(&state) = self.prev_frame_state.button.get(&action_id)
+					&& state != ActionState::Left
 				{
 					self.frame_state.button.insert(action_id, ActionState::Active);
 				} else {
@@ -293,37 +309,5 @@ impl FrameState {
 			.map(|(_, state)| state)
 	}
 }
-
-
-
-
-
-fn push_event_to_raw_state(raw_state: &mut raw::RawState, event: &sdl2::event::Event) {
-	use sdl2::event::{Event, WindowEvent};
-	use sdl2::mouse::MouseWheelDirection;
-
-	match *event {
-		Event::Window{ win_event: WindowEvent::Leave, .. } => raw_state.track_mouse_leave(),
-		Event::Window{ win_event: WindowEvent::FocusLost, .. } => raw_state.track_focus_lost(),
-
-		Event::MouseWheel { y, direction: MouseWheelDirection::Normal, .. } => raw_state.track_wheel_move(y),
-		Event::MouseWheel { y, direction: MouseWheelDirection::Flipped, .. } => raw_state.track_wheel_move(-y),
-
-		Event::MouseMotion { xrel, yrel, x, y, .. } => {
-			let absolute = Vec2i::new(x, y);
-			let relative = Vec2i::new(xrel, yrel);
-			raw_state.track_mouse_move(absolute, relative);
-		}
-
-		Event::MouseButtonDown { mouse_btn, .. } => raw_state.track_button_down(mouse_btn.into()),
-		Event::MouseButtonUp { mouse_btn, .. } => raw_state.track_button_up(mouse_btn.into()),
-
-		Event::KeyDown { scancode: Some(scancode), .. } => raw_state.track_button_down(scancode.into()),
-		Event::KeyUp { scancode: Some(scancode), .. } => raw_state.track_button_up(scancode.into()),
-
-		_ => {}
-	}
-}
-
 
 

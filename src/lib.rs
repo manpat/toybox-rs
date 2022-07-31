@@ -39,7 +39,7 @@ impl Engine {
 
 		let (window, mut gfx) = window::init_window(&sdl_video, window_name)?;
 		let event_pump = sdl_ctx.event_pump()?;
-		let input = input::InputSystem::new(sdl_ctx.mouse(), &window);
+		let mut input = input::InputSystem::new(sdl_ctx.mouse());
 		let audio = audio::AudioSystem::new(sdl_audio)?;
 
 		let mut imgui = imgui_backend::ImguiBackend::new(&mut gfx)?;
@@ -54,6 +54,7 @@ impl Engine {
 
 		gfx.on_resize(drawable_size);
 		imgui.on_resize(drawable_size, window_size);
+		input.on_resize(window_size);
 
 		Ok(Engine {
 			sdl_ctx,
@@ -90,14 +91,12 @@ impl Engine {
 
 					self.gfx.on_resize(drawable_size);
 					self.imgui.on_resize(drawable_size, window_size);
-					self.input.handle_event(&event)
+					self.input.on_resize(window_size);
 				}
 
 				_ => {
-					let imgui_claimed = match self.input.is_mouse_captured() {
-						false => self.imgui.handle_event(&event),
-						true => false,
-					};
+					let imgui_claimed = !self.input.is_mouse_captured()
+						&& self.imgui.handle_event(&event);
 
 					if !imgui_claimed {
 						self.input.handle_event(&event);

@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use common::math::*;
 
 
 pub struct ImguiBackend {
@@ -431,6 +430,8 @@ fn init_imgui() {
 					.backend_flags
 					.insert(imgui::BackendFlags::RENDERER_HAS_VTX_OFFSET);
 
+				setup_style(imgui.style_mut());
+
 				imgui
 			});
 		}
@@ -444,4 +445,12 @@ fn imgui_mut() -> &'static mut imgui::Context {
 			.and_then(Option::as_mut)
 			.expect("imgui not initialised")
 	})
+}
+
+fn setup_style(style: &mut imgui::Style) {
+	style.use_dark_colors();
+
+	// TODO: better colour scheme
+	// use imgui::StyleColor;
+	// style[StyleColor::]
 }

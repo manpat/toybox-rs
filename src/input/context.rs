@@ -6,10 +6,9 @@ use std::collections::HashMap;
 pub struct ContextID(pub(super) usize);
 
 
-/// A set of actions that can be bound to system inputs
-/// Can be enabled/disabled based on game state and several can be enabled at once
-/// Also holds conversions for Axis based actions
-
+/// A set of actions that can be bound to system inputs.
+/// Can be enabled/disabled based on game state and several can be enabled at once.
+/// Also holds conversions for Axis based actions.
 #[derive(Debug)]
 pub struct InputContext {
 	name: String,
