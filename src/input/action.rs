@@ -1,5 +1,8 @@
 use crate::input::{raw, context};
 
+#[cfg(doc)]
+use crate::input::frame_state::ActionState::*;
+
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ActionID {
@@ -10,27 +13,28 @@ pub struct ActionID {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ActionKind {
-	/// One-off, immediate action
-	/// On button down, will emit an Enter state, immediately followed by a Leave state.
-	/// Triggers will never enter the Active state, but FrameState::active can still be used.
+	/// # One-off, immediate action.
+	/// On button down, will emit an [`Entered`] state, immediately followed by a [`Left`] state.
+	/// Triggers will never enter the [`Active`] state, but FrameState::active can still be used.
 	/// Will not trigger if its owning context is activated while its bound keys are held - only triggers on button down while context is active
 	Trigger,
 
-	/// Continuous binary input
-	/// Will emit Enter and Leave states on button down/up, and will remain in the Active state while the button is held.
-	/// If the actions bound button is held when its owning context is activated, it will emit Enter and Active states.
-	/// Similarly, if the owning context is disabled while the action is active, it will emit a Leave state
+	/// # Continuous binary input.
+	/// Will emit [`Entered`] and [`Left`] states on button down/up, and will remain in the [`Active`]
+	/// state while the button is held. If the actions bound button is held when its owning context is
+	/// activated, it will emit [`Entered`] and [`Active`] states.
+	/// Similarly, if the owning context is disabled while the action is active, it will emit a [`Left`] state.
 	State,
 
-	/// Per-frame relative mouse input
-	/// The cursor will be put into 'relative' mode while the owning context is the topmost context with a mouse action.
-	/// Input will only be available while the mouse is moving within the window
-	/// Cannot exist in a context with any other Mouse or Pointer actions
+	/// # Per-frame relative mouse input.
+	/// The cursor will be put into 'relative' mode while the owning context is the topmost context with
+	/// a mouse action. Input will only be available while the mouse is moving within the window.
+	/// Cannot exist in a context with any other Mouse or Pointer actions.
 	Mouse,
 
-	/// Absolute mouse position relative to window
-	/// Input will only be available while the mouse is within the window, and will be normalised to the logical height of the window
-	/// Cannot exist in a context with any other Mouse or Pointer actions
+	/// # Absolute mouse position relative to window.
+	/// Input will only be available while the mouse is within the window, and will be normalised to
+	/// the logical height of the window. Cannot exist in a context with any other Mouse or Pointer actions.
 	Pointer,
 }
 

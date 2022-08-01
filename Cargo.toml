@@ -5,7 +5,6 @@ authors = ["Patrick Monaghan <0x5f.manpat@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-sdl2 = { version = ">=0.33", features = ["bundled", "static-link"] }
 common = { git = "https://github.com/manpat/common-rs.git" }
 toy = { git = "https://github.com/manpat/toy-rs.git" }
 bitflags = "1.2.*"
@@ -22,6 +21,11 @@ symphonia = "0.4"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 
+
+[dependencies.sdl2]
+version = ">=0.33"
+features = ["bundled", "static-link"]
+# features = ["bundled", "static-link", "image"]
 
 [dependencies.tracing-tracy]
 version = "0.8"

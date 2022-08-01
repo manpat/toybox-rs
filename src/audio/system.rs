@@ -20,7 +20,7 @@ enum ProducerCommand {
 
 
 pub struct AudioSystem {
-	audio_device: sdl2::audio::AudioDevice<AudioSubmissionWorker>,
+	_audio_device: sdl2::audio::AudioDevice<AudioSubmissionWorker>,
 	shared: Arc<Shared>,
 	command_tx: Sender<ProducerCommand>,
 
@@ -90,7 +90,7 @@ impl AudioSystem {
 		audio_device.resume();
 
 		Ok(AudioSystem {
-			audio_device,
+			_audio_device: audio_device,
 			shared,
 			command_tx,
 

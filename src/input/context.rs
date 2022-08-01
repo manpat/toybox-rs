@@ -1,5 +1,6 @@
 use crate::input::raw;
 use crate::input::action::{self, Action, ActionID};
+use crate::input::ContextGroupID;
 use std::collections::HashMap;
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -11,11 +12,16 @@ pub struct ContextID(pub(super) usize);
 /// Also holds conversions for Axis based actions.
 #[derive(Debug)]
 pub struct InputContext {
-	name: String,
-	id: ContextID,
+	pub name: String,
+	pub id: ContextID,
+
+	/// If this context is a part of a context group, this holds its ID.
+	/// If set, the active state of this context will only be considered if its context group is
+	/// also active.
+	pub context_group_id: Option<ContextGroupID>,
 
 	/// An arbitrary sort order - contexts with higher priorities will recieve events first
-	priority: isize,
+	pub priority: isize,
 
 	actions: Vec<Action>,
 
@@ -31,6 +37,7 @@ impl InputContext {
 		InputContext {
 			name,
 			id,
+			context_group_id: None,
 			priority: 0,
 			actions: Vec::new(),
 			button_mappings: HashMap::new(),

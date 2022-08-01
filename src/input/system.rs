@@ -1,23 +1,38 @@
 use common::math::*;
 use crate::input::raw;
-use crate::input::action::{ActionID, ActionKind};
+use crate::input::action::ActionKind;
 use crate::input::context::{self, ContextID, InputContext};
-use std::collections::HashMap;
+use crate::input::context_group::{ContextGroup, ContextGroupID};
+use crate::input::frame_state::{FrameState, ActionState};
 
+#[cfg(doc)]
+use crate::input::action::Action;
 
+/// Facillitates translation of raw sdl2 input events into context specific, semantic [`Action`]s,
+/// and handles changing the mouse capture state as appropriate.
+/// [`Action`]s are generated in [`process_events`] and can be accessed
+/// through the systems current [`FrameState`] (see [`InputSystem::frame_state`]).
+///
+/// [`process_events`]: crate::Engine::process_events
 pub struct InputSystem {
-	/// All declared input contexts
+	/// All declared input contexts.
 	contexts: Vec<InputContext>,
 
+	/// All declared context groups.
+	context_groups: Vec<ContextGroup>,
+
+	/// Active context groups.
+	active_context_groups: Vec<ContextGroupID>,
+
 	/// Active input contexts, ordered by priority in reverse order.
-	/// Contexts at the end will recieve actions first
+	/// Contexts at the end will recieve actions first.
 	active_contexts: Vec<ContextID>,
 
-	/// Set when a context has been pushed or popped
-	/// Will cause mouse capture state to be reevaluated when set
+	/// Set when a context has been pushed or popped, or the set of active context groups has changed.
+	/// Will cause mouse capture state to be reevaluated when set.
 	active_contexts_changed: bool,
 
-	/// Used for remapping mouse input
+	/// Used for remapping mouse input.
 	window_size: Vec2,
 
 
@@ -34,7 +49,8 @@ pub struct InputSystem {
 
 impl InputSystem {
 	pub fn new_context(&mut self, name: impl Into<String>) -> context::Builder<'_> {
-		let context_id = context::ContextID(self.contexts.len());
+		// TODO(pat.m): use counter for IDs to cope with eventual deletions
+		let context_id = ContextID(self.contexts.len());
 		let context = InputContext::new_empty(name.into(), context_id);
 
 		self.contexts.push(context);
@@ -42,36 +58,83 @@ impl InputSystem {
 		context::Builder::new(self.contexts.last_mut().unwrap())
 	}
 
-	pub fn enter_context(&mut self, context_id: ContextID) {
-		assert!(!self.active_contexts.contains(&context_id));
-		self.active_contexts.push(context_id);
-		self.active_contexts_changed = true;
-	}
+	pub fn new_context_group(&mut self, name: impl Into<String>) -> &'_ mut ContextGroup {
+		// TODO(pat.m): use counter for IDs to cope with eventual deletions
+		let context_group_id = ContextGroupID(self.context_groups.len());
+		let context_group = ContextGroup::new_empty(name.into(), context_group_id);
 
-	pub fn leave_context(&mut self, context_id: ContextID) {
-		if let Some(context_pos) = self.active_contexts.iter().position(|&id| id == context_id) {
-			self.active_contexts.remove(context_pos);
-		}
-
-		self.active_contexts_changed = true;
-	}
-
-	pub fn set_context_active(&mut self, context_id: ContextID, active: bool) {
-		let currently_active = self.is_context_active(context_id);
-		
-		match (currently_active, active) {
-			(false, true) => self.enter_context(context_id),
-			(true, false) => self.leave_context(context_id),
-			_ => {}
-		}
+		self.context_groups.push(context_group);
+		self.context_groups.last_mut().unwrap()
 	}
 
 	pub fn is_context_active(&self, context_id: ContextID) -> bool {
+		// If the context is part of a context group, check whether or not that is active first.
+		if let Some(context) = self.context(context_id)
+			&& let Some(context_group_id) = context.context_group_id
+			&& !self.active_context_groups.contains(&context_group_id)
+		{
+			return false;
+		}
+
 		self.active_contexts.contains(&context_id)
+	}
+
+	pub fn is_context_group_active(&self, context_group_id: ContextGroupID) -> bool {
+		self.active_context_groups.contains(&context_group_id)
+	}
+
+	pub fn enter_context(&mut self, context_id: ContextID) {
+		self.set_context_active(context_id, true);
+	}
+
+	pub fn leave_context(&mut self, context_id: ContextID) {
+		self.set_context_active(context_id, false);
+	}
+
+	pub fn set_context_active(&mut self, context_id: ContextID, active: bool) {
+		// Check active_contexts directly instead of using is_context_active since this function
+		// acts independently of context groups
+		let context_position = self.active_contexts.iter().position(|&id| id == context_id);
+		
+		match (context_position, active) {
+			(None, true) => self.active_contexts.push(context_id),
+			(Some(pos), false) => {
+				self.active_contexts.remove(pos);
+			},
+			_ => return
+		}
+
+		self.active_contexts_changed = true;
+	}
+
+	pub fn set_context_group_active(&mut self, context_group_id: ContextGroupID, active: bool) {
+		let context_group_position = self.active_context_groups.iter().position(|&id| id == context_group_id);
+		
+		match (context_group_position, active) {
+			(None, true) => self.active_context_groups.push(context_group_id),
+			(Some(pos), false) => {
+				self.active_context_groups.remove(pos);
+			},
+			_ => return
+		}
+
+		self.active_contexts_changed = true;
 	}
 
 	pub fn frame_state(&self) -> &FrameState {
 		&self.frame_state
+	}
+
+	pub fn context(&self, context_id: ContextID) -> Option<&'_ InputContext> {
+		self.contexts.binary_search_by_key(&context_id, |ctx| ctx.id)
+			.ok()
+			.map(|idx| &self.contexts[idx])
+	}
+
+	pub fn context_group(&self, context_group_id: ContextGroupID) -> Option<&'_ ContextGroup> {
+		self.context_groups.binary_search_by_key(&context_group_id, |ctx| ctx.id)
+			.ok()
+			.map(|idx| &self.context_groups[idx])
 	}
 
 	pub fn contexts(&self) -> impl Iterator<Item = &'_ InputContext> {
@@ -80,7 +143,7 @@ impl InputSystem {
 
 	pub fn active_contexts(&self) -> impl Iterator<Item = &'_ InputContext> {
 		self.active_contexts.iter()
-			.filter_map(move |id| self.contexts.get(id.0))
+			.filter_map(move |&id| self.context(id))
 	}
 
 	pub fn is_mouse_captured(&self) -> bool {
@@ -93,7 +156,9 @@ impl InputSystem {
 	pub(crate) fn new(sdl2_mouse: sdl2::mouse::MouseUtil) -> InputSystem {
 		InputSystem {
 			contexts: Vec::new(),
+			context_groups: Vec::new(),
 			active_contexts: Vec::new(),
+			active_context_groups: Vec::new(),
 			active_contexts_changed: false,
 
 			// We're assuming on_resize will be called soon after construction by Engine
@@ -256,58 +321,4 @@ impl InputSystem {
 		}
 	}
 }
-
-
-
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-enum ActionState {
-	Entered,
-	Active,
-	Left,
-}
-
-
-/// The complete state of input for a frame - after system inputs have been parsed into actions
-#[derive(Clone, Debug, Default)]
-pub struct FrameState {
-	/// All the button actions that are active or that changed this frame
-	button: HashMap<ActionID, ActionState>,
-
-	/// Mouse state if it is currently available, and the action its bound to
-	mouse: Option<(ActionID, Vec2)>,
-}
-
-
-impl FrameState {
-	/// For Triggers: returns whether action was triggered this frame
-	/// For States: returns whether action is currently active (button is being held)
-	pub fn active(&self, action: ActionID) -> bool {
-		let button_active = self.button.get(&action)
-			.map_or(false, |state| matches!(state, ActionState::Entered | ActionState::Active));
-
-		let mouse_active = matches!(self.mouse, Some((id, _)) if id == action);
-
-		button_active || mouse_active
-	}
-
-	/// Whether a state or trigger was actived this frame
-	pub fn entered(&self, action: ActionID) -> bool {
-		self.button.get(&action)
-			.map_or(false, |state| matches!(state, ActionState::Entered))
-	}
-
-	/// Whether the state was deactivated this frame
-	pub fn left(&self, action: ActionID) -> bool {
-		self.button.get(&action)
-			.map_or(false, |state| matches!(state, ActionState::Left))
-	}
-
-	pub fn mouse(&self, action: ActionID) -> Option<Vec2> {
-		self.mouse
-			.filter(|&(mouse_action, _)| mouse_action == action)
-			.map(|(_, state)| state)
-	}
-}
-
 

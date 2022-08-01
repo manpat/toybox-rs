@@ -14,5 +14,6 @@ pub use crate::gfx;
 pub use crate::audio;
 pub use crate::input;
 pub use crate::utility;
+pub use crate::engine::Engine;
 
 pub use std::error::Error;
