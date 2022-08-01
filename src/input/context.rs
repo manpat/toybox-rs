@@ -3,6 +3,8 @@ use crate::input::action::{self, Action, ActionID};
 use crate::input::ContextGroupID;
 use std::collections::HashMap;
 
+
+/// A unique identifier for an [`InputContext`].
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ContextID(pub(super) usize);
 
