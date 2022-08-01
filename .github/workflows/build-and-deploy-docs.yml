@@ -1,0 +1,65 @@
+name: Build and deploy docs
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  
+
+# Allow one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+
+jobs:
+  docs:
+    name: Build and deploy docs
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    
+    - name: Setup Pages
+      uses: actions/configure-pages@v1
+
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        profile: minimal
+        override: true
+
+    - name: Generate Docs
+      uses: actions-rs/cargo@v1
+      with:
+        command: doc
+        args: --verbose --no-deps --all-features -ptoybox -ptoy -pcommon
+        
+    - name: Finalize documentation
+      run: |
+        echo '<meta http-equiv="refresh" content="0; url=https://manpat.github.io/toybox-rs/toybox/index.html">' > target/doc/index.html
+        
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v1
+      with:
+        path: 'target/doc'
+
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@main
