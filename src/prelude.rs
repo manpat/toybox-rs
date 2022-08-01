@@ -8,7 +8,9 @@ pub use imgui;
 pub use petgraph;
 pub use symphonia;
 
-pub use tracing::{self, instrument};
+pub use tracing;
+#[doc(hidden)]
+pub use tracing::instrument;
 
 pub use crate::gfx;
 pub use crate::audio;
