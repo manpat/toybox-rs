@@ -1,10 +1,10 @@
 # Toybox
-[![Docs](https://github.com/manpat/toybox-rs/actions/workflows/build-and-deploy-docs.yml/badge.svg)](https://manpat.github.io/toybox-rs)
+[![](https://github.com/manpat/toybox-rs/actions/workflows/build-and-deploy-docs.yml/badge.svg)](https://manpat.github.io/toybox-rs)
 
 A collection of things for making the making of things less bad for me and me alone.
 
-All toybox based projects take the following form:
-```rust,no_run
+Toybox based projects normally look something like this:
+```rust no_run
 use toybox::prelude::*;
 
 let mut engine = toybox::Engine::new("your window name here")?;
@@ -29,3 +29,6 @@ let mut engine = toybox::Engine::new("your window name here")?;
 # Ok::<_, Box<dyn Error>>(())
 ```
 
+## Profiling
+
+Enable the `tracy` feature in your Cargo.toml if you want to profile things.

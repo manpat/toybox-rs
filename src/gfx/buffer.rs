@@ -1,12 +1,26 @@
 use crate::prelude::*;
 use std::marker::PhantomData;
 
+
+/// A hint to the driver about how this buffer will be used.
 #[derive(Copy, Clone, Debug)]
 pub enum BufferUsage {
+	/// Contents will be updated infrequently, and are mostly unchanging.
+	/// Prefer for buffers that will only ever be modified once and used many times.
+	/// e.g., static level geometry, or lookup tables.
 	Static,
-	Dynamic,
+
+	/// Contents will be updated frequently.
+	/// Prefer for buffers that will be updated ever frame.
+	/// e.g., for streaming geometry.
 	Stream,
+
+	/// Contents will be modified frequently.
+	/// This one is here primarily for completeness - its really only appropriate
+	/// for persistently mapped buffers which aren't wrapped yet.
+	Dynamic,
 }
+
 
 #[derive(Copy, Clone, Debug)]
 pub struct UntypedBuffer {
@@ -16,6 +30,14 @@ pub struct UntypedBuffer {
 }
 
 
+/// A generic type that manages an OpenGL buffer resource.
+///
+/// New buffers can be created via [`gfx::Context::new_buffer`].
+/// `T` can be any [`Copy`] type, but it is up to client to ensure proper alignment and layout.
+/// If `T` is a struct type, it is strongly encouraged to at least mark it `#[repr(C)]`.
+///
+/// ## Note
+/// This is not an RAII type - no attempt is made to clean up the managed buffer.
 #[derive(Copy, Clone, Debug)]
 pub struct Buffer<T: Copy> {
 	pub(super) handle: u32,

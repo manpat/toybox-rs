@@ -1,3 +1,8 @@
+//! Higher level mesh building and management.
+//!
+//! The core of this module is the [`Mesh`] and [`BasicMesh`] types, and the generic poly builder apis
+//! defined by [`PolyBuilder2D`] and [`PolyBuilder3D`].
+
 use crate::prelude::*;
 
 pub mod traits;

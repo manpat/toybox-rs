@@ -1,6 +1,18 @@
 use crate::gfx::*;
 use crate::utility::{ResourceLock};
 
+
+/// The core of the graphics system.
+/// Manages the underlying OpenGL context and wraps raw graphics api calls in a safer, higher level api.
+///
+/// Resources are constructed directly on the [`Context`] itself, but draw calls and compute dispatches are mediated by
+/// the [`RenderState`] object. Said object can be acquired from [`Context::render_state`] at any time (including multiple
+/// times per frame), but it is recommended you do this as little as possible to keep draw calls and resource management as
+/// separate as possible.
+///
+/// ## Note
+/// Resource management is currently fairly ad-hoc, in that there is not really any effort to clean anything up yet.
+/// Until this is dealt with, some care needs to be taken when creating resources to avoid leaking too much.
 pub struct Context {
 	_sdl_ctx: sdl2::video::GLContext,
 	shader_manager: ShaderManager,
@@ -11,61 +23,6 @@ pub struct Context {
 }
 
 impl Context {
-	pub fn new(sdl_ctx: sdl2::video::GLContext) -> Self {
-		unsafe {
-			raw::DebugMessageCallback(Some(gl_message_callback), std::ptr::null());
-			raw::Enable(raw::DEBUG_OUTPUT_SYNCHRONOUS);
-			raw::Enable(raw::PROGRAM_POINT_SIZE);
-
-			raw::Enable(raw::FRAMEBUFFER_SRGB);
-
-			raw::Enable(raw::DEPTH_TEST);
-			// raw::Enable(raw::BLEND);
-			// raw::BlendFunc(raw::DST_COLOR, raw::ZERO);
-			// raw::BlendEquation(raw::FUNC_ADD);
-
-			raw::Enable(raw::CULL_FACE);
-			raw::FrontFace(raw::CCW);
-			raw::CullFace(raw::BACK);
-
-			// Disable performance messages
-			raw::DebugMessageControl(
-				raw::DONT_CARE,
-				raw::DEBUG_TYPE_PERFORMANCE,
-				raw::DONT_CARE,
-				0, std::ptr::null(),
-				0 // false
-			);
-
-			// Disable notification messages
-			raw::DebugMessageControl(
-				raw::DONT_CARE,
-				raw::DONT_CARE,
-				raw::DEBUG_SEVERITY_NOTIFICATION,
-				0, std::ptr::null(),
-				0 // false
-			);
-		}
-
-		Context {
-			_sdl_ctx: sdl_ctx,
-			shader_manager: ShaderManager::new(),
-			capabilities: Capabilities::new(),
-			backbuffer_size: Vec2i::splat(1),
-
-			resources: Resources::new(),
-		}
-	}
-
-	pub(crate) fn on_resize(&mut self, drawable_size: Vec2i) {
-		unsafe {
-			raw::Viewport(0, 0, drawable_size.x, drawable_size.y);
-		}
-
-		self.backbuffer_size = drawable_size;
-		self.resources.on_backbuffer_resize(drawable_size);
-	}
-
 	pub fn backbuffer_size(&self) -> Vec2i { self.backbuffer_size }
 	pub fn aspect(&self) -> f32 {
 		let Vec2{x, y} = self.backbuffer_size.to_vec2();
@@ -149,7 +106,73 @@ impl Context {
 }
 
 
+impl Context {
+	pub(crate) fn new(sdl_ctx: sdl2::video::GLContext) -> Self {
+		unsafe {
+			raw::DebugMessageCallback(Some(gl_message_callback), std::ptr::null());
+			raw::Enable(raw::DEBUG_OUTPUT_SYNCHRONOUS);
+			raw::Enable(raw::PROGRAM_POINT_SIZE);
 
+			raw::Enable(raw::FRAMEBUFFER_SRGB);
+
+			raw::Enable(raw::DEPTH_TEST);
+			// raw::Enable(raw::BLEND);
+			// raw::BlendFunc(raw::DST_COLOR, raw::ZERO);
+			// raw::BlendEquation(raw::FUNC_ADD);
+
+			raw::Enable(raw::CULL_FACE);
+			raw::FrontFace(raw::CCW);
+			raw::CullFace(raw::BACK);
+
+			// Disable performance messages
+			raw::DebugMessageControl(
+				raw::DONT_CARE,
+				raw::DEBUG_TYPE_PERFORMANCE,
+				raw::DONT_CARE,
+				0, std::ptr::null(),
+				0 // false
+			);
+
+			// Disable notification messages
+			raw::DebugMessageControl(
+				raw::DONT_CARE,
+				raw::DONT_CARE,
+				raw::DEBUG_SEVERITY_NOTIFICATION,
+				0, std::ptr::null(),
+				0 // false
+			);
+		}
+
+		Context {
+			_sdl_ctx: sdl_ctx,
+			shader_manager: ShaderManager::new(),
+			capabilities: Capabilities::new(),
+			backbuffer_size: Vec2i::splat(1),
+
+			resources: Resources::new(),
+		}
+	}
+
+	pub(crate) fn on_resize(&mut self, drawable_size: Vec2i) {
+		unsafe {
+			raw::Viewport(0, 0, drawable_size.x, drawable_size.y);
+		}
+
+		self.backbuffer_size = drawable_size;
+		self.resources.on_backbuffer_resize(drawable_size);
+	}
+}
+
+
+
+/// Provides access to everything needed to set up and submit draw calls and dispatch compute shaders.
+/// Existence of this object prohibits creation of new resources and general modification of [`Context`]
+/// until in-progress draw calls are submitted.
+///
+/// ## Note
+/// Dispatching compute shaders is still fairly raw, so it may occasionally be necessary to dip into [`raw`]
+/// api calls to set things up manually. The main thing this is needed for currently is for submitting [`glMemoryBarrier`](raw::MemoryBarrier())
+/// calls, which I haven't figured out a good api for yet.
 pub struct RenderState<'ctx> {
 	resources: &'ctx Resources,
 	backbuffer_size: Vec2i,
