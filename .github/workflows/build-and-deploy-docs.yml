@@ -1,4 +1,4 @@
-name: Build and deploy docs
+name: Documentation
 
 on:
   push:
@@ -39,7 +39,8 @@ jobs:
     - name: Setup Pages
       uses: actions/configure-pages@v1
 
-    - uses: actions-rs/toolchain@v1
+    - name: Setup Toolchain
+      uses: actions-rs/toolchain@v1
       with:
         toolchain: nightly
         profile: minimal
