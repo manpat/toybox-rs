@@ -84,7 +84,7 @@ macro_rules! declare_input_context {
 macro_rules! __input__new_action {
 	(trigger, $name:tt [$default:expr]) => { $crate::input::Action::new_trigger($name, $default) };
 	(state, $name:tt [$default:expr]) => { $crate::input::Action::new_state($name, $default) };
-	(mouse, $name:tt [$default:expr]) => { $crate::input::Action::new_mouse($name, $default) };
-	(pointer, $name:tt) => { $crate::input::Action::new_pointer($name) };
+	(mouse, $name:tt [$default:expr]) => { $crate::input::Action::new_mouse($name, $crate::input::MouseSpace::LegacyPixelRatio, $default) };
+	(pointer, $name:tt) => { $crate::input::Action::new_pointer($name, $crate::input::MouseSpace::PreserveAspect) };
 }
 

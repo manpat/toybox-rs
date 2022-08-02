@@ -1,5 +1,5 @@
 use crate::input::raw;
-use crate::input::action::{self, Action, ActionID};
+use crate::input::action::{self, Action, ActionID, MouseSpace};
 use crate::input::ContextGroupID;
 use std::collections::HashMap;
 
@@ -22,15 +22,15 @@ pub struct InputContext {
 	/// also active.
 	pub context_group_id: Option<ContextGroupID>,
 
-	/// An arbitrary sort order - contexts with higher priorities will recieve events first
+	/// An arbitrary sort order - contexts with higher priorities will recieve events first.
 	pub priority: isize,
 
 	actions: Vec<Action>,
 
-	/// The active bindings from buttons to an action index
+	/// The active bindings from buttons to an action index.
 	button_mappings: HashMap<raw::Button, usize>,
 
-	/// The current sensitivity for any Mouse action, if there is one
+	/// The current sensitivity for any `Mouse` action, if there is one.
 	mouse_sensitivity: Option<f32>,
 }
 
@@ -67,7 +67,7 @@ impl InputContext {
 
 		self.actions.iter()
 			.enumerate()
-			.find(|(_, a)| a.kind().is_mouse_kind())
+			.find(|(_, a)| a.kind.is_mouse_kind())
 			.map(|(index, action)| (action, ActionID {context_id, index}))
 	}
 
@@ -87,15 +87,15 @@ impl InputContext {
 
 		self.button_mappings = self.actions.iter()
 			.enumerate()
-			.filter_map(|(index, a)| match a.default_binding_info() {
-				BindingInfo::Button(b) => Some((b, index)),
+			.filter_map(|(index, a)| match a.binding_info {
+				BindingInfo::Button{default_binding} => Some((default_binding, index)),
 				_ => None,
 			})
 			.collect();
 
 		self.mouse_sensitivity = self.actions.iter()
-			.find_map(|action| match action.default_binding_info() {
-				BindingInfo::Mouse{sensitivity} => Some(sensitivity),
+			.find_map(|action| match action.binding_info {
+				BindingInfo::Mouse{default_sensitivity, ..} => Some(default_sensitivity),
 				_ => None,
 			});
 	}
@@ -138,15 +138,19 @@ impl<'is> Builder<'is> {
 		self.new_action(Action::new_state(name, default_binding))
 	}
 
-	pub fn new_mouse(&mut self, name: impl Into<String>, default_sensitivity: f32) -> ActionID {
-		self.new_action(Action::new_mouse(name, default_sensitivity))
+	pub fn new_mouse(&mut self, name: impl Into<String>, space: MouseSpace, default_sensitivity: f32) -> ActionID {
+		self.new_action(Action::new_mouse(name, space, default_sensitivity))
 	}
 
-	pub fn new_pointer(&mut self, name: impl Into<String>) -> ActionID {
-		self.new_action(Action::new_pointer(name))
+	pub fn new_pointer(&mut self, name: impl Into<String>, space: MouseSpace) -> ActionID {
+		self.new_action(Action::new_pointer(name, space))
 	}
 
 	pub fn set_priority(&mut self, priority: isize) {
 		self.context.priority = priority;
+	}
+
+	pub fn set_context_group(&mut self, context_group_id: impl Into<Option<ContextGroupID>>) {
+		self.context.context_group_id = context_group_id.into();
 	}
 }

@@ -28,12 +28,16 @@ pub struct InputSystem {
 	/// Contexts at the end will recieve actions first.
 	active_contexts: Vec<ContextID>,
 
+	/// Same as `active_contexts`, but filtered by context group.
+	/// Regenerated from `active_contexts` whenever `active_context_changed` is set.
+	filtered_active_contexts: Vec<ContextID>,
+
 	/// Set when a context has been pushed or popped, or the set of active context groups has changed.
 	/// Will cause mouse capture state to be reevaluated when set.
 	active_contexts_changed: bool,
 
 	/// Used for remapping mouse input.
-	window_size: Vec2,
+	window_size: Vec2i,
 
 
 	pub raw_state: raw::RawState,
@@ -58,13 +62,13 @@ impl InputSystem {
 		context::Builder::new(self.contexts.last_mut().unwrap())
 	}
 
-	pub fn new_context_group(&mut self, name: impl Into<String>) -> &'_ mut ContextGroup {
+	pub fn new_context_group(&mut self, name: impl Into<String>) -> ContextGroupID {
 		// TODO(pat.m): use counter for IDs to cope with eventual deletions
 		let context_group_id = ContextGroupID(self.context_groups.len());
 		let context_group = ContextGroup::new_empty(name.into(), context_group_id);
 
 		self.context_groups.push(context_group);
-		self.context_groups.last_mut().unwrap()
+		context_group_id
 	}
 
 	pub fn is_context_active(&self, context_id: ContextID) -> bool {
@@ -141,6 +145,10 @@ impl InputSystem {
 		self.contexts.iter()
 	}
 
+	pub fn context_groups(&self) -> impl Iterator<Item = &'_ ContextGroup> {
+		self.context_groups.iter()
+	}
+
 	pub fn active_contexts(&self) -> impl Iterator<Item = &'_ InputContext> {
 		self.active_contexts.iter()
 			.filter_map(move |&id| self.context(id))
@@ -159,10 +167,11 @@ impl InputSystem {
 			context_groups: Vec::new(),
 			active_contexts: Vec::new(),
 			active_context_groups: Vec::new(),
+			filtered_active_contexts: Vec::new(),
 			active_contexts_changed: false,
 
 			// We're assuming on_resize will be called soon after construction by Engine
-			window_size: Vec2::zero(),
+			window_size: Vec2i::zero(),
 
 			raw_state: raw::RawState::new(),
 
@@ -180,20 +189,32 @@ impl InputSystem {
 			self.active_contexts_changed = false;
 
 			let contexts = &self.contexts;
-			self.active_contexts.sort_by_key(move |id| contexts.get(id.0).map(|ctx| ctx.priority()));
+			self.active_contexts.sort_by_key(move |&id| {
+				contexts.iter()
+					.find(|ctx| ctx.id == id)
+					.map(|ctx| ctx.priority())
+			});
+
+			// TODO(pat.m): this is a little wasteful - since its scanning active_contexts way more than it needs to
+			// but I'm expecting numbers to be small. I can improve this later.
+			// Maybe it would be better for is_context_active to be implemented in terms of this.
+			self.filtered_active_contexts = self.active_contexts.iter()
+				.copied()
+				.filter(|&id| self.is_context_active(id))
+				.collect();
 
 			// Find last active context using mouse input; we want to enable relative mouse mode if it's relative
-			let should_capture_mouse = self.active_contexts.iter().rev()
-				.flat_map(|&ContextID(id)| self.contexts.get(id))
+			let should_capture_mouse = self.filtered_active_contexts.iter().rev()
+				.flat_map(|&id| self.context(id))
 				.find_map(InputContext::mouse_action)
-				.map_or(false, |(action, _)| action.kind() == ActionKind::Mouse);
+				.map_or(false, |(action, _)| action.kind == ActionKind::Mouse);
 
 			self.sdl2_mouse.set_relative_mouse_mode(should_capture_mouse);
 		}
 	}
 
 	pub(crate) fn on_resize(&mut self, window_size: Vec2i) {
-		self.window_size = window_size.to_vec2();
+		self.window_size = window_size;
 	}
 
 	pub(crate) fn handle_event(&mut self, event: &sdl2::event::Event) {
@@ -221,30 +242,6 @@ impl InputSystem {
 
 			_ => {}
 		}
-
-		// &Event::MouseMotion { xrel, yrel, x, y, .. } => {
-			// let Vec2{x: w, y: h} = self.window_size;
-			// let aspect = w/h;
-
-			// let mouse_x = x as f32 / w * 2.0 - 1.0;
-			// let mouse_y = -(y as f32 / h * 2.0 - 1.0);
-
-			// // Maintain a 1x1 safe region in center screen
-			// let (mouse_x, mouse_y) = if aspect > 1.0 {
-			// 	(mouse_x * aspect, mouse_y)
-			// } else {
-			// 	(mouse_x, mouse_y / aspect)
-			// };
-
-		// 	self.mouse_absolute = Some(Vec2::new(mouse_x, mouse_y));
-
-		// 	let mouse_dx =  xrel as f32;
-		// 	let mouse_dy = -yrel as f32;
-
-		// 	let mouse_delta = Vec2::new(mouse_dx, mouse_dy);
-		// 	let current_delta = self.mouse_delta.get_or_insert_with(Vec2::zero);
-		// 	*current_delta += mouse_delta;
-		// }
 	}
 
 	pub(crate) fn process_events(&mut self) {
@@ -254,34 +251,26 @@ impl InputSystem {
 		self.frame_state.mouse = None;
 
 		// Calculate mouse action
-		let mouse_action = self.active_contexts.iter().rev()
+		let mouse_action = self.filtered_active_contexts.iter().rev()
 			.flat_map(|&ContextID(id)| self.contexts.get(id))
 			.find_map(|ctx| ctx.mouse_action().zip(Some(ctx)));
 
 		if let Some(((action, action_id), context)) = mouse_action {
-			let remap = |value: Vec2i, absolute| {
-				// let Vec2{x: w, y: h} = self.window_size;
-				// let aspect = w/h;
+			// Should never be able to fail.
+			let mouse_space = action.binding_info.mouse_space()
+				.expect("Mouse action encountered without appropriate MouseSpace");
 
-				let offset = match absolute {
-					true => Vec2::new(-1.0, 1.0),
-					false => Vec2::zero()
-				};
-
-				value.to_vec2() / self.window_size * Vec2::new(2.0, -2.0) + offset
-			};
-
-			if action.kind().is_relative() {
+			if action.kind.is_relative() {
 				let sensitivity = context.mouse_sensitivity().unwrap_or(1.0);
-				self.frame_state.mouse = self.raw_state.mouse_delta.map(|state| (action_id, remap(state, false) * sensitivity));
+				self.frame_state.mouse = self.raw_state.mouse_delta.map(|state| (action_id, mouse_space.resolve_relative(state, self.window_size) * sensitivity));
 			} else {
-				self.frame_state.mouse = self.raw_state.mouse_absolute.map(|state| (action_id, remap(state, true)));
+				self.frame_state.mouse = self.raw_state.mouse_absolute.map(|state| (action_id, mouse_space.resolve_absolute(state, self.window_size)));
 			}
 		}
 
 		// Collect new button actions
 		for &button in self.raw_state.new_buttons.iter() {
-			let most_appropriate_action = self.active_contexts.iter().rev()
+			let most_appropriate_action = self.filtered_active_contexts.iter().rev()
 				.flat_map(|&ContextID(id)| self.contexts.get(id))
 				.find_map(|ctx| ctx.action_for_button(button));
 
@@ -292,10 +281,10 @@ impl InputSystem {
 
 		// Collect stateful button actions - triggers _only_ run on button down events
 		for &button in self.raw_state.active_buttons.iter() {
-			let most_appropriate_action = self.active_contexts.iter().rev()
+			let most_appropriate_action = self.filtered_active_contexts.iter().rev()
 				.flat_map(|&ContextID(id)| self.contexts.get(id))
 				.flat_map(|ctx| ctx.action_for_button(button))
-				.find(|(action, _)| action.kind() == ActionKind::State);
+				.find(|(action, _)| action.kind == ActionKind::State);
 
 			if let Some((_, action_id)) = most_appropriate_action {
 				// If this button was previously entered or active, remain active
