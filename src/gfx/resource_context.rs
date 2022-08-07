@@ -4,7 +4,7 @@ use crate::gfx::*;
 use resource_scope::{ResourceScope, ScopedResourceHandle};
 
 
-/// Allows creation of new resources within a [`ResourceScope`] (which may be the global `ResourceScope`).
+/// Allows creation of new resources within a `ResourceScope` (which may be the global `ResourceScope`).
 /// Existence of this object prohibits submitting draw calls and modifying pipeline state, plus general modification of [`System`].
 pub struct ResourceContext<'ctx> {
 	pub resources: &'ctx mut Resources,

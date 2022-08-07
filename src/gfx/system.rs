@@ -9,7 +9,7 @@ use resource_scope::ResourceScope;
 /// Manages the underlying OpenGL context and wraps raw graphics api calls in a safer, higher level api.
 ///
 /// Most operations are gated by 'context' objects:
-/// - Resources are constructed through a [`ResourceContext`] object - which is associated with some [`ResourceScope`].
+/// - Resources are constructed through a [`ResourceContext`] object - which is associated with some `ResourceScope`.
 ///		The point of this to ensure all resources are associated with some scope, so they can be cleaned up at an appropriate time,
 ///		without introducing too much extra noise or relying too much on RAII.
 ///		Said object can be acquired with the [`System::resource_context`] call, optionally given some [`ResourceScopeID`].
@@ -32,6 +32,7 @@ pub struct System {
 }
 
 
+// Public API
 impl System {
 	pub fn backbuffer_size(&self) -> Vec2i { self.backbuffer_size }
 	pub fn aspect(&self) -> f32 {
@@ -41,6 +42,9 @@ impl System {
 
 	pub fn capabilities(&self) -> &Capabilities { &self.capabilities }
 	
+	/// Create a new `ResourceScope` and tie its lifetime to the returned [`ResourceScopeToken`].
+	/// The returned token can be passed around and cloned freely. Once no instances of the returned token remain alive,
+	/// the [`System`] will destroy all resources that were associated with the resource scope during its lifetime.
 	pub fn new_resource_scope(&mut self) -> ResourceScopeToken {
 		let resource_scope_id = ResourceScopeID(self.resource_scope_counter);
 		self.resource_scope_counter += 1;
@@ -54,6 +58,11 @@ impl System {
 	}
 
 	/// Constructs a temporary [`ResourceContext`] to allow access to resource creation.
+	/// If `resource_scope_id` is None, then resources created with the returned context will be
+	/// associated with the global resource scope, and won't be destroyed until engine shutdown.
+	/// Otherwise if either a [`&ResourceScopeToken`](ResourceScopeToken) or [`ResourceScopeID`] is passed, then resources created with the
+	/// returned context will be associated with this resource scope, and will be destroyed when the scope is
+	/// cleaned up.
 	pub fn resource_context(&mut self, resource_scope_id: impl Into<Option<ResourceScopeID>>) -> ResourceContext<'_> {
 		let resource_scope_id = resource_scope_id.into()
 			.unwrap_or(ResourceScopeID(0));
@@ -80,8 +89,7 @@ impl System {
 	}
 }
 
-
-/// Internal.
+// Internal
 impl System {
 	pub(crate) fn new(sdl_ctx: sdl2::video::GLContext) -> Self {
 		unsafe {

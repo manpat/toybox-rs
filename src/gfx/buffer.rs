@@ -22,7 +22,7 @@ pub enum BufferUsage {
 }
 
 
-/// A generic type that manages an OpenGL buffer resource.
+/// A generic type that provides access to an OpenGL buffer resource.
 ///
 /// New buffers can be created via [`gfx::ResourceContext::new_buffer`].
 /// `T` can be any [`Copy`] type, but it is up to client to ensure proper alignment and layout.
