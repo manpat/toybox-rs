@@ -8,7 +8,7 @@ use std::pin::Pin;
 
 
 
-pub trait Resource {
+pub trait Resource: 'static {
 	type Key : slotmap::Key + 'static;
 }
 
@@ -37,6 +37,10 @@ impl<T: Resource> ResourceStore<T> {
 
 	pub fn insert(&mut self, resource: T) -> T::Key {
 		self.inner.insert(resource)
+	}
+
+	pub fn remove(&mut self, key: T::Key) -> Option<T> {
+		self.inner.remove(key)
 	}
 
 	pub fn foreach_mut<F>(&mut self, f: F)

@@ -6,6 +6,8 @@ use std::collections::HashMap;
 #[derive(Copy, Clone, Debug)]
 pub struct Shader (pub(super) u32);
 
+
+// TODO(pat.m): handle resource scopes
 pub(super) struct ShaderManager {
 	imports: HashMap<String, String>,
 	cache: RefCell<HashMap<u64, Shader>>,

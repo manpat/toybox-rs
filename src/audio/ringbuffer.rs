@@ -271,10 +271,6 @@ impl<T: Copy> RingbufferReadLock<'_, T> {
 	pub fn len(&self) -> usize {
 		self.presplit.len() + self.postsplit.len()
 	}
-
-	pub fn is_empty(&self) -> bool {
-		self.len() == 0
-	}
 }
 
 
@@ -303,15 +299,6 @@ impl<T> Drop for RingbufferWriteLock<'_, T> {
 impl<T: Copy> RingbufferWriteLock<'_, T> {
 	pub fn len(&self) -> usize {
 		self.presplit.len() + self.postsplit.len()
-	}
-
-	pub fn is_empty(&self) -> bool {
-		self.len() == 0
-	}
-
-	pub fn fill(&mut self, value: T) {
-		self.presplit.fill(value);
-		self.postsplit.fill(value);
 	}
 }
 

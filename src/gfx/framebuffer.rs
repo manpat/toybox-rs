@@ -45,7 +45,7 @@ impl Framebuffer {
 
 			break Some(Attachment {
 				attachment_point: depth_stencil_attachment_point,
-				texture_key: resources.insert_texture(depth_stencil_tex)
+				texture_key: resources.textures.insert(depth_stencil_tex)
 			})
 		};
 
@@ -54,7 +54,7 @@ impl Framebuffer {
 			.filter_map(|(s, maybe_f)| maybe_f.map(|f| (s, f))) // (attachment_point, format)
 			.map(|(attachment_point, format)| {
 				let color_tex = Texture::new(size_mode, backbuffer_size, format);
-				let texture_key = resources.insert_texture(color_tex);
+				let texture_key = resources.textures.insert(color_tex);
 				let attachment_point = raw::COLOR_ATTACHMENT0 + attachment_point as u32;
 				Attachment {attachment_point, texture_key}
 			})

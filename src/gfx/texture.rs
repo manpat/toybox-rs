@@ -150,8 +150,6 @@ impl Texture {
 
 
 
-
-
 #[derive(Copy, Clone, Debug)]
 pub enum TextureSize {
 	/// Automatically resize to match backbuffer size

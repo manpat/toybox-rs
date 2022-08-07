@@ -13,8 +13,8 @@ slotmap::new_key_type!{
 
 #[derive(Debug)]
 pub struct Resources {
-	textures: ResourceStore<Texture>,
-	framebuffers: ResourceStore<Framebuffer>,
+	pub textures: ResourceStore<Texture>,
+	pub framebuffers: ResourceStore<Framebuffer>,
 }
 
 impl Resources {
@@ -37,14 +37,6 @@ impl Resources {
 			textures: ResourceStore::new(),
 			framebuffers: ResourceStore::new(),
 		}
-	}
-
-	pub(super) fn insert_texture(&mut self, texture: Texture) -> TextureKey {
-		self.textures.insert(texture)
-	}
-
-	pub(super) fn insert_framebuffer(&mut self, framebuffer: Framebuffer) -> FramebufferKey {
-		self.framebuffers.insert(framebuffer)
 	}
 
 	pub(super) fn on_backbuffer_resize(&mut self, backbuffer_size: Vec2i) {

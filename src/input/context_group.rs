@@ -1,6 +1,3 @@
-use crate::input::ContextID;
-
-
 /// A unique identifier for a [`ContextGroup`].
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ContextGroupID(pub(super) usize);

@@ -78,10 +78,6 @@ impl IntermediateBufferCache {
 			self.unused_buffers.push(in_use_buffer.buffer);
 		}
 	}
-
-	pub fn total_buffer_count(&self) -> usize {
-		self.unused_buffers.len() + self.in_use_buffers.len()
-	}
 }
 
 

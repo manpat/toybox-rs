@@ -84,6 +84,14 @@ impl<T: Resource> ResourcesRefCell<T> {
 	}
 
 
+	pub fn remove(&self, key: T::Key) -> Option<T> {
+		self.mutate(move |inner| {
+			inner.storage.remove(key)
+				.map(|(value, _)| value)
+		})
+	}
+
+
 	pub fn foreach_mut<F>(&self, mut f: F)
 		where F: FnMut(&mut T)
 	{

@@ -17,7 +17,7 @@ let mut engine = toybox::Engine::new("your window name here")?;
 
 	// Update logic here
 
-	let mut gfx = engine.gfx.render_state();
+	let mut gfx = engine.gfx.draw_context();
 	gfx.set_clear_color(Color::grey(0.1));
 	gfx.clear(gfx::ClearMode::ALL);
 

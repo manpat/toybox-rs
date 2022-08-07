@@ -7,7 +7,7 @@ pub struct Engine {
 	pub sdl_ctx: sdl2::Sdl,
 	pub event_pump: sdl2::EventPump,
 	pub window: sdl2::video::Window,
-	pub gfx: gfx::Context,
+	pub gfx: gfx::System,
 	pub input: input::InputSystem,
 	pub audio: audio::AudioSystem,
 	pub instrumenter: perf::Instrumenter,
@@ -32,8 +32,9 @@ impl Engine {
 		let mut input = input::InputSystem::new(sdl_ctx.mouse());
 		let audio = audio::AudioSystem::new(sdl_audio)?;
 
-		let mut imgui = imgui_backend::ImguiBackend::new(&mut gfx)?;
-		let instrumenter = perf::Instrumenter::new(&mut gfx);
+		let mut resource_context = gfx.resource_context(None);
+		let mut imgui = imgui_backend::ImguiBackend::new(&mut resource_context)?;
+		let instrumenter = perf::Instrumenter::new(&mut resource_context);
 
 		// Make sure aspect is set up correctly
 		let (w, h) = window.drawable_size();
@@ -114,12 +115,14 @@ impl Engine {
 
 		self.instrumenter.end_frame();
 
-		self.imgui.draw(&mut self.gfx);
+		self.imgui.draw(&mut self.gfx.draw_context());
 
 		{
 			let _guard = self.instrumenter.scoped_section("swap");
 			self.window.gl_swap_window();
 		}
+
+		self.gfx.cleanup_resources();
 
 		tracing::info!(tracy.frame_mark=true);
 	}

@@ -13,7 +13,7 @@ pub struct ImguiBackend {
 
 
 impl ImguiBackend {
-	pub(crate) fn new(gfx: &mut gfx::Context) -> Result<ImguiBackend, Box<dyn std::error::Error>> {
+	pub(crate) fn new(gfx: &mut gfx::ResourceContext<'_>) -> Result<ImguiBackend, Box<dyn std::error::Error>> {
 		init_imgui();
 
 		let imgui_ctx = imgui_mut();
@@ -129,7 +129,7 @@ impl ImguiBackend {
 	}
 
 	#[instrument(skip_all, name="ImguiBackend::draw")]
-	pub(crate) fn draw(&mut self, gfx: &mut gfx::Context) {
+	pub(crate) fn draw(&mut self, gfx: &mut gfx::DrawContext<'_>) {
 		if let Some(frame) = self.imgui_frame.take() {
 			let frame_data = frame.render();
 
@@ -139,10 +139,10 @@ impl ImguiBackend {
 		}
 	}
 
-	fn setup_state(&self, render_state: &mut gfx::RenderState<'_>) {
-		render_state.bind_shader(self.shader);
-		render_state.bind_uniform_buffer(0, self.uniforms);
-		render_state.bind_vao(self.mesh.vao);
+	fn setup_state(&self, gfx: &mut gfx::DrawContext<'_>) {
+		gfx.bind_shader(self.shader);
+		gfx.bind_uniform_buffer(0, self.uniforms);
+		gfx.bind_vao(self.mesh.vao);
 
 		unsafe {
 			gfx::raw::Enable(gfx::raw::BLEND);
@@ -160,7 +160,7 @@ impl ImguiBackend {
 		}
 	}
 
-	fn draw_internal(&mut self, gfx: &mut gfx::Context, draw_data: &imgui::DrawData) {
+	fn draw_internal(&mut self, gfx: &mut gfx::DrawContext<'_>, draw_data: &imgui::DrawData) {
 		assert!(std::mem::size_of::<imgui::DrawIdx>() == 2, "Imgui using non 16b indices");
 
 		let fb_width = draw_data.display_size[0] * draw_data.framebuffer_scale[0];
@@ -169,8 +169,6 @@ impl ImguiBackend {
 		self.uniforms.upload_single(&Uniforms {
 			transform: Mat4::ortho(0.0, fb_width, fb_height, 0.0, -10.0, 10.0)
 		});
-
-		let mut render_state = gfx.render_state();
 
 		let get_parameter = |param| unsafe {
 			let mut value = 0;
@@ -197,7 +195,7 @@ impl ImguiBackend {
 			blend_enabled = gfx::raw::IsEnabled(gfx::raw::BLEND) != 0;
 		}
 
-		self.setup_state(&mut render_state);
+		self.setup_state(gfx);
 
 		for draw_list in draw_data.draw_lists() {
 			self.mesh.upload_separate(&draw_list.vtx_buffer(), &draw_list.idx_buffer());
@@ -236,9 +234,9 @@ impl ImguiBackend {
 						}
 
 						let texture_key = gfx::TextureKey::from(slotmap::KeyData::from_ffi(texture_id.id() as u64));
-						render_state.bind_texture(0, texture_key);
+						gfx.bind_texture(0, texture_key);
 
-						render_state.draw_indexed(gfx::DrawMode::Triangles,
+						gfx.draw_indexed(gfx::DrawMode::Triangles,
 							gfx::IndexedDrawParams::from(element_count as u32)
 								.with_offset(idx_offset as u32)
 								.with_base_vertex(vtx_offset as u32)
@@ -251,7 +249,7 @@ impl ImguiBackend {
 					},
 
 					DrawCmd::ResetRenderState => {
-						self.setup_state(&mut render_state);
+						self.setup_state(gfx);
 					}
 				}
 			}
@@ -351,7 +349,7 @@ fn handle_key_modifier(io: &mut imgui::Io, keymod: &sdl2::keyboard::Mod) {
 
 
 
-fn build_font_atlas(gfx: &mut gfx::Context, imgui: &mut imgui::Context) -> gfx::TextureKey {
+fn build_font_atlas(gfx: &mut gfx::ResourceContext<'_>, imgui: &mut imgui::Context) -> gfx::TextureKey {
 	let mut imgui_fonts = imgui.fonts();
 	let atlas_texture = imgui_fonts.build_rgba32_texture();
 	let font_atlas_size = Vec2i::new(
@@ -360,7 +358,7 @@ fn build_font_atlas(gfx: &mut gfx::Context, imgui: &mut imgui::Context) -> gfx::
 	);
 
 	let font_atlas_key = gfx.new_texture(font_atlas_size, gfx::TextureFormat::srgba());
-	let mut font_atlas = gfx.resources().get_mut(font_atlas_key);
+	let mut font_atlas = gfx.resources.get_mut(font_atlas_key);
 	font_atlas.upload_rgba8_raw(atlas_texture.data);
 	font_atlas.set_filter(true, true);
 

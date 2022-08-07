@@ -22,17 +22,9 @@ pub enum BufferUsage {
 }
 
 
-#[derive(Copy, Clone, Debug)]
-pub struct UntypedBuffer {
-	pub(super) handle: u32,
-	pub(super) size_bytes: usize,
-	pub(super) usage: BufferUsage,
-}
-
-
 /// A generic type that manages an OpenGL buffer resource.
 ///
-/// New buffers can be created via [`gfx::Context::new_buffer`].
+/// New buffers can be created via [`gfx::ResourceContext::new_buffer`].
 /// `T` can be any [`Copy`] type, but it is up to client to ensure proper alignment and layout.
 /// If `T` is a struct type, it is strongly encouraged to at least mark it `#[repr(C)]`.
 ///
@@ -47,29 +39,15 @@ pub struct Buffer<T: Copy> {
 }
 
 
-impl UntypedBuffer {
-	pub fn upload<T: Copy>(&mut self, data: &[T]) {
-		upload_untyped(self.handle, data, self.usage);
-		self.size_bytes = data.len() * std::mem::size_of::<T>();
-	}
-
-	pub fn upload_single<T: Copy>(&mut self, data: &T) {
-		upload_untyped(self.handle, std::slice::from_ref(data), self.usage);
-		self.size_bytes = std::mem::size_of::<T>();
-	}
-
-	pub fn into_typed<T: Copy>(self) -> Buffer<T> {
+impl<T: Copy> Buffer<T> {
+	pub(crate) fn from_raw(handle: u32, usage: BufferUsage) -> Buffer<T> {
 		Buffer {
-			handle: self.handle,
-			length: (self.size_bytes / std::mem::size_of::<T>()) as u32,
-			usage: self.usage,
+			handle, usage,
+			length: 0,
 			_phantom: PhantomData,
 		}
 	}
-}
 
-
-impl<T: Copy> Buffer<T> {
 	pub fn upload(&mut self, data: &[T]) {
 		upload_untyped(self.handle, data, self.usage);
 		self.length = data.len() as u32;
@@ -86,18 +64,6 @@ impl<T: Copy> Buffer<T> {
 
 	pub fn is_empty(&self) -> bool {
 		self.length == 0
-	}
-}
-
-
-
-impl<T: Copy> From<Buffer<T>> for UntypedBuffer {
-	fn from(Buffer{handle, length, usage, ..}: Buffer<T>) -> UntypedBuffer {
-		UntypedBuffer {
-			handle,
-			size_bytes: length as usize * std::mem::size_of::<T>(),
-			usage,
-		}
 	}
 }
 
