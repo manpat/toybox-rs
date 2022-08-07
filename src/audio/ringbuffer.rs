@@ -140,8 +140,8 @@ impl<T: Copy + Default> Ringbuffer<T> {
 		// If we're locking for read and the ringbuffer is empty, or we're locking for write and
 		// the ringbuffer is full, return empty range
 		let range_contiguous = match lock_for_write {
-			false => (head_loop == tail_loop),
-			true => (head_loop != tail_loop),
+			false => { head_loop == tail_loop }
+			true => { head_loop != tail_loop }
 		};
 
 		let range_available = (head == tail) && range_contiguous;

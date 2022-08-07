@@ -166,13 +166,10 @@ impl CompilationError {
 impl std::fmt::Display for CompilationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} failed\n", self.what)?;
-        write!(f, "{}\n", self.description)
+        write!(f, "{}\n", self.description)?;
+        write!(f, "{}\n", self.backtrace)
     }
 }
 
 
-impl Error for CompilationError {
-	fn backtrace(&self) -> Option<&'_ std::backtrace::Backtrace> {
-		Some(&self.backtrace)
-	}
-}
+impl Error for CompilationError {}
