@@ -2,12 +2,14 @@ use crate::gfx::*;
 use std::rc::Rc;
 
 
+/// Unique identifier for a `ResourceScope`.
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct ResourceScopeID(pub(crate) usize);
 
 
 
-
+/// A reference counted token associated with a `ResourceScope`.
+/// Allows [`System`] to track when a `ResourceScope` is no longer needed.
 #[derive(Clone, Debug)]
 pub struct ResourceScopeToken {
 	ref_count: Rc<()>,
@@ -35,6 +37,11 @@ impl From<&'_ ResourceScopeToken> for Option<ResourceScopeID> {
 
 
 
+/// Keeps track of all resources which should be destroyed when all associated [`ResourceScopeTokens`][ResourceScopeToken]
+/// are dropped.
+///
+/// ## Note
+/// It is up to the owner to actually trigger cleanup - dropping a [`ResourceScope`] does nothing.
 pub(crate) struct ResourceScope {
 	resources: Vec<ScopedResourceHandle>,
 	token: ResourceScopeToken,

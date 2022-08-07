@@ -11,16 +11,19 @@ pub mod geom_3d;
 pub mod color_mesh_builder;
 pub mod plane_mesh_builder_adaptor;
 
-pub use traits::{PolyBuilder2D, PolyBuilder3D, ColoredPolyBuilder};
-pub use color_mesh_builder::ColorMeshBuilder;
-pub use plane_mesh_builder_adaptor::PlaneMeshBuilderAdaptor;
+#[doc(inline)] pub use traits::{PolyBuilder2D, PolyBuilder3D, ColoredPolyBuilder};
+#[doc(inline)] pub use color_mesh_builder::ColorMeshBuilder;
+#[doc(inline)] pub use plane_mesh_builder_adaptor::PlaneMeshBuilderAdaptor;
 
+/// Reexports [geom_2d] and [geom_3d] modules for convenience.
 pub mod geom {
-	pub use super::geom_2d::*;
-	pub use super::geom_3d::*;
+	#[doc(inline)] pub use super::geom_2d::*;
+	#[doc(inline)] pub use super::geom_3d::*;
 }
 
 
+/// Aggregates a [`gfx::Vao`], vertex [`gfx::Buffer`] and index [`gfx::Buffer`], to simplify managing and
+/// rendering common indexed geometry.
 pub struct Mesh<V: gfx::Vertex> {
 	pub vao: gfx::Vao,
 	pub vertex_buffer: gfx::Buffer<V>,
@@ -78,6 +81,8 @@ impl<V: gfx::Vertex> Mesh<V> {
 
 
 
+/// Aggregates a [`gfx::Vao`] and vertex [`gfx::Buffer`], to simplify managing and
+/// rendering common non-indexed geometry.
 pub struct BasicMesh<V: gfx::Vertex> {
 	pub vao: gfx::Vao,
 	pub vertex_buffer: gfx::Buffer<V>,
@@ -119,6 +124,8 @@ impl<V: gfx::Vertex> BasicMesh<V> {
 
 
 
+/// Geometry data to be uploaded to a [`Mesh`].
+/// See [`ColorMeshBuilder`] for a common usecase for [`MeshData`].
 pub struct MeshData<V: gfx::Vertex> {
 	pub vertices: Vec<V>,
 	pub indices: Vec<u16>,

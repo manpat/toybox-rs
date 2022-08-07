@@ -2,6 +2,10 @@ use common::math::*;
 use crate::gfx;
 
 
+/// Marks and describes a type that can safetly used as the vertex type in a [`gfx::Mesh`] or [`gfx::BasicMesh`].
+/// 
+/// ## Note
+/// Types that implement this trait must also be marked `#[repr(C)]` as these types will be sent across the ABI boundary.
 pub trait Vertex: Copy {
 	fn descriptor() -> Descriptor;
 }
@@ -69,6 +73,7 @@ impl Attribute {
 
 
 
+/// A simple color 3D vertex type.
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct ColorVertex {
@@ -99,7 +104,7 @@ impl Vertex for ColorVertex {
 
 
 
-
+/// A simple color 2D vertex type.
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct ColorVertex2D {

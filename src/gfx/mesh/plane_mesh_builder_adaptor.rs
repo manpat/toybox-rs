@@ -2,6 +2,9 @@ use common::*;
 use crate::gfx::mesh::{PolyBuilder2D, PolyBuilder3D, ColoredPolyBuilder};
 
 
+/// Adapts some [`PolyBuilder3D`] to the [`PolyBuilder2D`] interface, given some 3D plane to build 2D geometry onto.
+/// The orientation of the plane is defined by the `uv` columns of the matrix `uvw`, and its offset from origin
+/// is defined by the `w` column.
 pub struct PlaneMeshBuilderAdaptor<MB: PolyBuilder3D> {
 	builder_3d: MB,
 	uvw: Mat3,

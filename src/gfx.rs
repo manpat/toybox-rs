@@ -1,5 +1,7 @@
 //! Everything relating to interacting with the graphics context, from low-level, more direct access,
-//! to higher level utilities. The core of this system is [`system::System`].
+//! to higher level utilities.
+//!
+//! The core of this system is [`system::System`].
 //! Other submodules that will likely be used often are [`buffer`] and [`mesh`].
 
 /// Low level bindings to the OpenGL 4.5 API.

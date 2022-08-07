@@ -1,3 +1,5 @@
+//! Types that implement [`BuildableGeometry2D`][BuildableGeometry2D].
+
 use common::*;
 use crate::gfx::mesh::{PolyBuilder2D, traits::BuildableGeometry2D};
 

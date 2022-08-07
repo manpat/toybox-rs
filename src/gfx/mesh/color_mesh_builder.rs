@@ -4,6 +4,8 @@ use crate::gfx::mesh::{MeshData, PolyBuilder2D, PolyBuilder3D, ColoredPolyBuilde
 use std::ops::DerefMut;
 
 
+/// Given a [`MeshData`] for either [`ColorVertex2D`] or [`ColorVertex`] (or both), implements
+/// respectively the [`PolyBuilder2D`] and [`PolyBuilder3D`] traits.
 pub struct ColorMeshBuilder<MD> {
 	pub data: MD,
 	color: Color,
