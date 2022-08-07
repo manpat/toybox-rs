@@ -4,6 +4,7 @@ use crate::utility::{ResourceLock};
 
 
 /// Provides access to everything needed to set up and submit draw calls and dispatch compute shaders.
+///
 /// Existence of this object prohibits creation of new resources and general modification of [`System`]
 /// until in-progress draw calls are submitted.
 ///
