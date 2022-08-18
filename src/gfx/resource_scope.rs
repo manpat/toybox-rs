@@ -59,8 +59,8 @@ impl ResourceScope {
 		Rc::strong_count(&self.token.ref_count)
 	}
 
-	pub fn insert(&mut self, handle: impl Into<ScopedResourceHandle>) {
-		self.resources.push(handle.into());
+	pub fn insert(&mut self, handle: ScopedResourceHandle) {
+		self.resources.push(handle);
 	}
 
 	pub fn destroy_owned_resources(&mut self, resources: &mut Resources) {
@@ -106,6 +106,12 @@ impl ResourceScope {
 		}
 
 		self.resources.clear();
+	}
+}
+
+impl std::ops::Drop for ResourceScope {
+	fn drop(&mut self) {
+		assert!(self.resources.is_empty(), "ResourceScope has been dropped without being cleaned up!");
 	}
 }
 
