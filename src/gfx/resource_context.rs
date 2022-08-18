@@ -73,7 +73,7 @@ impl<'ctx> ResourceContext<'ctx> {
 
 
 	pub fn add_shader_import(&mut self, name: impl Into<String>, src: impl Into<String>) {
-		self.shader_manager.add_import(name, src)
+		self.shader_manager.add_import(name, src, self.resource_scope.id())
 	}
 
 	pub fn new_shader(&mut self, shaders: &[(u32, &str)]) -> Result<Shader, shader::CompilationError> {

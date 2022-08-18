@@ -157,17 +157,18 @@ impl System {
 	pub(crate) fn cleanup_resources(&mut self) {
 		let mut to_remove = Vec::new();
 
-		for (&id, scope) in self.resource_scopes.iter_mut() {
+		for (&id, scope) in self.resource_scopes.iter() {
 			// If Engine is the sole owner of the resource scope, then noone has any references
 			// to it and it should be cleaned up.
 			if scope.ref_count() == 1 {
-				scope.destroy_owned_resources(&mut self.resources);
 				to_remove.push(id);
 			}
 		}
 
 		for id in to_remove {
-			self.resource_scopes.remove(&id);
+			self.shader_manager.invalidate_shaders_dependent_on_scope(id);
+			let mut scope = self.resource_scopes.remove(&id).unwrap();
+			scope.destroy_owned_resources(&mut self.resources);
 		}
 	}
 }

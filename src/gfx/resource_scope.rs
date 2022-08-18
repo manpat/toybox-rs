@@ -59,6 +59,10 @@ impl ResourceScope {
 		Rc::strong_count(&self.token.ref_count)
 	}
 
+	pub fn id(&self) -> ResourceScopeID {
+		self.token.id()
+	}
+
 	pub fn insert(&mut self, handle: ScopedResourceHandle) {
 		self.resources.push(handle);
 	}
