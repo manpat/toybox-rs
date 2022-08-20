@@ -26,7 +26,7 @@ pub struct System {
 
 	pub resources: Resources,
 
-	resource_scope_counter: usize,
+	resource_scope_counter: utility::IdCounter,
 	_global_resource_scope_token: ResourceScopeToken,
 	resource_scopes: HashMap<ResourceScopeID, ResourceScope>,
 }
@@ -46,8 +46,7 @@ impl System {
 	/// The returned token can be passed around and cloned freely. Once no instances of the returned token remain alive,
 	/// the [`System`] will destroy all resources that were associated with the resource scope during its lifetime.
 	pub fn new_resource_scope(&mut self) -> ResourceScopeToken {
-		let resource_scope_id = ResourceScopeID(self.resource_scope_counter);
-		self.resource_scope_counter += 1;
+		let resource_scope_id = ResourceScopeID(self.resource_scope_counter.next());
 
 		let resource_scope_token = ResourceScopeToken::new(resource_scope_id);
 		let resource_scope = ResourceScope::new(resource_scope_token.clone());
@@ -139,7 +138,7 @@ impl System {
 
 			resources: Resources::new(),
 
-			resource_scope_counter: 1,
+			resource_scope_counter: utility::IdCounter::with_initial(1),
 			_global_resource_scope_token: global_scope_token,
 			resource_scopes: [(global_scope_id, global_resource_scope)].into(),
 		}

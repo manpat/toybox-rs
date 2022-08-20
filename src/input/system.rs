@@ -1,4 +1,5 @@
 use common::math::*;
+use crate::utility::IdCounter;
 use crate::input::raw;
 use crate::input::action::ActionKind;
 use crate::input::context::{self, ContextID, InputContext};
@@ -39,6 +40,12 @@ pub struct InputSystem {
 	/// Used for remapping mouse input.
 	window_size: Vec2i,
 
+	/// Counter for new contexts.
+	context_id_counter: IdCounter,
+
+	/// Counter for new context groups.
+	context_group_id_counter: IdCounter,
+
 
 	pub raw_state: raw::RawState,
 
@@ -53,8 +60,7 @@ pub struct InputSystem {
 
 impl InputSystem {
 	pub fn new_context(&mut self, name: impl Into<String>) -> context::Builder<'_> {
-		// TODO(pat.m): use counter for IDs to cope with eventual deletions
-		let context_id = ContextID(self.contexts.len());
+		let context_id = ContextID(self.context_id_counter.next());
 		let context = InputContext::new_empty(name.into(), context_id);
 
 		self.contexts.push(context);
@@ -63,8 +69,7 @@ impl InputSystem {
 	}
 
 	pub fn new_context_group(&mut self, name: impl Into<String>) -> ContextGroupID {
-		// TODO(pat.m): use counter for IDs to cope with eventual deletions
-		let context_group_id = ContextGroupID(self.context_groups.len());
+		let context_group_id = ContextGroupID(self.context_group_id_counter.next());
 		let context_group = ContextGroup::new_empty(name.into(), context_group_id);
 
 		self.context_groups.push(context_group);
@@ -172,6 +177,9 @@ impl InputSystem {
 
 			// We're assuming on_resize will be called soon after construction by Engine
 			window_size: Vec2i::zero(),
+
+			context_id_counter: IdCounter::new(),
+			context_group_id_counter: IdCounter::new(),
 
 			raw_state: raw::RawState::new(),
 

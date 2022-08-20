@@ -29,6 +29,64 @@ pub struct AudioSystem {
 }
 
 
+// Public API
+impl AudioSystem {
+	pub fn output_node(&self) -> NodeId {
+		self.shared.inner.lock().unwrap().node_graph.output_node()
+	}
+
+	/// Queues callback `f` to be run on the audio producer thread given the NodeGraph.
+	/// Use for updates that don't require feedback.
+	pub fn queue_update<F>(&mut self, f: F)
+		where F: FnOnce(&mut NodeGraph) + Send + 'static
+	{
+		let f_boxed = Box::new(f);
+		self.command_tx
+			.send(ProducerCommand::UpdateGraph(f_boxed))
+			.unwrap();
+	}
+
+	/// Runs callback `f` with the NodeGraph and returns its result.
+	/// Locks the shared state for the duration of the call, so prefer `queue_update` when the result isn't required.
+	pub fn update_graph_immediate<F, R>(&mut self, f: F) -> R
+		where F: FnOnce(&mut NodeGraph) -> R
+	{
+		let mut inner = self.shared.inner.lock().unwrap();
+		f(&mut inner.node_graph)
+	}
+
+	pub fn add_node(&mut self, node: impl Node) -> NodeId {
+		self.update_graph_immediate(move |graph| graph.add_node(node, false))
+	}
+
+	pub fn add_ephemeral_node(&mut self, node: impl Node) -> NodeId {
+		self.update_graph_immediate(move |graph| graph.add_node(node, true))
+	}
+
+	pub fn add_send(&mut self, node: NodeId, target: NodeId) {
+		self.queue_update(move |graph| graph.add_send(node, target))
+	}
+
+	pub fn add_node_with_send(&mut self, node: impl Node, send_node: NodeId) -> NodeId {
+		self.update_graph_immediate(move |graph| {
+			let node_id = graph.add_node(node, false);
+			graph.add_send(node_id, send_node);
+			node_id
+		})
+	}
+
+	pub fn remove_node(&mut self, node: NodeId) {
+		self.queue_update(move |graph| graph.remove_node(node))
+	}
+
+	pub fn add_sound(&mut self, buffer: Vec<f32>) -> SoundId {
+		let key = self.shared.inner.lock().unwrap().resources.buffers.insert(buffer);
+		SoundId(key)
+	}
+}
+
+
+// Private API
 impl AudioSystem {
 	pub(crate) fn new(sdl_audio: sdl2::AudioSubsystem) -> Result<AudioSystem, Box<dyn Error>> {
 		let sample_rate = 44100;
@@ -111,59 +169,6 @@ impl AudioSystem {
 		};
 
 		node_graph.cleanup_finished_nodes(&eval_ctx);
-	}
-
-	pub fn output_node(&self) -> NodeId {
-		self.shared.inner.lock().unwrap().node_graph.output_node()
-	}
-
-	/// Queues callback `f` to be run on the audio producer thread given the NodeGraph.
-	/// Use for updates that don't require feedback.
-	pub fn queue_update<F>(&mut self, f: F)
-		where F: FnOnce(&mut NodeGraph) + Send + 'static
-	{
-		let f_boxed = Box::new(f);
-		self.command_tx
-			.send(ProducerCommand::UpdateGraph(f_boxed))
-			.unwrap();
-	}
-
-	/// Runs callback `f` with the NodeGraph and returns its result.
-	/// Locks the shared state for the duration of the call, so prefer `queue_update` when the result isn't required.
-	pub fn update_graph_immediate<F, R>(&mut self, f: F) -> R
-		where F: FnOnce(&mut NodeGraph) -> R
-	{
-		let mut inner = self.shared.inner.lock().unwrap();
-		f(&mut inner.node_graph)
-	}
-
-	pub fn add_node(&mut self, node: impl Node) -> NodeId {
-		self.update_graph_immediate(move |graph| graph.add_node(node, false))
-	}
-
-	pub fn add_ephemeral_node(&mut self, node: impl Node) -> NodeId {
-		self.update_graph_immediate(move |graph| graph.add_node(node, true))
-	}
-
-	pub fn add_send(&mut self, node: NodeId, target: NodeId) {
-		self.queue_update(move |graph| graph.add_send(node, target))
-	}
-
-	pub fn add_node_with_send(&mut self, node: impl Node, send_node: NodeId) -> NodeId {
-		self.update_graph_immediate(move |graph| {
-			let node_id = graph.add_node(node, false);
-			graph.add_send(node_id, send_node);
-			node_id
-		})
-	}
-
-	pub fn remove_node(&mut self, node: NodeId) {
-		self.queue_update(move |graph| graph.remove_node(node))
-	}
-
-	pub fn add_sound(&mut self, buffer: Vec<f32>) -> SoundId {
-		let key = self.shared.inner.lock().unwrap().resources.buffers.insert(buffer);
-		SoundId(key)
 	}
 }
 

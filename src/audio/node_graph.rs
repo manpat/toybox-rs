@@ -52,6 +52,8 @@ pub struct NodeGraph {
 	topology_dirty: bool,
 }
 
+
+// Public API.
 impl NodeGraph {
 	pub fn new() -> NodeGraph {
 		let mut connectivity = StableGraph::new();
@@ -127,7 +129,10 @@ impl NodeGraph {
 			self.topology_dirty = true;
 		}
 	}
+}
 
+// Private API.
+impl NodeGraph {
 	#[instrument(skip_all, name = "audio::NodeGraph::cleanup_finished_nodes")]
 	pub(in crate::audio) fn cleanup_finished_nodes(&mut self, eval_ctx: &EvaluationContext<'_>) {
 		use petgraph::visit::IntoNodeReferences;
