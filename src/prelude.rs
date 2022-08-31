@@ -1,4 +1,6 @@
 pub use common::{self, rand, math::*};
+pub use rand::prelude::*;
+
 pub use toy;
 pub use sdl2;
 // pub use thiserror;
