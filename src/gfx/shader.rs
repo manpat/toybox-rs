@@ -1,4 +1,5 @@
 use crate::gfx;
+use crate::utility::ResourceScopeID;
 use std::error::Error;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -9,17 +10,17 @@ pub struct Shader (pub(super) u32);
 
 struct ImportData {
 	source: String,
-	resource_scope_id: gfx::ResourceScopeID,
+	resource_scope_id: ResourceScopeID,
 }
 
 struct ShaderCompileResult {
 	shader: Shader,
-	dependent_resource_scopes: HashSet<gfx::ResourceScopeID>,
+	dependent_resource_scopes: HashSet<ResourceScopeID>,
 }
 
 struct ResolvedShaderSource {
 	resolved_source: String,
-	dependent_resource_scopes: HashSet<gfx::ResourceScopeID>,
+	dependent_resource_scopes: HashSet<ResourceScopeID>,
 }
 
 type ShaderSourceHash = u64;
@@ -30,7 +31,7 @@ struct ShaderCache {
 	source_hash_to_shader: HashMap<ShaderSourceHash, Shader>,
 
 	/// Maps resource scope ids to a list of shader hashes that should be invalidated when the scope is cleaned up.
-	scoped_shader_hashes: HashMap<gfx::ResourceScopeID, Vec<ShaderSourceHash>>,
+	scoped_shader_hashes: HashMap<ResourceScopeID, Vec<ShaderSourceHash>>,
 }
 
 
@@ -51,7 +52,7 @@ impl ShaderManager {
 		}
 	}
 
-	pub fn add_import(&mut self, name: impl Into<String>, src: impl Into<String>, resource_scope_id: gfx::ResourceScopeID) {
+	pub fn add_import(&mut self, name: impl Into<String>, src: impl Into<String>, resource_scope_id: ResourceScopeID) {
 		use std::collections::hash_map::Entry;
 
 		match self.imports.entry(name.into()) {
@@ -98,7 +99,7 @@ impl ShaderManager {
 	// TODO(pat.m): need a way to ensure shaders can't accidentally import imports from shorter lived resource scopes
 	// TODO(pat.m): maybe shaders should work more like other resources, so the ResourceScope itself can handle their deletion?
 	// 	would need to figure out how dependencies worked tho, since shaders could reference imports from different scopes.
-	pub fn invalidate_shaders_dependent_on_scope(&mut self, resource_scope_id: gfx::ResourceScopeID) {
+	pub fn invalidate_shaders_dependent_on_scope(&mut self, resource_scope_id: ResourceScopeID) {
 		let mut cache_ref = self.cache.borrow_mut();
 		let cache = &mut *cache_ref; // reborrow so we can split the borrow
 

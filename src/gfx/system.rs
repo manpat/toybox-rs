@@ -1,8 +1,6 @@
 use crate::prelude::*;
 use crate::gfx::*;
-
-use std::collections::HashMap;
-use resource_scope::ResourceScope;
+use crate::utility::resource_scope::*;
 
 
 /// The core of the graphics system.
@@ -26,9 +24,7 @@ pub struct System {
 
 	pub resources: Resources,
 
-	resource_scope_counter: utility::IdCounter,
-	_global_resource_scope_token: ResourceScopeToken,
-	resource_scopes: HashMap<ResourceScopeID, ResourceScope>,
+	pub(crate) resource_scope_store: ResourceScopeStore<ScopedResourceHandle>
 }
 
 
@@ -41,20 +37,6 @@ impl System {
 	}
 
 	pub fn capabilities(&self) -> &Capabilities { &self.capabilities }
-	
-	/// Create a new `ResourceScope` and tie its lifetime to the returned [`ResourceScopeToken`].
-	/// The returned token can be passed around and cloned freely. Once no instances of the returned token remain alive,
-	/// the [`System`] will destroy all resources that were associated with the resource scope during its lifetime.
-	pub fn new_resource_scope(&mut self) -> ResourceScopeToken {
-		let resource_scope_id = ResourceScopeID(self.resource_scope_counter.next());
-
-		let resource_scope_token = ResourceScopeToken::new(resource_scope_id);
-		let resource_scope = ResourceScope::new(resource_scope_token.clone());
-
-		self.resource_scopes.insert(resource_scope_id, resource_scope);
-
-		resource_scope_token
-	}
 
 	/// Constructs a temporary [`ResourceContext`] to allow access to resource creation.
 	/// If `resource_scope_id` is None, then resources created with the returned context will be
@@ -63,11 +45,7 @@ impl System {
 	/// returned context will be associated with this resource scope, and will be destroyed when the scope is
 	/// cleaned up.
 	pub fn resource_context(&mut self, resource_scope_id: impl Into<Option<ResourceScopeID>>) -> ResourceContext<'_> {
-		let resource_scope_id = resource_scope_id.into()
-			.unwrap_or(ResourceScopeID(0));
-
-		let resource_scope = self.resource_scopes.get_mut(&resource_scope_id)
-			.expect("Tried to access already freed scope group");
+		let resource_scope = self.resource_scope_store.get_mut(resource_scope_id);
 
 		ResourceContext {
 			resources: &mut self.resources,
@@ -90,7 +68,7 @@ impl System {
 
 // Internal
 impl System {
-	pub(crate) fn new(sdl_ctx: sdl2::video::GLContext) -> Self {
+	pub(crate) fn new(sdl_ctx: sdl2::video::GLContext, global_scope_token: ResourceScopeToken) -> Self {
 		unsafe {
 			raw::DebugMessageCallback(Some(gl_message_callback), std::ptr::null());
 			raw::Enable(raw::DEBUG_OUTPUT_SYNCHRONOUS);
@@ -126,9 +104,7 @@ impl System {
 			);
 		}
 
-		let global_scope_id = ResourceScopeID(0);
-		let global_scope_token = ResourceScopeToken::new(global_scope_id);
-		let global_resource_scope = ResourceScope::new(global_scope_token.clone());
+		let resource_scope_store = ResourceScopeStore::new(global_scope_token);
 
 		System {
 			_sdl_ctx: sdl_ctx,
@@ -138,9 +114,7 @@ impl System {
 
 			resources: Resources::new(),
 
-			resource_scope_counter: utility::IdCounter::with_initial(1),
-			_global_resource_scope_token: global_scope_token,
-			resource_scopes: [(global_scope_id, global_resource_scope)].into(),
+			resource_scope_store,
 		}
 	}
 
@@ -153,22 +127,13 @@ impl System {
 		self.resources.on_backbuffer_resize(drawable_size);
 	}
 
-	pub(crate) fn cleanup_resources(&mut self) {
-		let mut to_remove = Vec::new();
+	pub(crate) fn register_resource_scope(&mut self, token: ResourceScopeToken) {
+		self.resource_scope_store.register_scope(token)
+	}
 
-		for (&id, scope) in self.resource_scopes.iter() {
-			// If Engine is the sole owner of the resource scope, then noone has any references
-			// to it and it should be cleaned up.
-			if scope.ref_count() == 1 {
-				to_remove.push(id);
-			}
-		}
-
-		for id in to_remove {
-			self.shader_manager.invalidate_shaders_dependent_on_scope(id);
-			let mut scope = self.resource_scopes.remove(&id).unwrap();
-			scope.destroy_owned_resources(&mut self.resources);
-		}
+	pub(crate) fn cleanup_resource_scope(&mut self, scope_id: ResourceScopeID) {
+		self.shader_manager.invalidate_shaders_dependent_on_scope(scope_id);
+		self.resource_scope_store.cleanup_scope(scope_id, &mut self.resources)
 	}
 }
 
@@ -176,11 +141,10 @@ impl System {
 // Not really necessary, but might as well.
 impl std::ops::Drop for System {
 	fn drop(&mut self) {
-		for (_, scope) in self.resource_scopes.iter_mut() {
-			scope.destroy_owned_resources(&mut self.resources);
-		}
+		self.resource_scope_store.cleanup_all(&mut self.resources);
 	}
 }
+
 
 
 
@@ -259,3 +223,62 @@ impl<T> From<T> for IndexedDrawParams where T : Into<u32> {
 	}
 }
 
+
+
+
+
+
+
+
+#[derive(Debug)]
+pub(crate) enum ScopedResourceHandle {
+	Buffer{handle: u32},
+	Vao{handle: u32},
+	Query{handle: u32},
+
+	Texture{key: TextureKey},
+	Framebuffer{key: FramebufferKey},
+}
+
+impl ScopedResource for ScopedResourceHandle {
+	type Context = Resources;
+
+	fn destroy(self, resources: &mut Resources) {
+		use ScopedResourceHandle::*;
+
+		// println!("==== Deleting {self:?}");
+
+		match self {
+			Buffer{handle} => unsafe {
+				raw::DeleteBuffers(1, &handle);
+			}
+
+			Vao{handle} => unsafe {
+				raw::DeleteVertexArrays(1, &handle);
+			}
+
+			Query{handle} => unsafe {
+				raw::DeleteQueries(1, &handle);
+			}
+
+			Texture{key} => {
+				let texture = resources.textures.remove(key)
+					.expect("Trying to destroy texture that has already been removed");
+
+				unsafe {
+					raw::DeleteSamplers(1, &texture.sampler_handle);
+					raw::DeleteTextures(1, &texture.texture_handle);
+				}
+			}
+
+			Framebuffer{key} => {
+				let framebuffer = resources.framebuffers.remove(key)
+					.expect("Trying to destroy framebuffer that has already been removed");
+
+				unsafe {
+					raw::DeleteFramebuffers(1, &framebuffer.handle);
+				}
+			}
+		}
+	}
+}

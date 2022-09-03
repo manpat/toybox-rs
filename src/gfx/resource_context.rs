@@ -1,7 +1,8 @@
 use crate::prelude::*;
 use crate::gfx::*;
 
-use resource_scope::{ResourceScope, ScopedResourceHandle};
+use crate::utility::resource_scope::ResourceScope;
+use crate::gfx::system::ScopedResourceHandle;
 
 
 /// Allows creation of new resources within a `ResourceScope` (which may be the global `ResourceScope`).
@@ -11,7 +12,7 @@ pub struct ResourceContext<'ctx> {
 	pub resources: &'ctx mut Resources,
 
 	pub(super) shader_manager: &'ctx mut ShaderManager,
-	pub(super) resource_scope: &'ctx mut ResourceScope,
+	pub(super) resource_scope: &'ctx mut ResourceScope<ScopedResourceHandle>,
 	pub(super) capabilities: &'ctx Capabilities,
 	pub(super) backbuffer_size: Vec2i,
 }
