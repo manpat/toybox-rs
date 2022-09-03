@@ -26,16 +26,17 @@ impl Engine {
 		init_tracy();
 
 		let resource_scope_allocator = resource_scope::ResourceScopeAllocator::new();
+		let global_scope = resource_scope_allocator.global_scope_token();
 
 		let sdl_ctx = sdl2::init()?;
 		let sdl_video = sdl_ctx.video()?;
 		let sdl_audio = sdl_ctx.audio()?;
 
 		let (window, gl_ctx) = window::init_window(&sdl_video, window_name)?;
-		let mut gfx = gfx::System::new(gl_ctx, resource_scope_allocator.global_scope_token());
+		let mut gfx = gfx::System::new(gl_ctx, global_scope.clone());
 
 		let event_pump = sdl_ctx.event_pump()?;
-		let mut input = input::InputSystem::new(sdl_ctx.mouse());
+		let mut input = input::InputSystem::new(sdl_ctx.mouse(), global_scope.clone());
 		let audio = audio::AudioSystem::new(sdl_audio)?;
 
 		let mut resource_context = gfx.resource_context(None);
@@ -139,6 +140,7 @@ impl Engine {
 	pub fn new_resource_scope(&mut self) -> resource_scope::ResourceScopeToken {
 		let token = self.resource_scope_allocator.new_resource_scope();
 		self.gfx.register_resource_scope(token.clone());
+		self.input.register_resource_scope(token.clone());
 		token
 	}
 }
@@ -150,6 +152,7 @@ impl Engine {
 
 		for scope_id in to_remove {
 			self.gfx.cleanup_resource_scope(scope_id);
+			self.input.cleanup_resource_scope(scope_id);
 		}
 	}
 }

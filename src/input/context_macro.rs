@@ -42,9 +42,10 @@ macro_rules! declare_input_context {
 		$context_ident:ident, $context_name:tt, [$( $priority:expr )?],
 		$( $binding_ident:ident { $action_expr:expr } )*
 	) => {
-		#[derive(Copy, Clone, Debug)]
+		#[derive(Clone, Debug)]
 		pub struct $context_ident {
 			__context_id: $crate::input::ContextID,
+			__resource_scope_token: $crate::utility::ResourceScopeToken,
 
 			$(
 				pub $binding_ident: $crate::input::ActionID,
@@ -52,8 +53,10 @@ macro_rules! declare_input_context {
 		}
 
 		impl $context_ident {
-			pub fn new(system: &mut $crate::input::InputSystem) -> Self {
-				let mut __ctx = system.new_context($context_name);
+			pub fn new(engine: &mut $crate::Engine) -> Self {
+				let __resource_scope_token = engine.new_resource_scope();
+				let mut __ctx = engine.input.new_context($context_name, &__resource_scope_token);
+
 				$( __ctx.set_priority($priority); )?
 
 				$(
@@ -62,13 +65,14 @@ macro_rules! declare_input_context {
 
 				Self {
 					__context_id: __ctx.build(),
+					__resource_scope_token,
 					$( $binding_ident, )*
 				}
 			}
 
-			pub fn new_active(system: &mut $crate::input::InputSystem) -> Self {
-				let __ctx = Self::new(system);
-				system.enter_context(__ctx.context_id());
+			pub fn new_active(engine: &mut $crate::Engine) -> Self {
+				let __ctx = Self::new(engine);
+				engine.input.enter_context(__ctx.context_id());
 				__ctx
 			}
 

@@ -1,5 +1,6 @@
 use common::math::*;
 use crate::utility::IdCounter;
+use crate::utility::resource_scope::*;
 use crate::input::raw;
 use crate::input::action::ActionKind;
 use crate::input::context::{self, ContextID, InputContext};
@@ -54,23 +55,40 @@ pub struct InputSystem {
 	prev_frame_state: FrameState,
 
 
+	resource_scope_store: ResourceScopeStore<InputScopedResource>,
+
+
 	sdl2_mouse: sdl2::mouse::MouseUtil,
 }
 
 
 impl InputSystem {
-	pub fn new_context(&mut self, name: impl Into<String>) -> context::Builder<'_> {
+	pub fn new_context(&mut self, name: impl Into<String>, resource_scope_id: impl Into<Option<ResourceScopeID>>) -> context::Builder<'_> {
 		let context_id = ContextID(self.context_id_counter.next());
 		let context = InputContext::new_empty(name.into(), context_id);
 
 		self.contexts.push(context);
 
+		let resource_scope = self.resource_scope_store.get_mut(resource_scope_id);
+		resource_scope.insert(InputScopedResource::Context(context_id));
+
 		context::Builder::new(self.contexts.last_mut().unwrap())
+	}
+
+	pub fn delete_context(&mut self, context_id: ContextID) {
+		self.set_context_active(context_id, false);
+
+		if let Ok(position) = self.contexts.binary_search_by_key(&context_id, |ctx| ctx.id) {
+			self.contexts.remove(position);
+		}
 	}
 
 	pub fn new_context_group(&mut self, name: impl Into<String>) -> ContextGroupID {
 		let context_group_id = ContextGroupID(self.context_group_id_counter.next());
 		let context_group = ContextGroup::new_empty(name.into(), context_group_id);
+
+		// let resource_scope = self.resource_scope_store.get_mut(resource_scope_id);
+		// resource_scope.insert(InputScopedResource::ContextGroup(context_id));
 
 		self.context_groups.push(context_group);
 		context_group_id
@@ -166,7 +184,7 @@ impl InputSystem {
 
 
 impl InputSystem {
-	pub(crate) fn new(sdl2_mouse: sdl2::mouse::MouseUtil) -> InputSystem {
+	pub(crate) fn new(sdl2_mouse: sdl2::mouse::MouseUtil, global_scope_token: ResourceScopeToken) -> InputSystem {
 		InputSystem {
 			contexts: Vec::new(),
 			context_groups: Vec::new(),
@@ -185,6 +203,8 @@ impl InputSystem {
 
 			frame_state: FrameState::default(),
 			prev_frame_state: FrameState::default(),
+
+			resource_scope_store: ResourceScopeStore::new(global_scope_token),
 
 			sdl2_mouse,
 		}
@@ -260,7 +280,7 @@ impl InputSystem {
 
 		// Calculate mouse action
 		let mouse_action = self.filtered_active_contexts.iter().rev()
-			.flat_map(|&ContextID(id)| self.contexts.get(id))
+			.flat_map(|&id| self.context(id))
 			.find_map(|ctx| ctx.mouse_action().zip(Some(ctx)));
 
 		if let Some(((action, action_id), context)) = mouse_action {
@@ -279,7 +299,7 @@ impl InputSystem {
 		// Collect new button actions
 		for &button in self.raw_state.new_buttons.iter() {
 			let most_appropriate_action = self.filtered_active_contexts.iter().rev()
-				.flat_map(|&ContextID(id)| self.contexts.get(id))
+				.flat_map(|&id| self.context(id))
 				.find_map(|ctx| ctx.action_for_button(button));
 
 			if let Some((_, action_id)) = most_appropriate_action {
@@ -290,7 +310,7 @@ impl InputSystem {
 		// Collect stateful button actions - triggers _only_ run on button down events
 		for &button in self.raw_state.active_buttons.iter() {
 			let most_appropriate_action = self.filtered_active_contexts.iter().rev()
-				.flat_map(|&ContextID(id)| self.contexts.get(id))
+				.flat_map(|&id| self.context(id))
 				.flat_map(|ctx| ctx.action_for_button(button))
 				.find(|(action, _)| action.kind == ActionKind::State);
 
@@ -317,5 +337,74 @@ impl InputSystem {
 				.or_insert(ActionState::Left);
 		}
 	}
+
+	pub(crate) fn register_resource_scope(&mut self, token: ResourceScopeToken) {
+		self.resource_scope_store.register_scope(token)
+	}
+
+	pub(crate) fn cleanup_resource_scope(&mut self, scope_id: ResourceScopeID) {
+		let context = InputScopedResourceContext {
+			contexts: &mut self.contexts,
+			active_contexts: &mut self.active_contexts,
+			active_contexts_changed: &mut self.active_contexts_changed,
+		};
+
+		self.resource_scope_store.cleanup_scope(scope_id, context)
+	}
 }
 
+impl std::ops::Drop for InputSystem {
+	fn drop(&mut self) {
+		let context = InputScopedResourceContext {
+			contexts: &mut self.contexts,
+			active_contexts: &mut self.active_contexts,
+			active_contexts_changed: &mut self.active_contexts_changed,
+		};
+		
+
+		self.resource_scope_store.cleanup_all(context);
+	}
+}
+
+
+
+#[derive(Debug)]
+enum InputScopedResource {
+	Context(ContextID),
+	ContextGroup(ContextGroupID),
+}
+
+struct InputScopedResourceContext<'c> {
+	contexts: &'c mut Vec<InputContext>,
+	active_contexts: &'c mut Vec<ContextID>,
+	active_contexts_changed: &'c mut bool,
+
+	// TODO(pat.m): context_groups
+}
+
+impl ScopedResource for InputScopedResource {
+	type Context<'c> = InputScopedResourceContext<'c>;
+
+	fn destroy(self, context: &mut InputScopedResourceContext<'_>) {
+		match self {
+			InputScopedResource::Context(context_id) => {
+				// TODO(pat.m): duplicates set_context_active and delete_context - should find a way to deduplicate this logic
+				if let Some(position) = context.active_contexts.iter().position(|&id| id == context_id) {
+					context.active_contexts.remove(position);
+					*context.active_contexts_changed = true;
+				}
+
+				if let Ok(position) = context.contexts.binary_search_by_key(&context_id, |ctx| ctx.id) {
+					context.contexts.remove(position);
+				}
+			}
+
+			InputScopedResource::ContextGroup(context_group_id) => {
+				// if let Ok(position) = context.contexts.binary_search_by_key(&context_id, |ctx| ctx.id) {
+				// 	context.contexts.remove(position);
+				// }
+				todo!()
+			}
+		}
+	}
+}

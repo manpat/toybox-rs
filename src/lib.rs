@@ -1,4 +1,4 @@
-#![feature(array_chunks, array_windows, type_ascription, let_chains)]
+#![feature(array_chunks, array_windows, type_ascription, let_chains, generic_associated_types)]
 #![doc = include_str!("../README.md")]
 
 pub mod prelude;

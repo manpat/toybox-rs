@@ -24,7 +24,7 @@ pub struct System {
 
 	pub resources: Resources,
 
-	pub(crate) resource_scope_store: ResourceScopeStore<ScopedResourceHandle>
+	resource_scope_store: ResourceScopeStore<ScopedResourceHandle>
 }
 
 
@@ -241,9 +241,9 @@ pub(crate) enum ScopedResourceHandle {
 }
 
 impl ScopedResource for ScopedResourceHandle {
-	type Context = Resources;
+	type Context<'c> = &'c mut Resources;
 
-	fn destroy(self, resources: &mut Resources) {
+	fn destroy(self, resources: &mut &mut Resources) {
 		use ScopedResourceHandle::*;
 
 		// println!("==== Deleting {self:?}");

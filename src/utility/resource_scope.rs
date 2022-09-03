@@ -133,26 +133,20 @@ impl<R: ScopedResource> ResourceScopeStore<R> {
 	}
 	
 	pub fn register_scope(&mut self, token: ResourceScopeToken) {
-		println!("ResourceScopeStore::register_scope({:?})", token.id());
-
 		let token_id = token.id();
 		self.resource_scopes.insert(token_id, ResourceScope::new(token));
 	}
 	
-	pub fn cleanup_scope(&mut self, scope_id: ResourceScopeID, context: &mut R::Context) {
-		println!("ResourceScopeStore::cleanup_scope({scope_id:?})");
-
+	pub fn cleanup_scope(&mut self, scope_id: ResourceScopeID, mut context: R::Context<'_>) {
 		let mut scope = self.resource_scopes.remove(&scope_id)
 			.expect("Tried to access already freed scope group");
 
-		scope.destroy_owned_resources(context);
+		scope.destroy_owned_resources(&mut context);
 	}
 
-	pub fn cleanup_all(&mut self, context: &mut R::Context) {
-		println!("ResourceScopeStore::cleanup_all");
-
+	pub fn cleanup_all(&mut self, mut context: R::Context<'_>) {
 		for (_, scope) in self.resource_scopes.iter_mut() {
-			scope.destroy_owned_resources(context);
+			scope.destroy_owned_resources(&mut context);
 		}
 	}
 
@@ -195,7 +189,7 @@ impl<R: ScopedResource> ResourceScope<R> {
 		self.resources.push(handle);
 	}
 
-	pub fn destroy_owned_resources(&mut self, context: &mut R::Context) {
+	pub fn destroy_owned_resources(&mut self, context: &mut R::Context<'_>) {
 		for resource in self.resources.drain(..) {
 			resource.destroy(context);
 		}
@@ -213,8 +207,8 @@ impl<R: ScopedResource> std::ops::Drop for ResourceScope<R> {
 
 
 pub trait ScopedResource : std::fmt::Debug {
-	type Context;
+	type Context<'c>;
 
-	fn destroy(self, context: &mut Self::Context);
+	fn destroy(self, context: &mut Self::Context<'_>);
 }
 
