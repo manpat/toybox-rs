@@ -47,6 +47,7 @@ impl Node for MixerNode {
 
 	fn node_type(&self, _: &EvaluationContext<'_>) -> NodeType { NodeType::Effect }
 
+	#[instrument(skip_all, name = "MixerNode::process")]
 	fn process(&mut self, ProcessContext{inputs, output, ..}: ProcessContext<'_>) {
 		assert!(output.stereo() == self.stereo);
 
@@ -207,6 +208,7 @@ impl Node for SamplerNode {
 		self.position >= buffer.len()
 	}
 
+	#[instrument(skip_all, name = "SamplerNode::process")]
 	fn process(&mut self, ProcessContext{eval_ctx, inputs, output}: ProcessContext<'_>) {
 		assert!(inputs.is_empty());
 		assert!(!output.stereo());

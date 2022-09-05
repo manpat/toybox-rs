@@ -4,7 +4,7 @@ use crate::utility;
 
 
 /// Unique identifier for a `ResourceScope`.
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ResourceScopeID(pub(crate) usize);
 
 

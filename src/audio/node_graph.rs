@@ -5,6 +5,8 @@ use crate::audio::intermediate_buffer_cache::IntermediateBufferCache;
 use crate::audio::system::EvaluationContext;
 use crate::audio::MAX_NODE_INPUTS;
 
+use crate::utility::ResourceScopeID;
+
 use petgraph::stable_graph::StableGraph;
 use petgraph::graph::NodeIndex;
 use std::mem::MaybeUninit;
@@ -33,12 +35,14 @@ struct NodeSlot {
 
 	/// Node won't be culled even if it has no incoming connections.
 	/// Note: Source nodes are implicitly pinned
-	pinned: bool,
+	pinned_scope: Option<ResourceScopeID>,
 }
 
 
+type NodeConnectivityGraph = StableGraph<NodeKey, (), petgraph::Directed>;
+
 pub struct NodeGraph {
-	connectivity: StableGraph<NodeKey, (), petgraph::Directed>,
+	connectivity: NodeConnectivityGraph,
 	nodes: slotmap::SlotMap<NodeKey, NodeSlot>,
 
 	buffer_cache: IntermediateBufferCache,
@@ -46,7 +50,7 @@ pub struct NodeGraph {
 	output_node_index: NodeIndex,
 
 	/// A processed version of `connectivity` with redunant nodes removed
-	pruned_connectivity: StableGraph<NodeKey, (), petgraph::Directed>,
+	pruned_connectivity: NodeConnectivityGraph,
 
 	/// Node indices of `pruned_connectivity` sorted in evaluation order.
 	ordered_node_cache: Vec<NodeIndex>,
@@ -56,14 +60,14 @@ pub struct NodeGraph {
 
 // Public API.
 impl NodeGraph {
-	pub fn new() -> NodeGraph {
+	pub fn new(global_resource_scope: ResourceScopeID) -> NodeGraph {
 		let mut connectivity = StableGraph::new();
 		let mut nodes: slotmap::SlotMap<_, NodeSlot> = slotmap::SlotMap::with_key();
 
 		let output_node = MixerNode::new_stereo(1.0);
 		let output_node_key = nodes.insert(NodeSlot {
 			node: Box::new(output_node),
-			pinned: true,
+			pinned_scope: Some(global_resource_scope),
 		});
 
 		let output_node_index = connectivity.add_node(output_node_key);
@@ -95,7 +99,7 @@ impl NodeGraph {
 	pub fn add_node(&mut self, node: impl Node, send_node_id: impl Into<Option<NodeId>>) -> NodeId {
 		let node_key = self.nodes.insert(NodeSlot {
 			node: Box::new(node),
-			pinned: false,
+			pinned_scope: None,
 		});
 
 		let node_index = self.connectivity.add_node(node_key);
@@ -128,8 +132,9 @@ impl NodeGraph {
 		self.add_sends(edges);
 	}
 
-	pub fn set_node_pinned(&mut self, node: NodeId, pinned: bool) {
-		self.nodes[node.key].pinned = pinned;
+	// TODO(pat.m): this api sucks to use directly
+	pub fn pin_node_to_scope(&mut self, node: NodeId, scope: impl Into<Option<ResourceScopeID>>) {
+		self.nodes[node.key].pinned_scope = scope.into();
 	}
 
 	pub fn remove_node(&mut self, node: NodeId) {
@@ -144,38 +149,62 @@ impl NodeGraph {
 
 // Private API.
 impl NodeGraph {
+	// TODO(pat.m): Do this in producer thread and instead require that all new node chains be added
+	// and connected to output atomically.
 	#[instrument(skip_all, name = "audio::NodeGraph::cleanup_finished_nodes")]
-	pub(in crate::audio) fn cleanup_finished_nodes(&mut self, eval_ctx: &EvaluationContext<'_>) {
+	pub(in crate::audio) fn cleanup_finished_nodes(&mut self, eval_ctx: &EvaluationContext<'_>,
+		expired_resource_scopes: &[ResourceScopeID])
+	{
+		use petgraph::algo::{has_path_connecting, DfsSpace};
 		use petgraph::visit::IntoNodeReferences;
 
 		let mut finished_nodes = Vec::new();
+		let mut dfs = DfsSpace::new(&self.connectivity);
 
-		// not sure I like doing this automatically?
 		for (node_index, &node_key) in self.connectivity.node_references() {
+			if node_index == self.output_node_index {
+				continue;
+			}
+
+			// Remove nodes that are either 'finished' or no longer connected to anything
+			// producing sound (in the case of effects).
 			let node_slot = &self.nodes[node_key];
 			let node_type = node_slot.node.node_type(eval_ctx);
 
 			match node_type {
 				NodeType::Source => if node_slot.node.finished_playing(eval_ctx) {
 					finished_nodes.push((node_index, node_key));
-					continue
+					continue;
 				}
 
-				NodeType::Effect => if !node_slot.pinned {
+				// TODO(pat.m): This behaviour may not be as appropriate for effects like delay lines, that might
+				// continue producing sound after its inputs are removed for some time. Needs thinking about.
+				NodeType::Effect => if node_slot.pinned_scope.is_none() {
 					let num_incoming = self.connectivity.neighbors_directed(node_index, petgraph::Direction::Incoming).count();
 					if num_incoming == 0 {
 						finished_nodes.push((node_index, node_key));
+						continue;
 					}
-					continue
 				}
+			}
+
+			// Remove nodes not connected to output.
+			if !has_path_connecting(&self.connectivity, node_index, self.output_node_index, Some(&mut dfs)) {
+				finished_nodes.push((node_index, node_key));
+				continue;
+			}
+
+			// Remove nodes pinned to expired resource scopes.
+			if let Some(scope_id) = node_slot.pinned_scope
+				&& let Ok(_) = expired_resource_scopes.binary_search(&scope_id)
+			{
+				finished_nodes.push((node_index, node_key));
 			}
 		}
 
-		// TODO(pat.m): cull nodes not connected to output
-		// TODO(pat.m): remove nodes attached to expired resource scopes
-
 		// TODO(pat.m): can this be done without the temp vector?
 		for (index, key) in finished_nodes {
+			println!("Remove {index:?} => {key:?}");
 			self.remove_node(NodeId{index, key});
 		}
 	}
@@ -191,7 +220,8 @@ impl NodeGraph {
 
 		let mut dfs = DfsSpace::new(&self.connectivity);
 
-		// Remove nodes not connected to the output node
+		// Remove nodes not connected to the output node - ensures we don't process nodes that don't contribute
+		// to the final sound. e.g., unconnected nodes and node islands that may still be being constructed.
 		self.pruned_connectivity = self.connectivity.filter_map(
 			|node_idx, &node_key| {
 				if node_idx == self.output_node_index {

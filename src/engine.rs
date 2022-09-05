@@ -37,7 +37,7 @@ impl Engine {
 
 		let event_pump = sdl_ctx.event_pump()?;
 		let mut input = input::InputSystem::new(sdl_ctx.mouse(), global_scope.clone());
-		let audio = audio::AudioSystem::new(sdl_audio)?;
+		let audio = audio::AudioSystem::new(sdl_audio, global_scope.clone())?;
 
 		let mut resource_context = gfx.resource_context(None);
 		let mut imgui = imgui_backend::ImguiBackend::new(&mut resource_context)?;
@@ -153,6 +153,7 @@ impl Engine {
 		for scope_id in to_remove {
 			self.gfx.cleanup_resource_scope(scope_id);
 			self.input.cleanup_resource_scope(scope_id);
+			self.audio.cleanup_resource_scope(scope_id);
 		}
 	}
 }

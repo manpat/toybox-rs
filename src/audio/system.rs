@@ -3,6 +3,8 @@ use crate::audio::nodes::Node;
 use crate::audio::node_graph::{NodeGraph, NodeId};
 use crate::audio::ringbuffer::{Ringbuffer, RingbufferReadLock};
 
+use crate::utility::{ResourceScopeID, ResourceScopeToken};
+
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -16,6 +18,9 @@ pub struct EvaluationContext<'sys> {
 
 enum ProducerCommand {
 	UpdateGraph(Box<dyn FnOnce(&mut NodeGraph) + Send + 'static>),
+
+	// TODO(pat.m): one day
+	// RemoveNodesPinnedToScope(ResourceScopeID),
 }
 
 
@@ -23,6 +28,8 @@ pub struct AudioSystem {
 	_audio_device: sdl2::audio::AudioDevice<AudioSubmissionWorker>,
 	shared: Arc<Shared>,
 	command_tx: Sender<ProducerCommand>,
+
+	expired_resource_scopes: Vec<ResourceScopeID>,
 
 	// Option so we can take ownership of it in Drop
 	producer_thread_handle: Option<JoinHandle<()>>,
@@ -64,11 +71,7 @@ impl AudioSystem {
 	}
 
 	pub fn add_node_with_send(&mut self, node: impl Node, send_node: NodeId) -> NodeId {
-		self.update_graph_immediate(move |graph| {
-			let node_id = graph.add_node(node, send_node);
-			graph.set_node_pinned(node_id, true);
-			node_id
-		})
+		self.update_graph_immediate(move |graph| graph.add_node(node, send_node))
 	}
 
 	pub fn remove_node(&mut self, node: NodeId) {
@@ -84,7 +87,7 @@ impl AudioSystem {
 
 // Private API
 impl AudioSystem {
-	pub(crate) fn new(sdl_audio: sdl2::AudioSubsystem) -> Result<AudioSystem, Box<dyn Error>> {
+	pub(crate) fn new(sdl_audio: sdl2::AudioSubsystem, global_scope_token: ResourceScopeToken) -> Result<AudioSystem, Box<dyn Error>> {
 		let sample_rate = 44100;
 		let requested_frame_samples = 128;
 		let requested_buffer_size = 2 * requested_frame_samples;
@@ -96,11 +99,12 @@ impl AudioSystem {
 		};
 
 		let inner = Inner {
-			node_graph: NodeGraph::new(),
+			node_graph: NodeGraph::new(global_scope_token.id()),
 			resources: Resources::new(),
 		};
 
-		let requested_ringbuffer_size = (2 * sample_rate as usize) / 60;
+		// TODO(pat.m): figure out how to tune this
+		let requested_ringbuffer_size = (3 * sample_rate as usize) / 60;
 
 		let shared = Arc::new(Shared {
 			inner: Mutex::new(inner),
@@ -148,6 +152,8 @@ impl AudioSystem {
 			shared,
 			command_tx,
 
+			expired_resource_scopes: Vec::new(),
+
 			producer_thread_handle: Some(producer_thread_handle),
 		})
 	}
@@ -155,16 +161,39 @@ impl AudioSystem {
 
 	#[instrument(skip_all, name="AudioSystem::update")]
 	pub(crate) fn update(&mut self) {
+		use std::sync::TryLockError;
+
 		// Doesn't have to happen that often really
-		let mut inner_lock = self.shared.inner.lock().unwrap();
-		let Inner { ref mut node_graph, ref resources } = *inner_lock;
+		match self.shared.inner.try_lock() {
+			Ok(mut inner_lock) => {
+				let Inner { ref mut node_graph, ref resources } = *inner_lock;
 
-		let eval_ctx = EvaluationContext {
-			sample_rate: self.shared.sample_rate,
-			resources,
-		};
+				let eval_ctx = EvaluationContext {
+					sample_rate: self.shared.sample_rate,
+					resources,
+				};
 
-		node_graph.cleanup_finished_nodes(&eval_ctx);
+				self.expired_resource_scopes.sort();
+				node_graph.cleanup_finished_nodes(&eval_ctx, &self.expired_resource_scopes);
+				self.expired_resource_scopes.clear();
+			}
+
+			Err(TryLockError::WouldBlock) => {
+				tracing::info!("AudioSystem::update forfeit lock");
+			}
+
+			Err(TryLockError::Poisoned(_)) => {
+				panic!("Shared audio state mutex is poisoned");
+			}
+		}
+	}
+
+	pub(crate) fn cleanup_resource_scope(&mut self, scope_id: ResourceScopeID) {
+		self.expired_resource_scopes.push(scope_id);
+		// TODO(pat.m): one day
+		// self.command_tx
+		// 	.send(ProducerCommand::RemoveNodesPinnedToScope(scope_id))
+		// 	.unwrap();
 	}
 }
 
@@ -300,7 +329,10 @@ fn audio_producer_worker(shared: Arc<Shared>, command_rx: Receiver<ProducerComma
 
 		let stereo_buffer_size = 2 * node_graph.buffer_size();
 
-		loop {
+		// Hard limit loop count to avoid deadlocks when consumer thread outpaces producer thread.
+		let mut loop_count = 5;
+
+		while loop_count > 0 {
 			if shared.sample_buffer.free_capacity() < stereo_buffer_size {
 				break
 			}
@@ -314,10 +346,16 @@ fn audio_producer_worker(shared: Arc<Shared>, command_rx: Receiver<ProducerComma
 			let split_len = write_lock.presplit.len();
 			write_lock.presplit.copy_from_slice(&buffer[..split_len]);
 			write_lock.postsplit.copy_from_slice(&buffer[split_len..]);
+
+			loop_count -= 1;
 		}
 
 		// Holding locks across sleeps is bad
 		drop(inner);
+
+		if loop_count <= 0 {
+			tracing::info!("audio producer thread took too long!");
+		}
 
 		thread::sleep(std::time::Duration::from_millis(2));
 	}
