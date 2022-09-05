@@ -56,11 +56,7 @@ impl AudioSystem {
 	}
 
 	pub fn add_node(&mut self, node: impl Node) -> NodeId {
-		self.update_graph_immediate(move |graph| graph.add_node(node, false))
-	}
-
-	pub fn add_ephemeral_node(&mut self, node: impl Node) -> NodeId {
-		self.update_graph_immediate(move |graph| graph.add_node(node, true))
+		self.update_graph_immediate(move |graph| graph.add_node(node, None))
 	}
 
 	pub fn add_send(&mut self, node: NodeId, target: NodeId) {
@@ -69,8 +65,8 @@ impl AudioSystem {
 
 	pub fn add_node_with_send(&mut self, node: impl Node, send_node: NodeId) -> NodeId {
 		self.update_graph_immediate(move |graph| {
-			let node_id = graph.add_node(node, false);
-			graph.add_send(node_id, send_node);
+			let node_id = graph.add_node(node, send_node);
+			graph.set_node_pinned(node_id, true);
 			node_id
 		})
 	}

@@ -2,8 +2,15 @@ use crate::prelude::*;
 use crate::audio::{system, system::EvaluationContext, intermediate_buffer::IntermediateBuffer};
 
 
+
+pub enum NodeType {
+	Source,
+	Effect,
+}
+
 pub trait Node: 'static + Send + Sync {
 	fn has_stereo_output(&self, _: &EvaluationContext<'_>) -> bool;
+	fn node_type(&self, _: &EvaluationContext<'_>) -> NodeType;
 	fn finished_playing(&self, _: &EvaluationContext<'_>) -> bool { false }
 	fn process(&mut self, _: ProcessContext<'_>);
 }
@@ -37,6 +44,8 @@ impl MixerNode {
 
 impl Node for MixerNode {
 	fn has_stereo_output(&self, _: &EvaluationContext<'_>) -> bool { self.stereo }
+
+	fn node_type(&self, _: &EvaluationContext<'_>) -> NodeType { NodeType::Effect }
 
 	fn process(&mut self, ProcessContext{inputs, output, ..}: ProcessContext<'_>) {
 		assert!(output.stereo() == self.stereo);
@@ -86,6 +95,8 @@ impl PannerNode {
 impl Node for PannerNode {
 	fn has_stereo_output(&self, _: &EvaluationContext<'_>) -> bool { true }
 
+	fn node_type(&self, _: &EvaluationContext<'_>) -> NodeType { NodeType::Effect }
+
 	fn process(&mut self, ProcessContext{inputs, output, ..}: ProcessContext<'_>) {
 		assert!(output.stereo());
 
@@ -125,6 +136,8 @@ impl OscillatorNode {
 impl Node for OscillatorNode {
 	fn has_stereo_output(&self, _: &EvaluationContext<'_>) -> bool { false }
 
+	fn node_type(&self, _: &EvaluationContext<'_>) -> NodeType { NodeType::Source }
+
 	fn process(&mut self, ProcessContext{eval_ctx, inputs, output}: ProcessContext<'_>) {
 		assert!(inputs.is_empty());
 
@@ -149,6 +162,8 @@ impl WidenNode {
 
 impl Node for WidenNode {
 	fn has_stereo_output(&self, _: &EvaluationContext<'_>) -> bool { true }
+
+	fn node_type(&self, _: &EvaluationContext<'_>) -> NodeType { NodeType::Effect }
 
 	fn process(&mut self, ProcessContext{inputs, output, ..}: ProcessContext<'_>) {
 		assert!(inputs.len() == 1);
@@ -184,6 +199,8 @@ impl SamplerNode {
 
 impl Node for SamplerNode {
 	fn has_stereo_output(&self, _: &EvaluationContext<'_>) -> bool { false }
+
+	fn node_type(&self, _: &EvaluationContext<'_>) -> NodeType { NodeType::Source }
 
 	fn finished_playing(&self, eval_ctx: &EvaluationContext<'_>) -> bool {
 		let buffer = eval_ctx.resources.get(self.sound_id);

@@ -31,8 +31,9 @@ pub struct NodeId {
 struct NodeSlot {
 	node: Box<dyn Node>,
 
-	/// Should this node be removed if it has no inputs
-	ephemeral: bool,
+	/// Node won't be culled even if it has no incoming connections.
+	/// Note: Source nodes are implicitly pinned
+	pinned: bool,
 }
 
 
@@ -62,7 +63,7 @@ impl NodeGraph {
 		let output_node = MixerNode::new_stereo(1.0);
 		let output_node_key = nodes.insert(NodeSlot {
 			node: Box::new(output_node),
-			ephemeral: false,
+			pinned: true,
 		});
 
 		let output_node_index = connectivity.add_node(output_node_key);
@@ -91,15 +92,21 @@ impl NodeGraph {
 		}
 	}
 
-	pub fn add_node(&mut self, node: impl Node, ephemeral: bool) -> NodeId {
+	pub fn add_node(&mut self, node: impl Node, send_node_id: impl Into<Option<NodeId>>) -> NodeId {
 		let node_key = self.nodes.insert(NodeSlot {
 			node: Box::new(node),
-			ephemeral,
+			pinned: false,
 		});
 
 		let node_index = self.connectivity.add_node(node_key);
-		// I guess there's no reason to recalc ordered_node_cache until nodes are connected
-		// self.topology_dirty = true;
+
+		if let Some(send_node_id) = send_node_id.into() {
+			self.connectivity.add_edge(node_index, send_node_id.index, ());
+
+			// Only need to recalculate topology when nodes are connected.
+			self.topology_dirty = true;
+		}
+
 		NodeId { index: node_index, key: node_key }
 	}
 
@@ -119,6 +126,10 @@ impl NodeGraph {
 			.map(|&[id_a, id_b]| (id_a, id_b));
 
 		self.add_sends(edges);
+	}
+
+	pub fn set_node_pinned(&mut self, node: NodeId, pinned: bool) {
+		self.nodes[node.key].pinned = pinned;
 	}
 
 	pub fn remove_node(&mut self, node: NodeId) {
@@ -142,20 +153,26 @@ impl NodeGraph {
 		// not sure I like doing this automatically?
 		for (node_index, &node_key) in self.connectivity.node_references() {
 			let node_slot = &self.nodes[node_key];
-			if node_slot.node.finished_playing(eval_ctx) {
-				finished_nodes.push((node_index, node_key));
-				continue
-			}
+			let node_type = node_slot.node.node_type(eval_ctx);
 
-			if !node_slot.ephemeral {
-				continue
-			}
+			match node_type {
+				NodeType::Source => if node_slot.node.finished_playing(eval_ctx) {
+					finished_nodes.push((node_index, node_key));
+					continue
+				}
 
-			let num_incoming = self.connectivity.neighbors_directed(node_index, petgraph::Direction::Incoming).count();
-			if num_incoming == 0 {
-				finished_nodes.push((node_index, node_key));
+				NodeType::Effect => if !node_slot.pinned {
+					let num_incoming = self.connectivity.neighbors_directed(node_index, petgraph::Direction::Incoming).count();
+					if num_incoming == 0 {
+						finished_nodes.push((node_index, node_key));
+					}
+					continue
+				}
 			}
 		}
+
+		// TODO(pat.m): cull nodes not connected to output
+		// TODO(pat.m): remove nodes attached to expired resource scopes
 
 		// TODO(pat.m): can this be done without the temp vector?
 		for (index, key) in finished_nodes {
