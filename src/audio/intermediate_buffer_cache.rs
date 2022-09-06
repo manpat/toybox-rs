@@ -15,6 +15,8 @@ struct InUseBuffer {
 
 pub(in crate::audio) struct IntermediateBufferCache {
 	unused_buffers: Vec<IntermediateBuffer>,
+
+	// List of active buffers, sorted by associated_node.
 	in_use_buffers: Vec<InUseBuffer>,
 
 	buffer_size: usize,
