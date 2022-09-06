@@ -49,32 +49,69 @@ impl Node for MixerNode {
 
 	#[instrument(skip_all, name = "MixerNode::process")]
 	fn process(&mut self, ProcessContext{inputs, output, ..}: ProcessContext<'_>) {
+		use std::simd::Simd;
+
 		assert!(output.stereo() == self.stereo);
 
-		output.fill(0.0);
+		let (first_input, remaining_inputs) = match inputs.split_first() {
+			Some(pair) => pair,
+			None => {
+				// Zero buffer and bail if no inputs are connected.
+				output.fill(0.0);
+				return
+			}
+		};
 
-		if self.stereo {
-			for input in inputs {
-				if input.stereo() {
-					for ([out_l, out_r], &[in_l, in_r]) in output.array_chunks_mut::<2>().zip(input.array_chunks::<2>()) {
-						*out_l += in_l * self.gain;
-						*out_r += in_r * self.gain;
+		// Copy the first input to output to save the cost of zeroing the buffer.
+		match (first_input.stereo(), output.stereo()) {
+			(true, true) | (false, false) => {
+				output.copy_from_slice(first_input);
+			}
+
+			(false, true) => {
+				for ([out_l, out_r], &in_sample) in output.array_chunks_mut::<2>().zip(first_input.iter()) {
+					*out_l = in_sample;
+					*out_r = in_sample;
+				}
+			}
+
+			(true, false) => panic!("Trying to mix stereo signal with mono MixerNode")
+		}
+
+		// Accumulate the rest of the inputs, widening if necessary.
+		for input in remaining_inputs {
+			match (input.stereo(), output.stereo()) {
+				(true, true) | (false, false) => {
+					for (out_sample, &in_sample) in output.iter_mut().zip(input.iter()) {
+						*out_sample += in_sample;
 					}
-				} else {
+				}
+
+				(false, true) => {
 					for ([out_l, out_r], &in_sample) in output.array_chunks_mut::<2>().zip(input.iter()) {
-						*out_l += in_sample * self.gain;
-						*out_r += in_sample * self.gain;
+						*out_l += in_sample;
+						*out_r += in_sample;
 					}
 				}
-			}
-		} else {
-			for input in inputs {
-				assert!(!input.stereo(), "Trying to mix stereo signal with mono MixerNode");
 
-				for (out_sample, &in_sample) in output.iter_mut().zip(input.iter()) {
-					*out_sample += in_sample * self.gain;
-				}
+				(true, false) => panic!("Trying to mix stereo signal with mono MixerNode")
 			}
+		}
+
+		// Finally apply gain to the accumulated samples.
+		let (head, simd_samples, tail) = output.as_simd_mut::<16>();
+
+		for out_sample in head {
+			*out_sample *= self.gain;
+		}
+
+		for out_sample in tail {
+			*out_sample *= self.gain;
+		}
+
+		let gain_simd = Simd::splat(self.gain);
+		for out_sample_simd in simd_samples {
+			*out_sample_simd *= gain_simd;
 		}
 	}
 }
