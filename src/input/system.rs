@@ -83,12 +83,12 @@ impl InputSystem {
 		}
 	}
 
-	pub fn new_context_group(&mut self, name: impl Into<String>) -> ContextGroupID {
+	pub fn new_context_group(&mut self, name: impl Into<String>, resource_scope_id: impl Into<Option<ResourceScopeID>>) -> ContextGroupID {
 		let context_group_id = ContextGroupID(self.context_group_id_counter.next());
 		let context_group = ContextGroup::new_empty(name.into(), context_group_id);
 
-		// let resource_scope = self.resource_scope_store.get_mut(resource_scope_id);
-		// resource_scope.insert(InputScopedResource::ContextGroup(context_id));
+		let resource_scope = self.resource_scope_store.get_mut(resource_scope_id);
+		resource_scope.insert(InputScopedResource::ContextGroup(context_group_id));
 
 		self.context_groups.push(context_group);
 		context_group_id
@@ -345,7 +345,9 @@ impl InputSystem {
 	pub(crate) fn cleanup_resource_scope(&mut self, scope_id: ResourceScopeID) {
 		let context = InputScopedResourceContext {
 			contexts: &mut self.contexts,
+			context_groups: &mut self.context_groups,
 			active_contexts: &mut self.active_contexts,
+			active_context_groups: &mut self.active_context_groups,
 			active_contexts_changed: &mut self.active_contexts_changed,
 		};
 
@@ -357,7 +359,9 @@ impl std::ops::Drop for InputSystem {
 	fn drop(&mut self) {
 		let context = InputScopedResourceContext {
 			contexts: &mut self.contexts,
+			context_groups: &mut self.context_groups,
 			active_contexts: &mut self.active_contexts,
+			active_context_groups: &mut self.active_context_groups,
 			active_contexts_changed: &mut self.active_contexts_changed,
 		};
 		
@@ -376,10 +380,10 @@ enum InputScopedResource {
 
 struct InputScopedResourceContext<'c> {
 	contexts: &'c mut Vec<InputContext>,
+	context_groups: &'c mut Vec<ContextGroup>,
 	active_contexts: &'c mut Vec<ContextID>,
+	active_context_groups: &'c mut Vec<ContextGroupID>,
 	active_contexts_changed: &'c mut bool,
-
-	// TODO(pat.m): context_groups
 }
 
 impl ScopedResource for InputScopedResource {
@@ -400,10 +404,19 @@ impl ScopedResource for InputScopedResource {
 			}
 
 			InputScopedResource::ContextGroup(context_group_id) => {
-				// if let Ok(position) = context.contexts.binary_search_by_key(&context_id, |ctx| ctx.id) {
-				// 	context.contexts.remove(position);
-				// }
-				todo!()
+				// TODO(pat.m): duplicates set_context_group_active - should find a way to deduplicate this logic
+				if let Some(position) = context.active_context_groups.iter().position(|&id| id == context_group_id) {
+					context.active_context_groups.remove(position);
+					*context.active_contexts_changed = true;
+				}
+
+				if let Ok(position) = context.context_groups.binary_search_by_key(&context_group_id, |ctx| ctx.id) {
+					context.context_groups.remove(position);
+				}
+
+				// TODO(pat.m): should this also remove actions attached to this context group? they will no longer be able to be activated otherwise.
+
+				// TODO(pat.m): test this
 			}
 		}
 	}

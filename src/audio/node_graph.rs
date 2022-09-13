@@ -204,7 +204,6 @@ impl NodeGraph {
 
 		// TODO(pat.m): can this be done without the temp vector?
 		for (index, key) in finished_nodes {
-			println!("Remove {index:?} => {key:?}");
 			self.remove_node(NodeId{index, key});
 		}
 	}

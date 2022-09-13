@@ -79,6 +79,7 @@ impl AudioSystem {
 	}
 
 	pub fn add_sound(&mut self, buffer: Vec<f32>) -> SoundId {
+		// TODO(pat.m): resource scopes
 		let key = self.shared.inner.lock().unwrap().resources.buffers.insert(buffer);
 		SoundId(key)
 	}
