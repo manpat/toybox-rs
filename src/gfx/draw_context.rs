@@ -29,6 +29,15 @@ impl<'ctx> DrawContext<'ctx> {
 		}
 	}
 
+	pub fn set_backface_culling(&mut self, culling_enabled: bool) {
+		unsafe {
+			match culling_enabled {
+				true => raw::Enable(raw::CULL_FACE),
+				false => raw::Disable(raw::CULL_FACE),
+			}
+		}
+	}
+
 	pub fn set_clear_color(&mut self, color: impl Into<Color>) {
 		let (r,g,b,a) = color.into().to_tuple();
 		unsafe {
