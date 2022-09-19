@@ -331,3 +331,134 @@ fn init_fixed_buffer_from_iterator<'s, T, I, const N: usize>(storage: &'s mut [M
 	}
 }
 
+
+
+
+
+
+
+
+
+/// Nodes at same depth can operate independently.
+/// Buffers can be reused once their assigned node has no incomplete outputs.
+
+
+
+type BufferIdx = usize;
+
+struct Job {
+	node: *mut dyn Node,
+	output_buffer: *mut IntermediateBuffer,
+	input_buffers: std::ops::Range<BufferIdx>,
+}
+
+struct IndependentJobSet {
+	jobs: Vec<Job>
+}
+
+
+struct ExecutionGraph {
+	independent_jobs: Vec<IndependentJobSet>,
+	buffer_ptrs: Vec<*const IntermediateBuffer>,
+	output_buffer: *const IntermediateBuffer,
+}
+
+impl ExecutionGraph {
+	fn from_graph(graph: &NodeConnectivityGraph, nodes: &mut slotmap::SlotMap<NodeKey, NodeSlot>, eval_ctx: &EvaluationContext<'_>,
+		output_node_index: NodeIndex)
+		-> ExecutionGraph
+	{
+		use std::collection::VecDeque;
+		use petgraph::visit::Visitable;
+		use petgraph::Direction;
+
+		let mut visit_map = graph.visit_map();
+		let mut to_visit: VecDeque<(NodeIndex, usize)> = VecDeque::new();
+
+		// extend_with_initials
+		to_visit.extend(graph.externals(Direction::Incoming).map(|idx| (idx, 0)));
+
+
+		// create separate allocators for stereo and mono buffers.
+		// for each buffer store a list of ranges that it is in use for.
+		//	determine this from the 'depth' of the node being allocated for, and the max depths of each of its outgoing neighbors
+		//	use this to determine which buffers are safe to reuse.
+		// Allocate all the buffers so pointers can safely be made to them, and stored in Jobs.
+		// For each node:
+		// - collect buffers pointers from incoming nodes and append into buffer_ptrs, save range
+		// - store pointer to output buffer in job
+
+		// To ensure:
+		// - within a set, buffer pointers only appear ONCE as both inputs and outputs for jobs
+		// - buffers aren't reused until all dependent nodes have been evaluated
+		//	- this should be guaranteed with this collection into 'sets' - each set is effectively separated by a barrier
+
+
+		let mut independent_jobs = Vec::new();
+
+		// file:///C:/Users/patrick/Development/playbox-rs/target/doc/src/petgraph/visit/traversal.rs.html#314-317
+		
+		while let Some((node_idx, depth)) = to_visit.pop_front() {
+			if visit_map.is_visited(node_idx) {
+				continue
+			}
+
+			visit_map.visit(node_idx);
+
+			if independent_jobs.len() <= depth {
+				independent_jobs.resize_with(depth + 1, || IndependentJobSet {
+					jobs: Vec::new()
+				});
+			}
+
+			let node = &mut nodes[node_key].node;
+			let node_is_stereo = node.has_stereo_output(eval_ctx);
+
+			let job_set = &mut independent_jobs[depth];
+
+			job_set.jobs.push(Job {
+				node: node.as_mut_ptr(),
+				output_buffer,
+				input_buffers,
+			});
+
+			for neighbor in graph.neighbors(node_idx) {
+				to_visit.push_back((neighbor, depth + 1));
+			}
+		}
+	}
+
+	#[instrument(skip_all, name = "audio::NodeGraph::process")]
+	pub(in crate::audio) fn process(&mut self, eval_ctx: &EvaluationContext<'_>) -> &[f32] {
+		assert!(!self.topology_dirty);
+
+		use petgraph::Direction;
+
+		for job_set in self.independent_jobs.iter() {
+			fn convert(slice: &[*const Buffer]) -> &[&Buffer] {
+				let ptr = slice.as_ptr() as *const _;
+				unsafe {
+					std::slice::from_raw_parts(ptr, slice.len())
+				}
+			}
+
+			// in parallel
+			for job in job_set.jobs.iter() {
+				let output_buffer: &mut Buffer = unsafe{ &mut *job.output_buffer };
+				let input_buffers: &[&Buffer] = convert(&self.buffer_ptrs[job.input_buffers_range]);
+
+				let process_ctx = ProcessContext {
+					eval_ctx,
+					inputs: input_buffers,
+					output: output_buffer,
+				};
+
+				(*job.node).process(process_ctx)
+			}
+		}
+
+		unsafe {
+			*self.output_buffer
+		}
+	}
+}
