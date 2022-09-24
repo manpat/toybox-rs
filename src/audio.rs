@@ -7,11 +7,7 @@ pub mod intermediate_buffer;
 pub mod node_builder;
 
 mod node_graph;
-mod intermediate_buffer_cache;
 mod ringbuffer;
-
-
-pub const MAX_NODE_INPUTS: usize = 256;
 
 
 pub use system::{AudioSystem, SoundId};

@@ -47,7 +47,7 @@ impl Node for MixerNode {
 
 	fn node_type(&self, _: &EvaluationContext<'_>) -> NodeType { NodeType::Effect }
 
-	#[instrument(skip_all, name = "MixerNode::process")]
+	#[instrument(skip_all, name = "MixerNode::process", fields(stereo = self.stereo))]
 	fn process(&mut self, ProcessContext{inputs, output, ..}: ProcessContext<'_>) {
 		use std::simd::Simd;
 
@@ -65,10 +65,11 @@ impl Node for MixerNode {
 		// Copy the first input to output to save the cost of zeroing the buffer.
 		match (first_input.stereo(), output.stereo()) {
 			(true, true) | (false, false) => {
-				output.copy_from_slice(first_input);
+				output.as_simd_mut().copy_from_slice(first_input.as_simd());
 			}
 
 			(false, true) => {
+				// TODO(pat.m): simd widen
 				for ([out_l, out_r], &in_sample) in output.array_chunks_mut::<2>().zip(first_input.iter()) {
 					*out_l = in_sample;
 					*out_r = in_sample;
@@ -82,12 +83,13 @@ impl Node for MixerNode {
 		for input in remaining_inputs {
 			match (input.stereo(), output.stereo()) {
 				(true, true) | (false, false) => {
-					for (out_sample, &in_sample) in output.iter_mut().zip(input.iter()) {
+					for (out_sample, &in_sample) in output.as_simd_mut().iter_mut().zip(input.as_simd().iter()) {
 						*out_sample += in_sample;
 					}
 				}
 
 				(false, true) => {
+					// TODO(pat.m): simd widen
 					for ([out_l, out_r], &in_sample) in output.array_chunks_mut::<2>().zip(input.iter()) {
 						*out_l += in_sample;
 						*out_r += in_sample;
@@ -99,18 +101,8 @@ impl Node for MixerNode {
 		}
 
 		// Finally apply gain to the accumulated samples.
-		let (head, simd_samples, tail) = output.as_simd_mut::<16>();
-
-		for out_sample in head {
-			*out_sample *= self.gain;
-		}
-
-		for out_sample in tail {
-			*out_sample *= self.gain;
-		}
-
 		let gain_simd = Simd::splat(self.gain);
-		for out_sample_simd in simd_samples {
+		for out_sample_simd in output.as_simd_mut() {
 			*out_sample_simd *= gain_simd;
 		}
 	}

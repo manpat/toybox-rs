@@ -1,15 +1,13 @@
 use crate::prelude::*;
 use crate::audio::{nodes::*};
 use crate::audio::intermediate_buffer::IntermediateBuffer;
-use crate::audio::intermediate_buffer_cache::IntermediateBufferCache;
 use crate::audio::system::EvaluationContext;
-use crate::audio::MAX_NODE_INPUTS;
 
 use crate::utility::ResourceScopeID;
 
 use petgraph::stable_graph::StableGraph;
 use petgraph::graph::NodeIndex;
-use std::mem::MaybeUninit;
+use rayon::prelude::*;
 
 
 // TODO(pat.m): associate flags with nodes
@@ -45,19 +43,14 @@ pub struct NodeGraph {
 	connectivity: NodeConnectivityGraph,
 	nodes: slotmap::SlotMap<NodeKey, NodeSlot>,
 
-	buffer_cache: IntermediateBufferCache,
 	output_node_key: NodeKey,
 	output_node_index: NodeIndex,
 
-	/// A processed version of `connectivity` with redunant nodes removed
-	pruned_connectivity: NodeConnectivityGraph,
-
-	/// Node indices of `pruned_connectivity` sorted in evaluation order.
-	ordered_node_cache: Vec<NodeIndex>,
-	topology_dirty: bool,
-
-	buffer_cache2: BufferCache,
+	buffer_cache: BufferCache,
 	execution_graph: ExecutionGraph,
+
+	/// If this is true, execution_graph is no longer safe to use and must be rebuilt.
+	topology_dirty: bool,
 }
 
 unsafe impl Send for NodeGraph {}
@@ -80,16 +73,13 @@ impl NodeGraph {
 		NodeGraph {
 			connectivity,
 			nodes,
-			buffer_cache: IntermediateBufferCache::new(128),
 			output_node_key,
 			output_node_index,
 
-			ordered_node_cache: Vec::new(),
-			pruned_connectivity: StableGraph::new(),
-			topology_dirty: true,
-
-			buffer_cache2: BufferCache::new(128),
+			buffer_cache: BufferCache::new(512),
 			execution_graph: ExecutionGraph::empty(),
+
+			topology_dirty: true,
 		}
 	}
 
@@ -218,47 +208,15 @@ impl NodeGraph {
 
 	#[instrument(skip_all, name = "audio::NodeGraph::update_topology")]
 	pub(in crate::audio) fn update_topology(&mut self, eval_ctx: &EvaluationContext<'_>) {
-		use petgraph::algo::{has_path_connecting, DfsSpace};
-
 		// Recalculate node evaluation order if the topology of the connectivity graph has changed
 		if !self.topology_dirty {
 			return;
 		}
 
-		// let mut dfs = DfsSpace::new(&self.connectivity);
-
-		// Remove nodes not connected to the output node - ensures we don't process nodes that don't contribute
-		// to the final sound. e.g., unconnected nodes and node islands that may still be being constructed.
-		// self.pruned_connectivity = self.connectivity.filter_map(
-		// 	|node_idx, &node_key| {
-		// 		if node_idx == self.output_node_index {
-		// 			return Some(node_key);
-		// 		}
-
-		// 		if !has_path_connecting(&self.connectivity, node_idx, self.output_node_index, Some(&mut dfs)) {
-		// 			None
-		// 		} else {
-		// 			Some(node_key)
-		// 		}
-		// 	},
-
-		// 	|_, &edge_key| Some(edge_key),
-		// );
-
-		// Calculate final evaluation order
-		// self.ordered_node_cache = petgraph::algo::toposort(&self.pruned_connectivity, None)
-		// 	.expect("Connectivity graph is not a DAG");
-
-		// for &node_index in self.ordered_node_cache.iter() {
-		// 	let num_incoming = self.pruned_connectivity.neighbors_directed(node_index, petgraph::Direction::Incoming).count();
-		// 	if num_incoming > MAX_NODE_INPUTS {
-		// 		println!("Node(#{node_index:?}) has too many inputs! Node graph will no longer behave correctly!");
-		// 	}
-		// }
-
-
 		self.execution_graph = ExecutionGraph::from_graph(&self.connectivity, &mut self.nodes, eval_ctx,
-			self.output_node_index, &mut self.buffer_cache2);
+			self.output_node_index, &mut self.buffer_cache);
+
+		self.execution_graph.validate();
 
 		self.topology_dirty = false;
 	}
@@ -268,98 +226,15 @@ impl NodeGraph {
 		assert!(!self.topology_dirty);
 
 		self.execution_graph.process(eval_ctx)
-
-		// use petgraph::Direction;
-
-		// // Make sure there are no inuse buffers remaining from previous frames - this will ensure
-		// // buffers for outgoing external nodes are correctly collected.
-		// self.buffer_cache.mark_all_unused();
-
-		// for &node_index in self.ordered_node_cache.iter() {
-		// 	let node_key = self.pruned_connectivity[node_index];
-		// 	let node_slot = &mut self.nodes[node_key];
-
-		// 	// Fetch a buffer large enough for the nodes output
-		// 	let mut output_buffer = self.buffer_cache.new_buffer(node_slot.node.has_stereo_output(eval_ctx));
-
-		// 	// Collect all inputs for this node
-		// 	let incoming_nodes = self.pruned_connectivity.neighbors_directed(node_index, Direction::Incoming)
-		// 		.map(|node_index| self.pruned_connectivity[node_index]);
-
-		// 	let mut storage = [MaybeUninit::<&IntermediateBuffer>::uninit(); MAX_NODE_INPUTS];
-		// 	let input_node_buffers = incoming_nodes.clone()
-		// 		.map(|node_key|
-		// 			self.buffer_cache.get_buffer(node_key)
-		// 				.expect("Failed to get evaluated buffer!"));
-
-		// 	let input_buffers = init_fixed_buffer_from_iterator(&mut storage, input_node_buffers);
-
-		// 	// Update node state and completely fill output_buffer
-		// 	let process_ctx = ProcessContext {
-		// 		eval_ctx,
-		// 		inputs: input_buffers,
-		// 		output: &mut output_buffer,
-		// 	};
-
-		// 	node_slot.node.process(process_ctx);
-
-		// 	// Mark all input buffers as being used once - potentially collecting them for reuse
-		// 	for node_key in incoming_nodes {
-		// 		self.buffer_cache.mark_used(node_key);
-		// 	}
-
-		// 	// Associate the output buffer to the current node and how many outgoing edges it has
-		// 	// so it can be collected for reuse once each of the outgoing neighbor nodes are evaluated
-		// 	let num_outgoing_edges = if node_index != self.output_node_index {
-		// 		self.pruned_connectivity.edges_directed(node_index, Direction::Outgoing).count()
-		// 	} else {
-		// 		// if we're currently processing the output node then give it a fake 'use'
-		// 		// so that it doesn't get collected before we return it
-		// 		1
-		// 	};
-
-		// 	self.buffer_cache.post_buffer(node_key, output_buffer, num_outgoing_edges);
-		// }
-
-		// // Finally, request the buffer for the output node
-		// let output_node_key = self.pruned_connectivity[self.output_node_index];
-		// self.buffer_cache.get_buffer(output_node_key)
-		// 	.expect("No output node!")
 	}
 }
 
-
-
-fn init_fixed_buffer_from_iterator<'s, T, I, const N: usize>(storage: &'s mut [MaybeUninit<T>; N], iter: I) -> &'s [T]
-	where T: Copy, I: Iterator<Item=T>
-{
-	let mut initialized_count = 0;
-	for (target, source) in storage.iter_mut().zip(iter) {
-		target.write(source);
-		initialized_count += 1;
-	}
-
-	unsafe {
-		let initialized_slice = &storage[..initialized_count];
-		std::mem::transmute::<&[MaybeUninit<T>], &[T]>(initialized_slice)
-	}
-}
-
-
-
-
-
-
-
-
-
-// Nodes at same depth can operate independently.
-// Buffers can be reused once their assigned node has no incomplete outputs.
 
 
 
 type BufferIdx = usize;
 
+#[derive(Debug)]
 struct Job {
 	node: *mut dyn Node,
 	output_buffer: *mut IntermediateBuffer,
@@ -369,6 +244,7 @@ struct Job {
 unsafe impl Send for Job {}
 unsafe impl Sync for Job {}
 
+#[derive(Debug)]
 struct IndependentJobSet {
 	jobs: Vec<Job>
 }
@@ -389,13 +265,33 @@ impl ExecutionGraph {
 		}
 	}
 
+
+	#[instrument(skip_all, name = "audio::ExecutionGraph::validate")]
+	fn validate(&self) {
+		use std::collections::HashSet;
+
+		let mut seen: HashSet<*const IntermediateBuffer> = HashSet::new();
+
+		for jobset in self.independent_jobs.iter() {
+			seen.clear();
+
+			for job in jobset.jobs.iter() {
+				assert!(seen.insert(job.output_buffer));
+
+				let inputs = &self.buffer_ptrs[job.input_buffers_range.clone()];
+				for &input_buffer in inputs {
+					assert!(seen.insert(input_buffer));
+				}
+			}
+		}
+	}
+
+
 	#[instrument(skip_all, name = "audio::ExecutionGraph::from_graph")]
 	fn from_graph(graph: &NodeConnectivityGraph, nodes: &mut slotmap::SlotMap<NodeKey, NodeSlot>, eval_ctx: &EvaluationContext<'_>,
 		output_node_index: NodeIndex, buffer_cache: &mut BufferCache)
 		-> ExecutionGraph
 	{
-		// use std::collections::VecDeque;
-		// use petgraph::visit::Visitable;
 		use petgraph::Direction;
 		use petgraph::visit::NodeIndexable;
 		use petgraph::algo::{has_path_connecting, DfsSpace};
@@ -437,7 +333,6 @@ impl ExecutionGraph {
 		struct WavefrontNode {
 			node_idx: NodeIndex,
 			node_ptr: *mut (dyn Node + 'static),
-			stereo: bool,
 		}
 
 		#[derive(Debug)]
@@ -453,14 +348,16 @@ impl ExecutionGraph {
 				nodes: Vec::new(),
 			};
 
+			let wavefront_idx = wavefronts.len();
+
 			for node_idx in to_visit.drain(..) {
 				if node_info[node_idx.index()].is_some() {
 					continue
 				}
 
-				// Reject nodes that have unvisited inputs
+				// Reject nodes that have unvisited inputs, or that have been visited in the current wavefront.
 				let all_inputs_visited = graph.neighbors_directed(node_idx, petgraph::Incoming)
-					.all(|idx| node_info[idx.index()].is_some());
+					.all(|idx| node_info[idx.index()].as_ref().map(|n| n.wavefront_idx < wavefront_idx) == Some(true));
 
 				if !all_inputs_visited {
 					continue
@@ -484,7 +381,6 @@ impl ExecutionGraph {
 				wavefront.nodes.push(WavefrontNode{
 					node_idx,
 					node_ptr: &mut **node,
-					stereo: node.has_stereo_output(eval_ctx),
 				});
 
 				// Tentatively add outgoing neighbours
@@ -493,7 +389,6 @@ impl ExecutionGraph {
 				}
 			}
 
-			// to_visit.append(&mut new_nodes);
 			std::mem::swap(&mut to_visit, &mut new_nodes);
 
 			wavefronts.push(wavefront);
@@ -518,7 +413,10 @@ impl ExecutionGraph {
 					.max()
 					.unwrap_or(usize::MAX);
 
-				let free_buffers = match node.stereo {
+
+				let stereo = unsafe { (*node.node_ptr).has_stereo_output(eval_ctx) };
+
+				let free_buffers = match stereo {
 					false => &mut free_mono_buffer_indices,
 					true => &mut free_stereo_buffer_indices,
 				};
@@ -532,7 +430,7 @@ impl ExecutionGraph {
 					node_info.buffer_idx = Some(buffers.len());
 					buffers.push(BufferRequest {
 						alive_until_wavefront: latest_output_use,
-						stereo: node.stereo,
+						stereo,
 					});
 				}
 			}
@@ -550,10 +448,10 @@ impl ExecutionGraph {
 		}
 
 
-		// dbg!(buffers, wavefronts, node_info);
+		let stereo_buffer_count = buffers.iter().filter(|b| b.stereo).count();
+		let mono_buffer_count = buffers.len() - stereo_buffer_count;
 
-
-		buffer_cache.reset(buffers.len());
+		buffer_cache.reset(mono_buffer_count, stereo_buffer_count);
 
 		let intermediate_buffers = buffers.into_iter()
 			.map(|request| buffer_cache.new_buffer(request.stereo))
@@ -614,24 +512,6 @@ impl ExecutionGraph {
 					std::slice::from_raw_parts(ptr, slice.len())
 				}
 			}
-
-			// in parallel
-			// for job in job_set.jobs.iter() {
-			// 	let output_buffer: &mut IntermediateBuffer = unsafe{ &mut *job.output_buffer };
-			// 	let input_buffers: &[&IntermediateBuffer] = convert(&self.buffer_ptrs[job.input_buffers_range.clone()]);
-
-			// 	let process_ctx = ProcessContext {
-			// 		eval_ctx,
-			// 		inputs: input_buffers,
-			// 		output: output_buffer,
-			// 	};
-
-			// 	unsafe {
-			// 		(*job.node).process(process_ctx);
-			// 	}
-			// }
-
-			use rayon::prelude::*;
 			
 			let jobs: &[Job] = &job_set.jobs;
 
@@ -669,36 +549,53 @@ impl ExecutionGraph {
 
 
 struct BufferCache {
-	buffers: Vec<IntermediateBuffer>,
-	allocated_index: usize,
+	mono_buffers: Vec<IntermediateBuffer>,
+	mono_allocated_index: usize,
+
+	stereo_buffers: Vec<IntermediateBuffer>,
+	stereo_allocated_index: usize,
 	buffer_size: usize,
 }
 
 impl BufferCache {
 	fn new(buffer_size: usize) -> BufferCache {
 		BufferCache {
-			buffers: Vec::new(),
-			allocated_index: 0,
+			mono_buffers: Vec::new(),
+			mono_allocated_index: 0,
+			stereo_buffers: Vec::new(),
+			stereo_allocated_index: 0,
 			buffer_size,
 		}
 	}
 
-	fn reset(&mut self, new_count: usize) {
-		tracing::info!("BufferCache::reset! {}", new_count);
+	fn buffer_size(&self) -> usize {
+		self.buffer_size
+	}
 
-		if self.buffers.len() < new_count {
-			self.buffers.resize_with(new_count, IntermediateBuffer::new);
+	fn reset(&mut self, mono_buffer_count: usize, stereo_buffer_count: usize) {
+		tracing::info!("BufferCache::reset! {} {}", mono_buffer_count, stereo_buffer_count);
+
+		if self.mono_buffers.len() < mono_buffer_count {
+			self.mono_buffers.resize_with(mono_buffer_count, || IntermediateBuffer::new(self.buffer_size, false));
 		}
 
-		self.allocated_index = 0;
+		if self.stereo_buffers.len() < stereo_buffer_count {
+			self.stereo_buffers.resize_with(stereo_buffer_count, || IntermediateBuffer::new(self.buffer_size, true));
+		}
+
+		self.mono_allocated_index = 0;
+		self.stereo_allocated_index = 0;
 	}
 
 	fn new_buffer(&mut self, stereo: bool) -> *mut IntermediateBuffer {
-		assert!(self.allocated_index < self.buffers.len());
-		let buffer = &mut self.buffers[self.allocated_index];
-		self.allocated_index += 1;
+		let (buffers, allocated_index) = match stereo {
+			false => (&mut self.mono_buffers, &mut self.mono_allocated_index),
+			true => (&mut self.stereo_buffers, &mut self.stereo_allocated_index),
+		};
 
-		buffer.reformat(self.buffer_size, stereo);
+		assert!(*allocated_index < buffers.len());
+		let buffer = &mut buffers[*allocated_index];
+		*allocated_index += 1;
 		buffer
 	}
 }
