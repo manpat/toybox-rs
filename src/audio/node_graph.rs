@@ -1,13 +1,13 @@
 use crate::prelude::*;
 use crate::audio::{nodes::*};
-use crate::audio::intermediate_buffer::IntermediateBuffer;
 use crate::audio::system::EvaluationContext;
+use crate::audio::execution_graph::ExecutionGraph;
+use crate::audio::scratch_buffer_cache::ScratchBufferCache;
 
 use crate::utility::ResourceScopeID;
 
 use petgraph::stable_graph::StableGraph;
 use petgraph::graph::NodeIndex;
-use rayon::prelude::*;
 
 use std::pin::Pin;
 
@@ -29,16 +29,18 @@ pub struct NodeId {
 }
 
 
-struct NodeSlot {
-	node: Pin<Box<dyn Node>>,
+// This being exported is kinda gnarly but is the easiest way to expose node storage to ExecutionGraph.
+pub(in crate::audio) struct NodeSlot {
+	pub node: Pin<Box<dyn Node>>,
 
 	/// Node won't be culled even if it has no incoming connections.
 	/// Note: Source nodes are implicitly pinned
 	pinned_scope: Option<ResourceScopeID>,
 }
 
+// This being exported is kinda gnarly but is the easiest way to expose this to ExecutionGraph.
+pub(in crate::audio) type NodeConnectivityGraph = StableGraph<NodeKey, (), petgraph::Directed>;
 
-type NodeConnectivityGraph = StableGraph<NodeKey, (), petgraph::Directed>;
 
 pub struct NodeGraph {
 	// Describes the connectivity betwen nodes in the graph.
@@ -50,9 +52,9 @@ pub struct NodeGraph {
 	// as mutable references into it are held by the execution graph.
 	nodes: slotmap::SlotMap<NodeKey, NodeSlot>,
 
-	// Stores all the IntermediateBuffers that `execution_graph` will use during processing.
+	// Stores all the ScratchBuffers that `execution_graph` will use during processing.
 	// Must not be modified between when `execution_graph` is initialised and when `ExecutionGraph::process` is called.
-	buffer_cache: BufferCache,
+	buffer_cache: ScratchBufferCache,
 
 	// An optimised representation of the graph used only for evaluation.
 	// Holds references to other members of NodeGraph and so must be recreated whenever the topology changes or nodes are removed.
@@ -87,7 +89,7 @@ impl NodeGraph {
 			output_node_key,
 			output_node_index,
 
-			buffer_cache: BufferCache::new(512),
+			buffer_cache: ScratchBufferCache::new(512),
 			execution_graph: ExecutionGraph::empty(),
 
 			topology_dirty: true,
@@ -244,370 +246,3 @@ impl NodeGraph {
 }
 
 
-
-
-type BufferIdx = usize;
-
-#[derive(Debug)]
-struct NodeWorkItem {
-	node: *mut dyn Node,
-	output_buffer: *mut IntermediateBuffer,
-	input_buffers_range: std::ops::Range<BufferIdx>,
-}
-
-// Required by rayon IntoParallelIterator for `&[T]`.
-// NOT ACTUALLY SAFE!
-// NodeWorkItem is only Sync once its collected into a WorkGroup, and only while Node storage is locked.
-// This is true during `process` but NodeWorkItem should not be used anywhere else.
-unsafe impl Sync for NodeWorkItem {}
-
-
-#[derive(Debug)]
-struct WorkGroup {
-	work_items: Vec<NodeWorkItem>
-}
-
-
-struct ExecutionGraph {
-	workgroups: Vec<WorkGroup>,
-	buffer_ptrs: Vec<*const IntermediateBuffer>,
-	output_buffer: *const IntermediateBuffer,
-}
-
-unsafe impl Send for ExecutionGraph {}
-
-impl ExecutionGraph {
-	fn empty() -> ExecutionGraph {
-		ExecutionGraph {
-			workgroups: Vec::new(),
-			buffer_ptrs: Vec::new(),
-			output_buffer: std::ptr::null(),
-		}
-	}
-
-
-	#[instrument(skip_all, name = "audio::ExecutionGraph::validate")]
-	fn validate(&self) {
-		use std::collections::HashSet;
-
-		let mut seen: HashSet<*const IntermediateBuffer> = HashSet::new();
-
-		for workgroup in self.workgroups.iter() {
-			seen.clear();
-
-			for work_item in workgroup.work_items.iter() {
-				assert!(seen.insert(work_item.output_buffer));
-
-				let inputs = &self.buffer_ptrs[work_item.input_buffers_range.clone()];
-				for &input_buffer in inputs {
-					assert!(seen.insert(input_buffer));
-				}
-			}
-		}
-	}
-
-
-	#[instrument(skip_all, name = "audio::ExecutionGraph::from_graph")]
-	fn from_graph(graph: &NodeConnectivityGraph, nodes: &mut slotmap::SlotMap<NodeKey, NodeSlot>, eval_ctx: &EvaluationContext<'_>,
-		output_node_index: NodeIndex, buffer_cache: &mut BufferCache)
-		-> ExecutionGraph
-	{
-		use petgraph::visit::NodeIndexable;
-		use petgraph::algo::{has_path_connecting, DfsSpace};
-		
-
-		#[derive(Debug)]
-		struct NodeInfo {
-			workgroup_idx: usize,
-			buffer_idx: Option<usize>,
-		}
-
-		let mut node_info: Vec<Option<NodeInfo>> = std::iter::repeat_with(|| None).take(graph.node_bound()).collect();
-
-
-		let mut to_visit: Vec<NodeIndex> = graph.externals(petgraph::Incoming).collect();
-		let mut new_nodes = Vec::new();
-
-		let mut intermediate_workgroups = Vec::new();
-
-		#[derive(Debug)]
-		struct IntermediateWorkItem {
-			node_idx: NodeIndex,
-			node_ptr: *mut (dyn Node + 'static),
-		}
-
-		#[derive(Debug)]
-		struct IntermediateWorkGroup {
-			work_items: Vec<IntermediateWorkItem>,
-		}
-
-		let mut dfs = DfsSpace::new(&graph);
-
-		// Collect nodes into workgroups
-		while !to_visit.is_empty() {
-			let mut workgroup = IntermediateWorkGroup {
-				work_items: Vec::new(),
-			};
-
-			let workgroup_idx = intermediate_workgroups.len();
-
-			for node_idx in to_visit.drain(..) {
-				// If node has already been visited and assigned to a workgroup, we don't need to create any new work items.
-				if node_info[node_idx.index()].is_some() {
-					continue
-				}
-
-				// Reject nodes that have unvisited inputs, or that have been visited in the current workgroup.
-				let all_inputs_visited = graph.neighbors_directed(node_idx, petgraph::Incoming)
-					.all(|idx| node_info[idx.index()].as_ref().map(|n| n.workgroup_idx < workgroup_idx) == Some(true));
-
-				if !all_inputs_visited {
-					continue
-				}
-
-				// Reject nodes not connected to output
-				if node_idx != output_node_index
-					&& !has_path_connecting(&graph, node_idx, output_node_index, Some(&mut dfs))
-				{
-					continue
-				}
-
-				node_info[node_idx.index()] = Some(NodeInfo {
-					workgroup_idx: intermediate_workgroups.len(),
-					buffer_idx: None,
-				});
-
-				let node_key = graph[node_idx];
-				let node = &mut nodes[node_key].node;
-
-				workgroup.work_items.push(IntermediateWorkItem{
-					node_idx,
-					node_ptr: unsafe {
-						// SAFETY: this pointer is never moved through.
-						node.as_mut().get_unchecked_mut()
-					}
-				});
-
-				// Tentatively add outgoing neighbours.
-				for neighbor_index in graph.neighbors(node_idx) {
-					new_nodes.push(neighbor_index);
-				}
-			}
-
-			std::mem::swap(&mut to_visit, &mut new_nodes);
-
-			intermediate_workgroups.push(workgroup);
-		}
-
-
-		// Allocate buffers for each node
-		#[derive(Debug)]
-		struct BufferRequest {
-			alive_until_workgroup: usize,
-			stereo: bool,
-		}
-
-		let mut buffers: Vec<BufferRequest> = Vec::new();
-		let mut free_mono_buffer_indices = Vec::new();
-		let mut free_stereo_buffer_indices = Vec::new();
-
-		for (workgroup_idx, workgroup) in intermediate_workgroups.iter_mut().enumerate() {
-			for node in workgroup.work_items.iter_mut() {
-				let latest_output_use = graph.neighbors(node.node_idx)
-					.map(|neighbor_idx| node_info[neighbor_idx.index()].as_ref().unwrap().workgroup_idx)
-					.max()
-					.unwrap_or(usize::MAX);
-
-
-				let stereo = unsafe { (*node.node_ptr).has_stereo_output(eval_ctx) };
-
-				let free_buffers = match stereo {
-					false => &mut free_mono_buffer_indices,
-					true => &mut free_stereo_buffer_indices,
-				};
-
-				let node_info = node_info[node.node_idx.index()].as_mut().unwrap();
-
-				if let Some(buffer_idx) = free_buffers.pop() {
-					node_info.buffer_idx = Some(buffer_idx);
-					buffers[buffer_idx].alive_until_workgroup = latest_output_use;
-				} else {
-					node_info.buffer_idx = Some(buffers.len());
-					buffers.push(BufferRequest {
-						alive_until_workgroup: latest_output_use,
-						stereo,
-					});
-				}
-			}
-
-			for (index, buffer) in buffers.iter().enumerate() {
-				if buffer.alive_until_workgroup == workgroup_idx {
-					let free_buffers = match buffer.stereo {
-						false => &mut free_mono_buffer_indices,
-						true => &mut free_stereo_buffer_indices,
-					};
-
-					free_buffers.push(index);
-				}
-			}
-		}
-
-
-		let stereo_buffer_count = buffers.iter().filter(|b| b.stereo).count();
-		let mono_buffer_count = buffers.len() - stereo_buffer_count;
-
-		buffer_cache.reset(mono_buffer_count, stereo_buffer_count);
-
-		let intermediate_buffers = buffers.into_iter()
-			.map(|request| buffer_cache.new_buffer(request.stereo))
-			.collect::<Vec<_>>();
-
-		let mut workgroups = Vec::new();
-		let mut buffer_ptrs = Vec::new();
-
-		for intermediate_workgroup in intermediate_workgroups {
-			if intermediate_workgroup.work_items.is_empty() {
-				continue
-			}
-
-			let mut work_items = Vec::new();
-
-			for intermediate_work_item in intermediate_workgroup.work_items {
-				let buffer_ptrs_start = buffer_ptrs.len();
-				for neighbor in graph.neighbors_directed(intermediate_work_item.node_idx, petgraph::Incoming) {
-					let neighbor_info = node_info[neighbor.index()].as_ref().unwrap();
-					let buffer_idx = neighbor_info.buffer_idx.unwrap();
-
-					buffer_ptrs.push(intermediate_buffers[buffer_idx] as *const _);
-				}
-				let buffer_ptrs_end = buffer_ptrs.len();
-
-				let buffer_idx = node_info[intermediate_work_item.node_idx.index()].as_ref().unwrap().buffer_idx.unwrap();
-
-				work_items.push(NodeWorkItem {
-					node: intermediate_work_item.node_ptr,
-					output_buffer: intermediate_buffers[buffer_idx],
-					input_buffers_range: buffer_ptrs_start..buffer_ptrs_end,
-				})
-			}
-
-			workgroups.push(WorkGroup {
-				work_items,
-			});
-		}
-
-		let output_buffer_idx = node_info[output_node_index.index()].as_ref().unwrap().buffer_idx.unwrap();
-		let output_buffer = intermediate_buffers[output_buffer_idx];
-
-		ExecutionGraph {
-			workgroups,
-			buffer_ptrs,
-			output_buffer,
-		}
-	}
-
-	// Calling this is unsafe because it is only safe to call with some external, unenforceable guarantees.
-	// Mainly, neither the node storage nor the buffer cache may be modified between the construction of this ExecutionGraph
-	// and calls to ExecutionGraph::process. Calling process after modifying either the node storage or buffer cache without rebuilding
-	// the ExecutionGraph would result in race conditions and so is UB.
-	#[instrument(skip_all, name = "audio::NodeGraph::process")]
-	pub(in crate::audio) unsafe fn process(&mut self, eval_ctx: &EvaluationContext<'_>) -> &[f32] {
-		for workgroups in self.workgroups.iter() {
-			fn dereference_ptr_slice<'s>(slice: &'s [*const IntermediateBuffer]) -> &'s [&'s IntermediateBuffer] {
-				unsafe {
-					std::slice::from_raw_parts(
-						slice.as_ptr() as *const _,
-						slice.len()
-					)
-				}
-			}
-			
-			// We need rayon to let us resolve the input buffers for each work_item.
-			// `*const T` is !Sync, and so &[*const T] is !Send - which is required by for_each_with.
-			// We can be sure that this is safe because the pointers are all into BufferCache which outlives ExecutionGraph,
-			// _and_ because both input and output buffers are guaranteed to be disjoint within a workgroup.
-			#[derive(Copy, Clone)]
-			struct TrustMeThisIsSendForNow<'a>(&'a [*const IntermediateBuffer]);
-			unsafe impl Send for TrustMeThisIsSendForNow<'_> {}
-
-			let buffer_ptrs = TrustMeThisIsSendForNow(&self.buffer_ptrs);
-
-			workgroups.work_items.par_iter().for_each_with(buffer_ptrs, move |buffer_ptrs, work_item| {
-				// SAFETY: these are guaranteed to be disjoint for all work_items within a workgroup, which is ensured by `validate()`.
-				let output_buffer: &mut IntermediateBuffer = unsafe{ &mut *work_item.output_buffer };
-				let input_buffers: &[&IntermediateBuffer] = dereference_ptr_slice(&buffer_ptrs.0[work_item.input_buffers_range.clone()]);
-
-				let process_ctx = ProcessContext {
-					eval_ctx,
-					inputs: input_buffers,
-					output: output_buffer,
-				};
-
-				// SAFETY: there is guaranteed to only be one work item for each node in the graph, so this is guaranteed to be the only
-				// mutable reference to this node at this point.
-				unsafe {
-					(*work_item.node).process(process_ctx);
-				}
-			});
-		}
-
-		// SAFETY: it is guaranteed that at this point there are no threads modifying any IntermediateBuffers referenced by this graph.
-		unsafe {
-			&*self.output_buffer
-		}
-	}
-}
-
-
-
-struct BufferCache {
-	mono_buffers: Vec<IntermediateBuffer>,
-	mono_allocated_index: usize,
-
-	stereo_buffers: Vec<IntermediateBuffer>,
-	stereo_allocated_index: usize,
-	buffer_size: usize,
-}
-
-impl BufferCache {
-	fn new(buffer_size: usize) -> BufferCache {
-		BufferCache {
-			mono_buffers: Vec::new(),
-			mono_allocated_index: 0,
-			stereo_buffers: Vec::new(),
-			stereo_allocated_index: 0,
-			buffer_size,
-		}
-	}
-
-	fn buffer_size(&self) -> usize {
-		self.buffer_size
-	}
-
-	fn reset(&mut self, mono_buffer_count: usize, stereo_buffer_count: usize) {
-		tracing::info!("BufferCache::reset! {} {}", mono_buffer_count, stereo_buffer_count);
-
-		if self.mono_buffers.len() < mono_buffer_count {
-			self.mono_buffers.resize_with(mono_buffer_count, || IntermediateBuffer::new(self.buffer_size, false));
-		}
-
-		if self.stereo_buffers.len() < stereo_buffer_count {
-			self.stereo_buffers.resize_with(stereo_buffer_count, || IntermediateBuffer::new(self.buffer_size, true));
-		}
-
-		self.mono_allocated_index = 0;
-		self.stereo_allocated_index = 0;
-	}
-
-	fn new_buffer(&mut self, stereo: bool) -> *mut IntermediateBuffer {
-		let (buffers, allocated_index) = match stereo {
-			false => (&mut self.mono_buffers, &mut self.mono_allocated_index),
-			true => (&mut self.stereo_buffers, &mut self.stereo_allocated_index),
-		};
-
-		assert!(*allocated_index < buffers.len());
-		let buffer = &mut buffers[*allocated_index];
-		*allocated_index += 1;
-		buffer
-	}
-}

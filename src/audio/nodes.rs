@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::audio::{system, system::EvaluationContext, intermediate_buffer::IntermediateBuffer};
+use crate::audio::{system, system::EvaluationContext, scratch_buffer::ScratchBuffer};
 
 
 
@@ -18,8 +18,8 @@ pub trait Node: 'static + Send + Sync {
 
 pub struct ProcessContext<'ctx> {
 	pub eval_ctx: &'ctx EvaluationContext<'ctx>,
-	pub inputs: &'ctx [&'ctx IntermediateBuffer],
-	pub output: &'ctx mut IntermediateBuffer,
+	pub inputs: &'ctx [&'ctx ScratchBuffer],
+	pub output: &'ctx mut ScratchBuffer,
 }
 
 

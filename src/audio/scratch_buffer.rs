@@ -5,15 +5,16 @@ use std::simd::Simd;
 const LANE_COUNT: usize = 8;
 
 
-/// 
-pub struct IntermediateBuffer {
+/// A buffer that provides temporary storage for processing of [`Node`]s.
+/// Constructed and held by [`BufferCache`].
+pub struct ScratchBuffer {
 	samples: Vec<Simd<f32, LANE_COUNT>>,
 	stereo: bool,
 }
 
 
-impl IntermediateBuffer {
-	pub(in crate::audio) fn new(sample_count: usize, stereo: bool) -> IntermediateBuffer {
+impl ScratchBuffer {
+	pub(in crate::audio) fn new(sample_count: usize, stereo: bool) -> ScratchBuffer {
 		let target_size = match stereo {
 			false => sample_count,
 			true => 2*sample_count,
@@ -21,7 +22,7 @@ impl IntermediateBuffer {
 
 		assert!(target_size % LANE_COUNT == 0);
 
-		IntermediateBuffer {
+		ScratchBuffer {
 			samples: vec![Simd::splat(0.0); target_size / LANE_COUNT],
 			stereo,
 		}
@@ -35,18 +36,18 @@ impl IntermediateBuffer {
 }
 
 
-impl std::ops::Deref for IntermediateBuffer {
+impl std::ops::Deref for ScratchBuffer {
 	type Target = [f32];
 	fn deref(&self) -> &[f32] { simd_slice_to_slice(&self.samples) }
 }
 
 
-impl std::ops::DerefMut for IntermediateBuffer {
+impl std::ops::DerefMut for ScratchBuffer {
 	fn deref_mut(&mut self) -> &mut [f32] { simd_slice_to_slice_mut(&mut self.samples) }
 }
 
 
-impl<'a> std::iter::IntoIterator for &'a IntermediateBuffer {
+impl<'a> std::iter::IntoIterator for &'a ScratchBuffer {
     type Item = &'a f32;
     type IntoIter = std::slice::Iter<'a, f32>;
 
@@ -56,7 +57,7 @@ impl<'a> std::iter::IntoIterator for &'a IntermediateBuffer {
 }
 
 
-impl<'a> std::iter::IntoIterator for &'a mut IntermediateBuffer {
+impl<'a> std::iter::IntoIterator for &'a mut ScratchBuffer {
     type Item = &'a mut f32;
     type IntoIter = std::slice::IterMut<'a, f32>;
 

@@ -3,10 +3,12 @@
 
 pub mod system;
 pub mod nodes;
-pub mod intermediate_buffer;
+pub mod scratch_buffer;
 pub mod node_builder;
 
 mod node_graph;
+mod execution_graph;
+mod scratch_buffer_cache;
 mod ringbuffer;
 
 
@@ -14,7 +16,7 @@ pub use system::{AudioSystem, SoundId};
 pub use node_graph::NodeId;
 
 pub use system::{EvaluationContext};
-pub use intermediate_buffer::{IntermediateBuffer};
+pub use scratch_buffer::{ScratchBuffer};
 pub use nodes::{NodeType, Node, ProcessContext};
 
 pub use node_builder::*;
