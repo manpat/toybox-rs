@@ -47,7 +47,7 @@ impl Node for MixerNode {
 
 	fn node_type(&self, _: &EvaluationContext<'_>) -> NodeType { NodeType::Effect }
 
-	#[instrument(skip_all, name = "MixerNode::process", fields(stereo = self.stereo))]
+	#[instrument(skip_all, name = "MixerNode::process")]
 	fn process(&mut self, ProcessContext{inputs, output, ..}: ProcessContext<'_>) {
 		use std::simd::Simd;
 

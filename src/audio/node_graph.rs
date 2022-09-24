@@ -9,6 +9,7 @@ use petgraph::stable_graph::StableGraph;
 use petgraph::graph::NodeIndex;
 use rayon::prelude::*;
 
+use std::pin::Pin;
 
 // TODO(pat.m): associate flags with nodes
 // allow nodes to be marked as 'persistent' or 'ephemeral'
@@ -29,7 +30,7 @@ pub struct NodeId {
 
 
 struct NodeSlot {
-	node: Box<dyn Node>,
+	node: Pin<Box<dyn Node>>,
 
 	/// Node won't be culled even if it has no incoming connections.
 	/// Note: Source nodes are implicitly pinned
@@ -40,20 +41,30 @@ struct NodeSlot {
 type NodeConnectivityGraph = StableGraph<NodeKey, (), petgraph::Directed>;
 
 pub struct NodeGraph {
+	// Describes the connectivity betwen nodes in the graph.
+	// Processed into a more optimal form in `update_topology`.
 	connectivity: NodeConnectivityGraph,
+
+	// Storage for all nodes in the graph.
+	// Must not be modified between when `execution_graph` is initialised and when `ExecutionGraph::process` is called,
+	// as mutable references into it are held by the execution graph.
 	nodes: slotmap::SlotMap<NodeKey, NodeSlot>,
+
+	// Stores all the IntermediateBuffers that `execution_graph` will use during processing.
+	// Must not be modified between when `execution_graph` is initialised and when `ExecutionGraph::process` is called.
+	buffer_cache: BufferCache,
+
+	// An optimised representation of the graph used only for evaluation.
+	// Holds references to other members of NodeGraph and so must be recreated whenever the topology changes or nodes are removed.
+	execution_graph: ExecutionGraph,
 
 	output_node_key: NodeKey,
 	output_node_index: NodeIndex,
-
-	buffer_cache: BufferCache,
-	execution_graph: ExecutionGraph,
 
 	/// If this is true, execution_graph is no longer safe to use and must be rebuilt.
 	topology_dirty: bool,
 }
 
-unsafe impl Send for NodeGraph {}
 
 
 // Public API.
@@ -64,7 +75,7 @@ impl NodeGraph {
 
 		let output_node = MixerNode::new_stereo(1.0);
 		let output_node_key = nodes.insert(NodeSlot {
-			node: Box::new(output_node),
+			node: Box::pin(output_node),
 			pinned_scope: Some(global_resource_scope),
 		});
 
@@ -96,7 +107,7 @@ impl NodeGraph {
 
 	pub fn add_node(&mut self, node: impl Node, send_node_id: impl Into<Option<NodeId>>) -> NodeId {
 		let node_key = self.nodes.insert(NodeSlot {
-			node: Box::new(node),
+			node: Box::pin(node),
 			pinned_scope: None,
 		});
 
@@ -225,7 +236,10 @@ impl NodeGraph {
 	pub(in crate::audio) fn process(&mut self, eval_ctx: &EvaluationContext<'_>) -> &[f32] {
 		assert!(!self.topology_dirty);
 
-		self.execution_graph.process(eval_ctx)
+		// SAFETY: The above assert and the unique reference to self guarantee that the below is safe.
+		unsafe {
+			self.execution_graph.process(eval_ctx)
+		}
 	}
 }
 
@@ -235,31 +249,37 @@ impl NodeGraph {
 type BufferIdx = usize;
 
 #[derive(Debug)]
-struct Job {
+struct NodeWorkItem {
 	node: *mut dyn Node,
 	output_buffer: *mut IntermediateBuffer,
 	input_buffers_range: std::ops::Range<BufferIdx>,
 }
 
-unsafe impl Send for Job {}
-unsafe impl Sync for Job {}
+// Required by rayon IntoParallelIterator for `&[T]`.
+// NOT ACTUALLY SAFE!
+// NodeWorkItem is only Sync once its collected into a WorkGroup, and only while Node storage is locked.
+// This is true during `process` but NodeWorkItem should not be used anywhere else.
+unsafe impl Sync for NodeWorkItem {}
+
 
 #[derive(Debug)]
-struct IndependentJobSet {
-	jobs: Vec<Job>
+struct WorkGroup {
+	work_items: Vec<NodeWorkItem>
 }
 
 
 struct ExecutionGraph {
-	independent_jobs: Vec<IndependentJobSet>,
+	workgroups: Vec<WorkGroup>,
 	buffer_ptrs: Vec<*const IntermediateBuffer>,
 	output_buffer: *const IntermediateBuffer,
 }
 
+unsafe impl Send for ExecutionGraph {}
+
 impl ExecutionGraph {
 	fn empty() -> ExecutionGraph {
 		ExecutionGraph {
-			independent_jobs: Vec::new(),
+			workgroups: Vec::new(),
 			buffer_ptrs: Vec::new(),
 			output_buffer: std::ptr::null(),
 		}
@@ -272,13 +292,13 @@ impl ExecutionGraph {
 
 		let mut seen: HashSet<*const IntermediateBuffer> = HashSet::new();
 
-		for jobset in self.independent_jobs.iter() {
+		for workgroup in self.workgroups.iter() {
 			seen.clear();
 
-			for job in jobset.jobs.iter() {
-				assert!(seen.insert(job.output_buffer));
+			for work_item in workgroup.work_items.iter() {
+				assert!(seen.insert(work_item.output_buffer));
 
-				let inputs = &self.buffer_ptrs[job.input_buffers_range.clone()];
+				let inputs = &self.buffer_ptrs[work_item.input_buffers_range.clone()];
 				for &input_buffer in inputs {
 					assert!(seen.insert(input_buffer));
 				}
@@ -292,72 +312,54 @@ impl ExecutionGraph {
 		output_node_index: NodeIndex, buffer_cache: &mut BufferCache)
 		-> ExecutionGraph
 	{
-		use petgraph::Direction;
 		use petgraph::visit::NodeIndexable;
 		use petgraph::algo::{has_path_connecting, DfsSpace};
-
-
-		// create separate allocators for stereo and mono buffers.
-		// for each buffer store a list of ranges that it is in use for.
-		//	determine this from the 'depth' of the node being allocated for, and the max depths of each of its outgoing neighbors
-		//	use this to determine which buffers are safe to reuse.
-		// Allocate all the buffers so pointers can safely be made to them, and stored in Jobs.
-		// For each node:
-		// - collect buffers pointers from incoming nodes and append into buffer_ptrs, save range
-		// - store pointer to output buffer in job
-
-		// To ensure:
-		// - within a set, buffer pointers only appear ONCE as both inputs and outputs for jobs
-		// - buffers aren't reused until all dependent nodes have been evaluated
-		//	- this should be guaranteed with this collection into 'sets' - each set is effectively separated by a barrier
-
-
-		// file:///C:/Users/patrick/Development/playbox-rs/target/doc/src/petgraph/visit/traversal.rs.html#314-317
 		
 
 		#[derive(Debug)]
 		struct NodeInfo {
-			wavefront_idx: usize,
+			workgroup_idx: usize,
 			buffer_idx: Option<usize>,
 		}
 
 		let mut node_info: Vec<Option<NodeInfo>> = std::iter::repeat_with(|| None).take(graph.node_bound()).collect();
 
 
-		let mut to_visit: Vec<NodeIndex> = graph.externals(Direction::Incoming).collect();
+		let mut to_visit: Vec<NodeIndex> = graph.externals(petgraph::Incoming).collect();
 		let mut new_nodes = Vec::new();
 
-		let mut wavefronts = Vec::new();
+		let mut intermediate_workgroups = Vec::new();
 
 		#[derive(Debug)]
-		struct WavefrontNode {
+		struct IntermediateWorkItem {
 			node_idx: NodeIndex,
 			node_ptr: *mut (dyn Node + 'static),
 		}
 
 		#[derive(Debug)]
-		struct Wavefront {
-			nodes: Vec<WavefrontNode>,
+		struct IntermediateWorkGroup {
+			work_items: Vec<IntermediateWorkItem>,
 		}
 
 		let mut dfs = DfsSpace::new(&graph);
 
-		// Collect nodes into wavefronts
+		// Collect nodes into workgroups
 		while !to_visit.is_empty() {
-			let mut wavefront = Wavefront {
-				nodes: Vec::new(),
+			let mut workgroup = IntermediateWorkGroup {
+				work_items: Vec::new(),
 			};
 
-			let wavefront_idx = wavefronts.len();
+			let workgroup_idx = intermediate_workgroups.len();
 
 			for node_idx in to_visit.drain(..) {
+				// If node has already been visited and assigned to a workgroup, we don't need to create any new work items.
 				if node_info[node_idx.index()].is_some() {
 					continue
 				}
 
-				// Reject nodes that have unvisited inputs, or that have been visited in the current wavefront.
+				// Reject nodes that have unvisited inputs, or that have been visited in the current workgroup.
 				let all_inputs_visited = graph.neighbors_directed(node_idx, petgraph::Incoming)
-					.all(|idx| node_info[idx.index()].as_ref().map(|n| n.wavefront_idx < wavefront_idx) == Some(true));
+					.all(|idx| node_info[idx.index()].as_ref().map(|n| n.workgroup_idx < workgroup_idx) == Some(true));
 
 				if !all_inputs_visited {
 					continue
@@ -371,19 +373,22 @@ impl ExecutionGraph {
 				}
 
 				node_info[node_idx.index()] = Some(NodeInfo {
-					wavefront_idx: wavefronts.len(),
+					workgroup_idx: intermediate_workgroups.len(),
 					buffer_idx: None,
 				});
 
 				let node_key = graph[node_idx];
 				let node = &mut nodes[node_key].node;
 
-				wavefront.nodes.push(WavefrontNode{
+				workgroup.work_items.push(IntermediateWorkItem{
 					node_idx,
-					node_ptr: &mut **node,
+					node_ptr: unsafe {
+						// SAFETY: this pointer is never moved through.
+						node.as_mut().get_unchecked_mut()
+					}
 				});
 
-				// Tentatively add outgoing neighbours
+				// Tentatively add outgoing neighbours.
 				for neighbor_index in graph.neighbors(node_idx) {
 					new_nodes.push(neighbor_index);
 				}
@@ -391,14 +396,14 @@ impl ExecutionGraph {
 
 			std::mem::swap(&mut to_visit, &mut new_nodes);
 
-			wavefronts.push(wavefront);
+			intermediate_workgroups.push(workgroup);
 		}
 
 
 		// Allocate buffers for each node
 		#[derive(Debug)]
 		struct BufferRequest {
-			alive_until_wavefront: usize,
+			alive_until_workgroup: usize,
 			stereo: bool,
 		}
 
@@ -406,10 +411,10 @@ impl ExecutionGraph {
 		let mut free_mono_buffer_indices = Vec::new();
 		let mut free_stereo_buffer_indices = Vec::new();
 
-		for (wavefront_idx, wavefront) in wavefronts.iter_mut().enumerate() {
-			for node in wavefront.nodes.iter_mut() {
+		for (workgroup_idx, workgroup) in intermediate_workgroups.iter_mut().enumerate() {
+			for node in workgroup.work_items.iter_mut() {
 				let latest_output_use = graph.neighbors(node.node_idx)
-					.map(|neighbor_idx| node_info[neighbor_idx.index()].as_ref().unwrap().wavefront_idx)
+					.map(|neighbor_idx| node_info[neighbor_idx.index()].as_ref().unwrap().workgroup_idx)
 					.max()
 					.unwrap_or(usize::MAX);
 
@@ -425,18 +430,18 @@ impl ExecutionGraph {
 
 				if let Some(buffer_idx) = free_buffers.pop() {
 					node_info.buffer_idx = Some(buffer_idx);
-					buffers[buffer_idx].alive_until_wavefront = latest_output_use;
+					buffers[buffer_idx].alive_until_workgroup = latest_output_use;
 				} else {
 					node_info.buffer_idx = Some(buffers.len());
 					buffers.push(BufferRequest {
-						alive_until_wavefront: latest_output_use,
+						alive_until_workgroup: latest_output_use,
 						stereo,
 					});
 				}
 			}
 
 			for (index, buffer) in buffers.iter().enumerate() {
-				if buffer.alive_until_wavefront == wavefront_idx {
+				if buffer.alive_until_workgroup == workgroup_idx {
 					let free_buffers = match buffer.stereo {
 						false => &mut free_mono_buffer_indices,
 						true => &mut free_stereo_buffer_indices,
@@ -457,19 +462,19 @@ impl ExecutionGraph {
 			.map(|request| buffer_cache.new_buffer(request.stereo))
 			.collect::<Vec<_>>();
 
-		let mut job_sets = Vec::new();
+		let mut workgroups = Vec::new();
 		let mut buffer_ptrs = Vec::new();
 
-		for wavefront in wavefronts {
-			if wavefront.nodes.is_empty() {
+		for intermediate_workgroup in intermediate_workgroups {
+			if intermediate_workgroup.work_items.is_empty() {
 				continue
 			}
 
-			let mut jobs = Vec::new();
+			let mut work_items = Vec::new();
 
-			for node in wavefront.nodes {
+			for intermediate_work_item in intermediate_workgroup.work_items {
 				let buffer_ptrs_start = buffer_ptrs.len();
-				for neighbor in graph.neighbors_directed(node.node_idx, petgraph::Incoming) {
+				for neighbor in graph.neighbors_directed(intermediate_work_item.node_idx, petgraph::Incoming) {
 					let neighbor_info = node_info[neighbor.index()].as_ref().unwrap();
 					let buffer_idx = neighbor_info.buffer_idx.unwrap();
 
@@ -477,17 +482,17 @@ impl ExecutionGraph {
 				}
 				let buffer_ptrs_end = buffer_ptrs.len();
 
-				let buffer_idx = node_info[node.node_idx.index()].as_ref().unwrap().buffer_idx.unwrap();
+				let buffer_idx = node_info[intermediate_work_item.node_idx.index()].as_ref().unwrap().buffer_idx.unwrap();
 
-				jobs.push(Job {
-					node: node.node_ptr,
+				work_items.push(NodeWorkItem {
+					node: intermediate_work_item.node_ptr,
 					output_buffer: intermediate_buffers[buffer_idx],
 					input_buffers_range: buffer_ptrs_start..buffer_ptrs_end,
 				})
 			}
 
-			job_sets.push(IndependentJobSet {
-				jobs,
+			workgroups.push(WorkGroup {
+				work_items,
 			});
 		}
 
@@ -495,38 +500,42 @@ impl ExecutionGraph {
 		let output_buffer = intermediate_buffers[output_buffer_idx];
 
 		ExecutionGraph {
-			independent_jobs: job_sets,
+			workgroups,
 			buffer_ptrs,
 			output_buffer,
 		}
 	}
 
+	// Calling this is unsafe because it is only safe to call with some external, unenforceable guarantees.
+	// Mainly, neither the node storage nor the buffer cache may be modified between the construction of this ExecutionGraph
+	// and calls to ExecutionGraph::process. Calling process after modifying either the node storage or buffer cache without rebuilding
+	// the ExecutionGraph would result in race conditions and so is UB.
 	#[instrument(skip_all, name = "audio::NodeGraph::process")]
-	pub(in crate::audio) fn process(&mut self, eval_ctx: &EvaluationContext<'_>) -> &[f32] {
-		use petgraph::Direction;
-
-		for job_set in self.independent_jobs.iter() {
-			fn convert(slice: &[*const IntermediateBuffer]) -> &[&IntermediateBuffer] {
-				let ptr = slice.as_ptr() as *const _;
+	pub(in crate::audio) unsafe fn process(&mut self, eval_ctx: &EvaluationContext<'_>) -> &[f32] {
+		for workgroups in self.workgroups.iter() {
+			fn dereference_ptr_slice<'s>(slice: &'s [*const IntermediateBuffer]) -> &'s [&'s IntermediateBuffer] {
 				unsafe {
-					std::slice::from_raw_parts(ptr, slice.len())
+					std::slice::from_raw_parts(
+						slice.as_ptr() as *const _,
+						slice.len()
+					)
 				}
 			}
 			
-			let jobs: &[Job] = &job_set.jobs;
-
+			// We need rayon to let us resolve the input buffers for each work_item.
+			// `*const T` is !Sync, and so &[*const T] is !Send - which is required by for_each_with.
+			// We can be sure that this is safe because the pointers are all into BufferCache which outlives ExecutionGraph,
+			// _and_ because both input and output buffers are guaranteed to be disjoint within a workgroup.
 			#[derive(Copy, Clone)]
-			struct BufferPtrs<'a>(&'a [*const IntermediateBuffer]);
+			struct TrustMeThisIsSendForNow<'a>(&'a [*const IntermediateBuffer]);
+			unsafe impl Send for TrustMeThisIsSendForNow<'_> {}
 
-			unsafe impl Send for BufferPtrs<'_> {}
-			unsafe impl Sync for BufferPtrs<'_> {}
+			let buffer_ptrs = TrustMeThisIsSendForNow(&self.buffer_ptrs);
 
-			let buffer_ptrs = BufferPtrs(&self.buffer_ptrs);
-
-			jobs.par_iter().for_each(move |job| {
-				let buffer_ptrs = buffer_ptrs;
-				let output_buffer: &mut IntermediateBuffer = unsafe{ &mut *job.output_buffer };
-				let input_buffers: &[&IntermediateBuffer] = convert(&buffer_ptrs.0[job.input_buffers_range.clone()]);
+			workgroups.work_items.par_iter().for_each_with(buffer_ptrs, move |buffer_ptrs, work_item| {
+				// SAFETY: these are guaranteed to be disjoint for all work_items within a workgroup, which is ensured by `validate()`.
+				let output_buffer: &mut IntermediateBuffer = unsafe{ &mut *work_item.output_buffer };
+				let input_buffers: &[&IntermediateBuffer] = dereference_ptr_slice(&buffer_ptrs.0[work_item.input_buffers_range.clone()]);
 
 				let process_ctx = ProcessContext {
 					eval_ctx,
@@ -534,12 +543,15 @@ impl ExecutionGraph {
 					output: output_buffer,
 				};
 
+				// SAFETY: there is guaranteed to only be one work item for each node in the graph, so this is guaranteed to be the only
+				// mutable reference to this node at this point.
 				unsafe {
-					(*job.node).process(process_ctx);
+					(*work_item.node).process(process_ctx);
 				}
 			});
 		}
 
+		// SAFETY: it is guaranteed that at this point there are no threads modifying any IntermediateBuffers referenced by this graph.
 		unsafe {
 			&*self.output_buffer
 		}
