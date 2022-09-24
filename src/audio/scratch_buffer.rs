@@ -33,6 +33,14 @@ impl ScratchBuffer {
 	pub fn as_simd(&self) -> &[Simd<f32, LANE_COUNT>] { &self.samples }
 
 	pub fn as_simd_mut(&mut self) -> &mut [Simd<f32, LANE_COUNT>] { &mut self.samples }
+
+	pub fn iter_simd_widen(&self) -> impl Iterator<Item=Simd<f32, LANE_COUNT>> + '_ {
+		self.samples.iter()
+			.flat_map(|&v| {
+				let (a, b) = v.interleave(v);
+				[a, b]
+			})
+	}
 }
 
 
