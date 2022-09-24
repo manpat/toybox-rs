@@ -9,6 +9,7 @@ pub use slotmap;
 pub use imgui;
 pub use petgraph;
 pub use symphonia;
+pub use rayon;
 
 pub use tracing;
 #[doc(hidden)]

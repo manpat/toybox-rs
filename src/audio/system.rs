@@ -326,7 +326,8 @@ fn audio_producer_worker(shared: Arc<Shared>, command_rx: Receiver<ProducerComma
 			}
 		}
 
-		node_graph.update_topology();
+		let eval_ctx = EvaluationContext {sample_rate, resources};
+		node_graph.update_topology(&eval_ctx);
 
 		let stereo_buffer_size = 2 * node_graph.buffer_size();
 

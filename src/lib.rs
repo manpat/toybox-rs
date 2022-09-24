@@ -1,5 +1,5 @@
 #![feature(array_chunks, array_windows, type_ascription, let_chains, generic_associated_types)]
-#![feature(portable_simd)]
+#![feature(portable_simd, associated_type_defaults)]
 #![doc = include_str!("../README.md")]
 
 pub mod prelude;
