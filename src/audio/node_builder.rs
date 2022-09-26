@@ -35,6 +35,14 @@ pub trait MonoNodeBuilder : NodeBuilder<1> {
 	fn widen(self) -> WidenNode<Self> {
 		WidenNode { inner: self }
 	}
+
+	fn low_pass(self, cutoff: f32) -> LowPassNode<Self> {
+		LowPassNode {
+			inner: self,
+			cutoff,
+			prev_value: 0.0,
+		}
+	}
 }
 
 pub trait StereoNodeBuilder : NodeBuilder<2> {
@@ -125,6 +133,75 @@ impl NodeBuilder<1> for OscillatorGenerator {
 }
 
 
+use std::num::Wrapping;
+
+// https://www.musicdsp.org/en/latest/Synthesis/216-fast-whitenoise-generator.html
+pub struct NoiseGenerator {
+	x1: Wrapping<i32>,
+	x2: Wrapping<i32>,
+}
+
+impl NoiseGenerator {
+	pub fn new() -> NoiseGenerator {
+		#[allow(overflowing_literals)]
+		NoiseGenerator {
+			x1: Wrapping(0x67452301i32),
+			x2: Wrapping(0xefcdab89i32),
+		}
+	}
+}
+
+impl NodeBuilder<1> for NoiseGenerator {
+	type ProcessState<'eval> = ();
+
+	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) {}
+
+	#[inline]
+	fn generate_frame(&mut self, _: &mut ()) -> [f32; 1] {
+		#[allow(overflowing_literals)]
+		const SCALE: f32 = 2.0 / 0xffffffff as f32;
+
+		self.x2 += self.x1;
+		self.x1 ^= self.x2;
+		
+		[(SCALE * self.x2.0 as f32).clamp(-1.0, 1.0)]
+	}
+}
+
+
+
+pub struct LowPassNode<N> {
+	inner: N,
+	cutoff: f32,
+	prev_value: f32,
+}
+
+impl<N> NodeBuilder<1> for LowPassNode<N>
+	where N: MonoNodeBuilder
+{
+	type ProcessState<'eval> = (N::ProcessState<'eval>, f32);
+
+	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) -> Self::ProcessState<'eval> {
+		let dt = 1.0 / eval_ctx.sample_rate;
+		let a = dt / (dt + 1.0 / (TAU * self.cutoff));
+
+		(self.inner.start_process(eval_ctx), a)
+	}
+
+	fn is_finished(&self, eval_ctx: &EvaluationContext<'_>) -> bool {
+		self.inner.is_finished(eval_ctx)
+	}
+
+	#[inline]
+	fn generate_frame(&mut self, (state, a): &mut Self::ProcessState<'_>) -> [f32; 1] {
+		let [new_value] = self.inner.generate_frame(state);
+		self.prev_value = a.lerp(self.prev_value, new_value);
+		[self.prev_value]
+	}
+}
+
+
+
 pub struct GainNode<N> {
 	inner: N,
 	gain: f32,
@@ -203,11 +280,65 @@ impl<N, const CHANNELS: usize> NodeBuilder<CHANNELS> for EnvelopeNode<N>
 	#[inline]
 	fn generate_frame(&mut self, state: &mut Self::ProcessState<'_>) -> [f32; CHANNELS] {
 		let attack = (self.time / self.attack).min(1.0);
-		let release = (1.0 - (self.time - self.attack) / (self.sound_length - self.attack)).powi(8);
-		let envelope = (attack*release).clamp(0.0, 1.0);
+		let release = (1.0 - (self.time - self.attack) / (self.sound_length - self.attack)).max(0.0).powi(8);
+		let envelope = (attack*attack*release).clamp(0.0, 1.0);
 
 		self.time += state.0;
 
 		self.inner.generate_frame(&mut state.1).map(|c| c * envelope)
 	}
 }
+
+
+
+
+// TODO(pat.m): add sum and multiply combinators on (N, ...) that create AddNode and MultiplyNode
+
+
+macro_rules! impl_nodebuilder_for_tuple {
+	($($idx:tt -> $ty:ident),*) => {
+		impl< $($ty),* , const CHANNELS: usize> NodeBuilder<CHANNELS> for ( $($ty,)* )
+			where $(
+				$ty : NodeBuilder<CHANNELS>
+			),*
+		{
+			type ProcessState<'eval> = ( $( $ty::ProcessState<'eval>, )* );
+
+			fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) -> Self::ProcessState<'eval> {
+				( $( self.$idx.start_process(eval_ctx), )* )
+			}
+
+			fn is_finished(&self, eval_ctx: &EvaluationContext<'_>) -> bool {
+				$(
+					if !self.$idx.is_finished(eval_ctx) {
+						return false
+					}
+				)*
+
+				return true
+			}
+
+			#[inline]
+			fn generate_frame(&mut self, state: &mut Self::ProcessState<'_>) -> [f32; CHANNELS] {
+				let frames = [
+					$( self.$idx.generate_frame(&mut state.$idx), )*
+				];
+
+				frames.into_iter()
+					.fold([0.0; CHANNELS], |acc, frame| {
+						acc.zip(frame).map(|(c0, c1)| c0 + c1)
+					})
+			}
+		}
+	}
+}
+
+impl_nodebuilder_for_tuple!(0 -> N0);
+impl_nodebuilder_for_tuple!(0 -> N0, 1 -> N1);
+impl_nodebuilder_for_tuple!(0 -> N0, 1 -> N1, 2 -> N2);
+impl_nodebuilder_for_tuple!(0 -> N0, 1 -> N1, 2 -> N2, 3 -> N3);
+impl_nodebuilder_for_tuple!(0 -> N0, 1 -> N1, 2 -> N2, 3 -> N3, 4 -> N4);
+impl_nodebuilder_for_tuple!(0 -> N0, 1 -> N1, 2 -> N2, 3 -> N3, 4 -> N4, 5 -> N5);
+impl_nodebuilder_for_tuple!(0 -> N0, 1 -> N1, 2 -> N2, 3 -> N3, 4 -> N4, 5 -> N5, 6 -> N6);
+impl_nodebuilder_for_tuple!(0 -> N0, 1 -> N1, 2 -> N2, 3 -> N3, 4 -> N4, 5 -> N5, 6 -> N6, 7 -> N7);
+impl_nodebuilder_for_tuple!(0 -> N0, 1 -> N1, 2 -> N2, 3 -> N3, 4 -> N4, 5 -> N5, 6 -> N6, 7 -> N7, 8 -> N8);
