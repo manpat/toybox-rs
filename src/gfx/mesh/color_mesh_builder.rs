@@ -1,6 +1,6 @@
 use common::*;
 use crate::gfx::vertex::{ColorVertex, ColorVertex2D};
-use crate::gfx::mesh::{MeshData, PolyBuilder2D, PolyBuilder3D, ColoredPolyBuilder};
+use crate::gfx::mesh::{MeshData, PolyBuilder2D, PolyBuilder3D};
 use std::ops::DerefMut;
 
 
@@ -25,12 +25,6 @@ impl<MD> ColorMeshBuilder<MD> {
 	}
 }
 
-
-impl<MD> ColoredPolyBuilder for ColorMeshBuilder<MD> {
-	fn set_color(&mut self, color: impl Into<Color>) {
-		self.set_color(color);
-	}
-}
 
 
 

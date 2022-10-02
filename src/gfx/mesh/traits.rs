@@ -114,18 +114,6 @@ impl<PB: PolyBuilder3D> PolyBuilder3D for &mut PB {
 }
 
 
-/// A helper interface for type that have some notion of an active [`Color`] that can be
-/// applied to the otherwise colourless geometry passed to the poly builder interfaces.
-pub trait ColoredPolyBuilder {
-	fn set_color(&mut self, color: impl Into<Color>);
-}
-
-impl<PB: ColoredPolyBuilder> ColoredPolyBuilder for &mut PB {
-	fn set_color(&mut self, color: impl Into<Color>) {
-		(*self).set_color(color);
-	}
-}
-
 
 /// A type representing some 2D geometry that can be built into a type implementing [`PolyBuilder2D`].
 pub trait BuildableGeometry2D {

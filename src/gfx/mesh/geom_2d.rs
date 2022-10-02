@@ -4,6 +4,7 @@ use common::*;
 use crate::gfx::mesh::{PolyBuilder2D, traits::BuildableGeometry2D};
 
 
+#[derive(Copy, Clone, Debug)]
 pub struct Quad {
 	basis: Mat2x3,
 }
@@ -33,6 +34,7 @@ impl BuildableGeometry2D for Quad {
 }
 
 
+#[derive(Copy, Clone, Debug)]
 pub struct Polygon {
 	basis: Mat2x3,
 	num_faces: u32,
@@ -73,3 +75,38 @@ impl BuildableGeometry2D for Polygon {
 }
 
 
+
+
+pub trait Transformable2: Sized {
+	fn apply_transform(self, txform: Mat2x3) -> Self;
+
+	fn scale(self, scale: Vec2) -> Self {
+		self.apply_transform(Mat2x3::scale(scale))
+	}
+
+	fn uniform_scale(self, scale: f32) -> Self {
+		self.apply_transform(Mat2x3::uniform_scale(scale))
+	}
+
+	fn translate(self, translation: Vec2) -> Self {
+		self.apply_transform(Mat2x3::translate(translation))
+	}
+
+	fn rotate(self, rotation: f32) -> Self {
+		self.apply_transform(Mat2x3::rotate(rotation))
+	}
+}
+
+impl Transformable2 for Quad {
+	fn apply_transform(mut self, txform: Mat2x3) -> Self {
+		self.basis = txform * self.basis;
+		self
+	}
+}
+
+impl Transformable2 for Polygon {
+	fn apply_transform(mut self, txform: Mat2x3) -> Self {
+		self.basis = txform * self.basis;
+		self
+	}
+}

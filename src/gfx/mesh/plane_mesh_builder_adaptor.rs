@@ -1,5 +1,7 @@
 use common::*;
-use crate::gfx::mesh::{PolyBuilder2D, PolyBuilder3D, ColoredPolyBuilder};
+use crate::gfx::mesh::{PolyBuilder2D, PolyBuilder3D};
+
+use std::ops::{Deref, DerefMut};
 
 
 /// Adapts some [`PolyBuilder3D`] to the [`PolyBuilder2D`] interface, given some 3D plane to build 2D geometry onto.
@@ -19,16 +21,17 @@ impl<MB: PolyBuilder3D> PlaneMeshBuilderAdaptor<MB> {
 			uvw,
 		}
 	}
-}
 
+	pub fn set_xy_plane(&mut self, right: Vec3, up: Vec3) {
+		self.uvw.set_column_x(right);
+		self.uvw.set_column_y(up);
+	}
 
-impl<MB> PlaneMeshBuilderAdaptor<MB>
-	where MB: PolyBuilder3D + ColoredPolyBuilder
-{
-	pub fn set_color(&mut self, color: impl Into<Color>) {
-		self.builder_3d.set_color(color);
+	pub fn set_origin(&mut self, origin: Vec3) {
+		self.uvw.set_column_z(origin);
 	}
 }
+
 
 
 impl<MB: PolyBuilder3D> PolyBuilder2D for PlaneMeshBuilderAdaptor<MB> {
@@ -42,10 +45,12 @@ impl<MB: PolyBuilder3D> PolyBuilder2D for PlaneMeshBuilderAdaptor<MB> {
 }
 
 
-impl<MB> ColoredPolyBuilder for PlaneMeshBuilderAdaptor<MB>
-	where MB: PolyBuilder3D + ColoredPolyBuilder
-{
-	fn set_color(&mut self, color: impl Into<Color>) {
-		self.builder_3d.set_color(color);
-	}
+
+impl<MB: PolyBuilder3D> Deref for PlaneMeshBuilderAdaptor<MB> {
+	type Target = MB;
+	fn deref(&self) -> &MB { &self.builder_3d }
+}
+
+impl<MB: PolyBuilder3D> DerefMut for PlaneMeshBuilderAdaptor<MB> {
+	fn deref_mut(&mut self) -> &mut MB { &mut self.builder_3d }
 }

@@ -25,4 +25,4 @@ pub use std::error::Error;
 
 
 
-pub use crate::gfx::{PolyBuilder2D, PolyBuilder3D, ColoredPolyBuilder};
+pub use crate::gfx::{PolyBuilder2D, PolyBuilder3D};

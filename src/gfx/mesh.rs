@@ -11,7 +11,7 @@ pub mod geom_3d;
 pub mod color_mesh_builder;
 pub mod plane_mesh_builder_adaptor;
 
-#[doc(inline)] pub use traits::{PolyBuilder2D, PolyBuilder3D, ColoredPolyBuilder};
+#[doc(inline)] pub use traits::{PolyBuilder2D, PolyBuilder3D};
 #[doc(inline)] pub use color_mesh_builder::ColorMeshBuilder;
 #[doc(inline)] pub use plane_mesh_builder_adaptor::PlaneMeshBuilderAdaptor;
 
