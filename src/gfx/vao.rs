@@ -22,6 +22,8 @@ impl Vao {
 	}
 
 	pub fn bind_vertex_buffer<V: gfx::Vertex>(&mut self, binding: u32, vertex_buffer: gfx::Buffer<V>) {
+		use gfx::vertex::AttributeTypeFormat;
+
 		let descriptor = V::descriptor();
 		let stride = descriptor.size_bytes as i32;
 
@@ -32,13 +34,23 @@ impl Vao {
 				offset_bytes,
 				num_elements,
 				gl_type,
-				normalized,
+				format,
 			} = attribute;
 
 			unsafe {
 				raw::EnableVertexArrayAttrib(self.handle, attribute_index);
 				raw::VertexArrayAttribBinding(self.handle, attribute_index, binding);
-				raw::VertexArrayAttribFormat(self.handle, attribute_index, num_elements as i32, gl_type, normalized as u8, offset_bytes);
+
+				match format {
+					AttributeTypeFormat::Float =>
+						raw::VertexArrayAttribFormat(self.handle, attribute_index, num_elements as i32, gl_type, false as u8, offset_bytes),
+
+					AttributeTypeFormat::NormalisedInt =>
+						raw::VertexArrayAttribFormat(self.handle, attribute_index, num_elements as i32, gl_type, true as u8, offset_bytes),
+
+					AttributeTypeFormat::Integer =>
+						raw::VertexArrayAttribIFormat(self.handle, attribute_index, num_elements as i32, gl_type, offset_bytes),
+				};
 			}
 		}
 

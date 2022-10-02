@@ -21,7 +21,7 @@ pub struct Attribute {
 	pub offset_bytes: u32,
 	pub num_elements: u32,
 	pub gl_type: u32,
-	pub normalized: bool,
+	pub format: AttributeTypeFormat,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -31,10 +31,18 @@ pub enum AttributeType {
 	Vec3,
 	Vec4,
 	Unorm8(u32),
+	Uint8(u32),
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum AttributeTypeFormat {
+	Float,
+	NormalisedInt,
+	Integer,
 }
 
 impl AttributeType {
-	const fn into_gl(self) -> (u32, u32) {
+	const fn into_gl(self) -> (u32, u32, AttributeTypeFormat) {
 		use AttributeType::*;
 
 		let gl_type = match self {
@@ -43,6 +51,7 @@ impl AttributeType {
 			Vec3 => gfx::raw::FLOAT,
 			Vec4 => gfx::raw::FLOAT,
 			Unorm8(_) => gfx::raw::UNSIGNED_BYTE,
+			Uint8(_) => gfx::raw::UNSIGNED_BYTE,
 		};
 
 		let num_elements = match self {
@@ -51,22 +60,24 @@ impl AttributeType {
 			Vec3 => 3,
 			Vec4 => 4,
 			Unorm8(components) => components,
+			Uint8(components) => components,
 		};
 
-		(gl_type, num_elements)
-	}
+		let format = match self {
+			Unorm8(_) => AttributeTypeFormat::NormalisedInt,
+			Uint8(_) => AttributeTypeFormat::Integer,
+			_ => AttributeTypeFormat::Float,
+		};
 
-	const fn is_normalized(self) -> bool {
-		matches!(self, AttributeType::Unorm8(_))
+		(gl_type, num_elements, format)
 	}
 }
 
 
 impl Attribute {
 	pub const fn new(offset_bytes: u32, attribute_type: AttributeType) -> Attribute {
-		let (gl_type, num_elements) = attribute_type.into_gl();
-		let normalized = attribute_type.is_normalized();
-		Attribute { offset_bytes, num_elements, gl_type, normalized }
+		let (gl_type, num_elements, format) = attribute_type.into_gl();
+		Attribute { offset_bytes, num_elements, gl_type, format }
 	}
 }
 

@@ -43,6 +43,14 @@ pub trait MonoNodeBuilder : NodeBuilder<1> {
 			prev_value: 0.0,
 		}
 	}
+
+	fn high_pass(self, cutoff: f32) -> HighPassNode<Self> {
+		HighPassNode {
+			inner: self,
+			cutoff,
+			prev_value_diff: 0.0,
+		}
+	}
 }
 
 pub trait StereoNodeBuilder : NodeBuilder<2> {
@@ -154,7 +162,7 @@ impl NoiseGenerator {
 impl NodeBuilder<1> for NoiseGenerator {
 	type ProcessState<'eval> = ();
 
-	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) {}
+	fn start_process<'eval>(&mut self, _: &EvaluationContext<'eval>) {}
 
 	#[inline]
 	fn generate_frame(&mut self, _: &mut ()) -> [f32; 1] {
@@ -197,6 +205,39 @@ impl<N> NodeBuilder<1> for LowPassNode<N>
 		let [new_value] = self.inner.generate_frame(state);
 		self.prev_value = a.lerp(self.prev_value, new_value);
 		[self.prev_value]
+	}
+}
+
+
+pub struct HighPassNode<N> {
+	inner: N,
+	cutoff: f32,
+	prev_value_diff: f32,
+}
+
+impl<N> NodeBuilder<1> for HighPassNode<N>
+	where N: MonoNodeBuilder
+{
+	type ProcessState<'eval> = (N::ProcessState<'eval>, f32);
+
+	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) -> Self::ProcessState<'eval> {
+		let dt = 1.0 / eval_ctx.sample_rate;
+		let rc = 1.0 / (TAU * self.cutoff);
+		let a = rc / (rc + dt);
+
+		(self.inner.start_process(eval_ctx), a)
+	}
+
+	fn is_finished(&self, eval_ctx: &EvaluationContext<'_>) -> bool {
+		self.inner.is_finished(eval_ctx)
+	}
+
+	#[inline]
+	fn generate_frame(&mut self, (state, a): &mut Self::ProcessState<'_>) -> [f32; 1] {
+		let [new_value] = self.inner.generate_frame(state);
+		let result = *a * (self.prev_value_diff + new_value);
+		self.prev_value_diff = result - new_value;
+		[result]
 	}
 }
 
@@ -342,3 +383,16 @@ impl_nodebuilder_for_tuple!(0 -> N0, 1 -> N1, 2 -> N2, 3 -> N3, 4 -> N4, 5 -> N5
 impl_nodebuilder_for_tuple!(0 -> N0, 1 -> N1, 2 -> N2, 3 -> N3, 4 -> N4, 5 -> N5, 6 -> N6);
 impl_nodebuilder_for_tuple!(0 -> N0, 1 -> N1, 2 -> N2, 3 -> N3, 4 -> N4, 5 -> N5, 6 -> N6, 7 -> N7);
 impl_nodebuilder_for_tuple!(0 -> N0, 1 -> N1, 2 -> N2, 3 -> N3, 4 -> N4, 5 -> N5, 6 -> N6, 7 -> N7, 8 -> N8);
+
+
+// TODO(pat.m): ComposeNode
+// impl<A, B> ComposeNode<A, B>
+// {
+// 	type ProcessState<'eval> = ( A::ProcessState<'eval>, B::ProcessState<'eval> );
+// 
+// 	fn generate_frame(&mut self, ..) -> Frame {
+// 		let inner_frame = self.inner.generate_frame(..);
+// 		outer.feed(inner_frame);
+// 	}
+// }
+// 
