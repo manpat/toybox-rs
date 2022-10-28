@@ -117,11 +117,6 @@ impl Engine {
 	/// Should be the final call into the engine within a frame.
 	#[instrument(skip_all, name="Engine::end_frame")]
 	pub fn end_frame(&mut self) {
-		{
-			let _guard = self.instrumenter.scoped_section("audio");
-			self.audio.update();
-		}
-
 		self.instrumenter.end_frame();
 
 		self.imgui.draw(&mut self.gfx.draw_context());

@@ -6,7 +6,10 @@ const LANE_COUNT: usize = 8;
 
 
 /// A buffer that provides temporary storage for processing of [`Node`]s.
-/// Constructed and held by [`BufferCache`].
+/// Constructed and held by [`ScratchBufferCache`].
+///
+/// [`Node`]: crate::audio::nodes::Node
+/// [`ScratchBufferCache`]: super::scratch_buffer_cache::ScratchBufferCache
 pub struct ScratchBuffer {
 	samples: Vec<Simd<f32, LANE_COUNT>>,
 	stereo: bool,

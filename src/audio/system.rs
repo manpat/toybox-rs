@@ -18,9 +18,7 @@ pub struct EvaluationContext<'sys> {
 
 enum ProducerCommand {
 	UpdateGraph(Box<dyn FnOnce(&mut NodeGraph) + Send + 'static>),
-
-	// TODO(pat.m): one day
-	// RemoveNodesPinnedToScope(ResourceScopeID),
+	RemoveNodesPinnedToScope(ResourceScopeID),
 }
 
 
@@ -29,7 +27,7 @@ pub struct AudioSystem {
 	shared: Arc<Shared>,
 	command_tx: Sender<ProducerCommand>,
 
-	expired_resource_scopes: Vec<ResourceScopeID>,
+	// expired_resource_scopes: Vec<ResourceScopeID>,
 
 	// Option so we can take ownership of it in Drop
 	producer_thread_handle: Option<JoinHandle<()>>,
@@ -153,48 +151,14 @@ impl AudioSystem {
 			shared,
 			command_tx,
 
-			expired_resource_scopes: Vec::new(),
-
 			producer_thread_handle: Some(producer_thread_handle),
 		})
 	}
 
-
-	#[instrument(skip_all, name="AudioSystem::update")]
-	pub(crate) fn update(&mut self) {
-		use std::sync::TryLockError;
-
-		// Doesn't have to happen that often really
-		match self.shared.inner.try_lock() {
-			Ok(mut inner_lock) => {
-				let Inner { ref mut node_graph, ref resources } = *inner_lock;
-
-				let eval_ctx = EvaluationContext {
-					sample_rate: self.shared.sample_rate,
-					resources,
-				};
-
-				self.expired_resource_scopes.sort();
-				node_graph.cleanup_finished_nodes(&eval_ctx, &self.expired_resource_scopes);
-				self.expired_resource_scopes.clear();
-			}
-
-			Err(TryLockError::WouldBlock) => {
-				tracing::info!("AudioSystem::update forfeit lock");
-			}
-
-			Err(TryLockError::Poisoned(_)) => {
-				panic!("Shared audio state mutex is poisoned");
-			}
-		}
-	}
-
 	pub(crate) fn cleanup_resource_scope(&mut self, scope_id: ResourceScopeID) {
-		self.expired_resource_scopes.push(scope_id);
-		// TODO(pat.m): one day
-		// self.command_tx
-		// 	.send(ProducerCommand::RemoveNodesPinnedToScope(scope_id))
-		// 	.unwrap();
+		self.command_tx
+			.send(ProducerCommand::RemoveNodesPinnedToScope(scope_id))
+			.unwrap();
 	}
 }
 
@@ -314,6 +278,8 @@ fn audio_producer_worker(shared: Arc<Shared>, command_rx: Receiver<ProducerComma
 
 	let sample_rate = shared.sample_rate;
 
+	let mut expired_resource_scopes = Vec::new();
+
 	while shared.running.load(Ordering::Relaxed) {
 		let mut inner = shared.inner.lock().unwrap();
 		let Inner {ref mut node_graph, ref resources} = *inner;
@@ -323,11 +289,20 @@ fn audio_producer_worker(shared: Arc<Shared>, command_rx: Receiver<ProducerComma
 				ProducerCommand::UpdateGraph(func) => {
 					func(node_graph);
 				}
+
+				ProducerCommand::RemoveNodesPinnedToScope(scope_id) => {
+					expired_resource_scopes.push(scope_id);
+				}
 			}
 		}
 
+		expired_resource_scopes.sort();
+
 		let eval_ctx = EvaluationContext {sample_rate, resources};
+		node_graph.cleanup_finished_nodes(&eval_ctx, &expired_resource_scopes);
 		node_graph.update_topology(&eval_ctx);
+
+		expired_resource_scopes.clear();
 
 		let stereo_buffer_size = 2 * node_graph.buffer_size();
 
