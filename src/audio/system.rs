@@ -379,7 +379,7 @@ fn set_realtime_thread_priority() {
 	}
 
 	#[cfg(linux)] unsafe {
-		let mut sched_param = libc::sched_param { sched_priority: -10 };
+		let mut sched_param = libc::sched_param { sched_priority: 80 };
 		libc::sched_setscheduler(0, libc::SCHED_FIFO, &sched_param);
 	}
 }
