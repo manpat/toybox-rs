@@ -234,7 +234,7 @@ struct AudioSubmissionWorker {
 impl sdl2::audio::AudioCallback for AudioSubmissionWorker {
 	type Channel = f32;
 
-	#[instrument(skip_all, name = "AudioSubmissionWorker::callback")]
+	#[instrument(skip_all, name = "AudioSubmissionWorker::callback", fields(samples=output.len()))]
 	fn callback(&mut self, mut output: &mut [Self::Channel]) {
 		loop {
 			let lock @ RingbufferReadLock {presplit, postsplit, ..} = self.shared.sample_buffer.lock_for_read(output.len());

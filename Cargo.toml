@@ -12,6 +12,7 @@ slotmap = "1.0.*"
 imgui = "0.8"
 petgraph = "0.6"
 rayon = "1.5"
+itertools = "0.10"
 
 # lewton = "0.10.*"
 # thiserror = "1.0"

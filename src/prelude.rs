@@ -10,6 +10,7 @@ pub use imgui;
 pub use petgraph;
 pub use symphonia;
 pub use rayon;
+pub use itertools;
 
 pub use tracing;
 #[doc(hidden)]

@@ -262,13 +262,35 @@ impl ExecutionGraph {
 	// the ExecutionGraph would result in race conditions and so is UB.
 	#[instrument(skip_all, name = "audio::ExecutionGraph::process")]
 	pub(in crate::audio) unsafe fn process(&mut self, eval_ctx: &EvaluationContext<'_>) -> &[f32] {
-		for workgroups in self.workgroups.iter() {
+		for workgroup in self.workgroups.iter() {
+			#[inline]
 			fn dereference_ptr_slice<'s>(slice: &'s [*const ScratchBuffer]) -> &'s [&'s ScratchBuffer] {
 				unsafe {
 					std::slice::from_raw_parts(
 						slice.as_ptr() as *const _,
 						slice.len()
 					)
+				}
+			}
+
+			fn process_work_item(work_item: &NodeWorkItem, input_buffer_ptrs: &'_ [*const ScratchBuffer], eval_ctx: &EvaluationContext<'_>) {
+				// SAFETY: these are guaranteed to be disjoint for all work_items within a workgroup, which is ensured by `validate()`.
+				let output_buffer: &mut ScratchBuffer = unsafe{ &mut *work_item.output_buffer };
+
+				let input_range = work_item.input_buffers_range.clone();
+				let inputs_raw = unsafe { input_buffer_ptrs.get_unchecked(input_range) };
+				let input_buffers: &[&ScratchBuffer] = dereference_ptr_slice(inputs_raw);
+
+				let process_ctx = ProcessContext {
+					eval_ctx,
+					inputs: input_buffers,
+					output: output_buffer,
+				};
+
+				// SAFETY: there is guaranteed to only be one work item for each node in the graph, so this is guaranteed to be the only
+				// mutable reference to this node at this point.
+				unsafe {
+					(*work_item.node).process(process_ctx);
 				}
 			}
 			
@@ -282,23 +304,31 @@ impl ExecutionGraph {
 
 			let input_buffer_ptrs = TrustMeThisIsSendForNow(&self.input_buffer_ptrs);
 
-			workgroups.work_items.par_iter().for_each_with(input_buffer_ptrs, move |input_buffer_ptrs, work_item| {
-				// SAFETY: these are guaranteed to be disjoint for all work_items within a workgroup, which is ensured by `validate()`.
-				let output_buffer: &mut ScratchBuffer = unsafe{ &mut *work_item.output_buffer };
-				let input_buffers: &[&ScratchBuffer] = dereference_ptr_slice(&input_buffer_ptrs.0[work_item.input_buffers_range.clone()]);
 
-				let process_ctx = ProcessContext {
-					eval_ctx,
-					inputs: input_buffers,
-					output: output_buffer,
-				};
+			// workgroup.work_items.par_iter()
+			// 	.for_each_with(input_buffer_ptrs, move |ptrs, work_item| process_work_item(work_item, ptrs.0, eval_ctx));
 
-				// SAFETY: there is guaranteed to only be one work item for each node in the graph, so this is guaranteed to be the only
-				// mutable reference to this node at this point.
-				unsafe {
-					(*work_item.node).process(process_ctx);
-				}
-			});
+			use std::sync::atomic::{Ordering, AtomicUsize};
+
+			let current_job_idx = AtomicUsize::new(0);
+
+			(0..6).into_par_iter()
+				.for_each_with(input_buffer_ptrs, |ptrs, idx| {
+					let _span = tracing::debug_span!("process workitems", idx);
+					let _span = _span.enter();
+
+					loop {
+						let work_item_idx = current_job_idx.fetch_add(1, Ordering::Relaxed);
+						if work_item_idx >= workgroup.work_items.len() {
+							break;
+						}
+
+						let work_item = unsafe {
+							workgroup.work_items.get_unchecked(work_item_idx)
+						};
+						process_work_item(work_item, ptrs.0, eval_ctx);
+					}
+				});
 		}
 
 		// SAFETY: it is guaranteed that at this point there are no threads modifying any ScratchBuffers referenced by this graph.

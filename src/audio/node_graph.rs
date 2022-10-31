@@ -234,7 +234,7 @@ impl NodeGraph {
 		self.topology_dirty = false;
 	}
 
-	#[instrument(skip_all, name = "audio::NodeGraph::process")]
+	#[instrument(skip_all, name = "audio::NodeGraph::process", fields(samples=self.buffer_cache.buffer_size()))]
 	pub(in crate::audio) fn process(&mut self, eval_ctx: &EvaluationContext<'_>) -> &[f32] {
 		assert!(!self.topology_dirty);
 
