@@ -282,8 +282,10 @@ impl ExecutionGraph {
 				// SAFETY: this range is generated at the same time that input_buffer_ptrs is generated and so is guaranteed to be in range.
 				// The pointers within this range are also guaranteed not to equal work_item.output_buffer - so aliasing may never occur.
 				let input_range = work_item.input_buffers_range.clone();
-				let inputs_raw = unsafe { input_buffer_ptrs.get_unchecked(input_range) };
-				let input_buffers: &[&ScratchBuffer] = dereference_ptr_slice(inputs_raw);
+				let input_buffers: &[&ScratchBuffer] = unsafe {
+					let inputs_raw = input_buffer_ptrs.get_unchecked(input_range);
+					dereference_ptr_slice(inputs_raw)
+				};
 
 				let process_ctx = ProcessContext {
 					eval_ctx,
