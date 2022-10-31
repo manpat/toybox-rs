@@ -87,6 +87,12 @@ impl AudioSystem {
 // Private API
 impl AudioSystem {
 	pub(crate) fn new(sdl_audio: sdl2::AudioSubsystem, global_scope_token: ResourceScopeToken) -> Result<AudioSystem, Box<dyn Error>> {
+		// Set realtime priority for rayon worker threads - since they are mainly used for audio.
+		// TODO(pat.m): separate thread pool for audio workers?
+		rayon::ThreadPoolBuilder::new()
+			.start_handler(|_| set_realtime_thread_priority())
+			.build_global()?;
+
 		let sample_rate = 44100;
 		let requested_frame_samples = 128;
 		let requested_buffer_size = 2 * requested_frame_samples;
@@ -103,12 +109,14 @@ impl AudioSystem {
 		};
 
 		// TODO(pat.m): figure out how to tune this
-		let requested_ringbuffer_size = (3 * sample_rate as usize) / 60;
+		let requested_ringbuffer_size = (6 * sample_rate as usize) / 60;
 
 		let shared = Arc::new(Shared {
 			inner: Mutex::new(inner),
 			sample_buffer: Ringbuffer::new(requested_ringbuffer_size),
 			running: AtomicBool::new(true),
+			producer_cond_var: AtomicBool::new(true),
+			producer_thread: Mutex::new(None),
 			sample_rate: sample_rate as f32,
 		});
 
@@ -134,9 +142,13 @@ impl AudioSystem {
 			}
 		})?;
 
+		*shared.producer_thread.lock().unwrap() = Some(producer_thread_handle.thread().clone());
+
 		let create_submission_worker = |spec: sdl2::audio::AudioSpec| {
 			assert!(spec.freq == sample_rate);
 			assert!(spec.channels == 2);
+
+			println!("audio spec buffer size {} -> {}", spec.size, requested_ringbuffer_size);
 
 			AudioSubmissionWorker {
 				shared: shared.clone(),
@@ -220,6 +232,9 @@ struct Shared {
 	/// shut down gracefully.
 	running: AtomicBool,
 
+	producer_cond_var: AtomicBool,
+	producer_thread: Mutex<Option<thread::Thread>>,
+
 	/// The audio sample rate. Typically 44100Hz or 48000Hz.
 	sample_rate: f32,
 }
@@ -266,6 +281,9 @@ impl sdl2::audio::AudioCallback for AudioSubmissionWorker {
 				break;
 			}
 		}
+
+		self.shared.producer_cond_var.store(true, Ordering::Relaxed);
+		self.shared.producer_thread.lock().unwrap().as_ref().unwrap().unpark();
 	}
 }
 
@@ -281,8 +299,10 @@ fn audio_producer_worker(shared: Arc<Shared>, command_rx: Receiver<ProducerComma
 	let mut expired_resource_scopes = Vec::new();
 
 	while shared.running.load(Ordering::Relaxed) {
+		shared.producer_cond_var.store(false, Ordering::Relaxed);
+
 		let mut inner = shared.inner.lock().unwrap();
-		let Inner {ref mut node_graph, ref resources} = *inner;
+		let Inner {ref mut node_graph, ref resources, ..} = *inner;
 
 		for cmd in command_rx.try_iter() {
 			match cmd {
@@ -334,7 +354,9 @@ fn audio_producer_worker(shared: Arc<Shared>, command_rx: Receiver<ProducerComma
 			tracing::info!("audio producer thread took too long!");
 		}
 
-		thread::sleep(std::time::Duration::from_millis(2));
+		while !shared.producer_cond_var.load(Ordering::Relaxed) && shared.running.load(Ordering::Relaxed) {
+			thread::park();
+		}
 	}
 }
 
@@ -354,5 +376,10 @@ fn set_realtime_thread_priority() {
 		assert!(set_priority_succeeded);
 
 		// TODO(pat.m): GetLastError FormatMessage
+	}
+
+	#[cfg(linux)] unsafe {
+		let mut sched_param = libc::sched_param { sched_priority: -10 };
+		libc::sched_setscheduler(0, libc::SCHED_FIFO, &sched_param);
 	}
 }
