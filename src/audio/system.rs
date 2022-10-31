@@ -232,7 +232,12 @@ struct Shared {
 	/// shut down gracefully.
 	running: AtomicBool,
 
+	/// A flag for the consumer thread to signal to the producer thread that it should resume.
 	producer_cond_var: AtomicBool,
+
+	/// A thread handle for the producer thread, so the consumer thread can unpark it.
+	// TODO(pat.m): It being a Mutex<Option<_>> is not really necessary, its really only so we can delay init.
+	// It would be good to restructure things so this isn't necessary.
 	producer_thread: Mutex<Option<thread::Thread>>,
 
 	/// The audio sample rate. Typically 44100Hz or 48000Hz.
@@ -282,6 +287,7 @@ impl sdl2::audio::AudioCallback for AudioSubmissionWorker {
 			}
 		}
 
+		// Wake producer thread
 		self.shared.producer_cond_var.store(true, Ordering::Relaxed);
 		self.shared.producer_thread.lock().unwrap().as_ref().unwrap().unpark();
 	}
@@ -290,7 +296,6 @@ impl sdl2::audio::AudioCallback for AudioSubmissionWorker {
 
 
 /// The audio producer worker thread body. Responsible for generating samples to be consumed by `AudioSubmissionWorker`.
-#[instrument(skip_all)]
 fn audio_producer_worker(shared: Arc<Shared>, command_rx: Receiver<ProducerCommand>) {
 	set_realtime_thread_priority();
 
@@ -354,6 +359,7 @@ fn audio_producer_worker(shared: Arc<Shared>, command_rx: Receiver<ProducerComma
 			tracing::info!("audio producer thread took too long!");
 		}
 
+		// Wait for consumer thread to signal that it has consumed something
 		while !shared.producer_cond_var.load(Ordering::Relaxed) && shared.running.load(Ordering::Relaxed) {
 			thread::park();
 		}

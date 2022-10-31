@@ -262,9 +262,11 @@ impl ExecutionGraph {
 	// the ExecutionGraph would result in race conditions and so is UB.
 	#[instrument(skip_all, name = "audio::ExecutionGraph::process")]
 	pub(in crate::audio) unsafe fn process(&mut self, eval_ctx: &EvaluationContext<'_>) -> &[f32] {
+		use std::sync::atomic::{Ordering, AtomicUsize};
+
 		for workgroup in self.workgroups.iter() {
 			#[inline]
-			fn dereference_ptr_slice<'s>(slice: &'s [*const ScratchBuffer]) -> &'s [&'s ScratchBuffer] {
+			unsafe fn dereference_ptr_slice<'s>(slice: &'s [*const ScratchBuffer]) -> &'s [&'s ScratchBuffer] {
 				unsafe {
 					std::slice::from_raw_parts(
 						slice.as_ptr() as *const _,
@@ -277,6 +279,8 @@ impl ExecutionGraph {
 				// SAFETY: these are guaranteed to be disjoint for all work_items within a workgroup, which is ensured by `validate()`.
 				let output_buffer: &mut ScratchBuffer = unsafe{ &mut *work_item.output_buffer };
 
+				// SAFETY: this range is generated at the same time that input_buffer_ptrs is generated and so is guaranteed to be in range.
+				// The pointers within this range are also guaranteed not to equal work_item.output_buffer - so aliasing may never occur.
 				let input_range = work_item.input_buffers_range.clone();
 				let inputs_raw = unsafe { input_buffer_ptrs.get_unchecked(input_range) };
 				let input_buffers: &[&ScratchBuffer] = dereference_ptr_slice(inputs_raw);
@@ -293,6 +297,19 @@ impl ExecutionGraph {
 					(*work_item.node).process(process_ctx);
 				}
 			}
+
+			let num_work_items = workgroup.work_items.len();
+
+			// Minor optimisation - we don't gain anything by parallelising a single task, so just execute it synchronously.
+			// For some tasks we also may not gain anything for larger numbers either, but this is harder to reason about generally.
+			if num_work_items == 1 {
+				let work_item = unsafe {
+					workgroup.work_items.get_unchecked(0)
+				};
+
+				process_work_item(work_item, &self.input_buffer_ptrs, eval_ctx);
+				continue
+			}
 			
 			// We need rayon to let us resolve the input buffers for each work_item.
 			// `*const T` is !Sync, and so &[*const T] is !Send - which is required by for_each_with.
@@ -304,22 +321,20 @@ impl ExecutionGraph {
 
 			let input_buffer_ptrs = TrustMeThisIsSendForNow(&self.input_buffer_ptrs);
 
-
-			// workgroup.work_items.par_iter()
-			// 	.for_each_with(input_buffer_ptrs, move |ptrs, work_item| process_work_item(work_item, ptrs.0, eval_ctx));
-
-			use std::sync::atomic::{Ordering, AtomicUsize};
-
 			let current_job_idx = AtomicUsize::new(0);
+			let num_threads = rayon::current_num_threads()
+				.min(num_work_items);
 
-			(0..6).into_par_iter()
+			// Distribute work among rayons worker threads, but allocate actual work items via `current_job_idx` so we bypass
+			// any extra work rayon is doing. This *should* give close to the best case utilisation of worker threads within this workgroup.
+			(0..num_threads).into_par_iter()
 				.for_each_with(input_buffer_ptrs, |ptrs, idx| {
 					let _span = tracing::debug_span!("process workitems", idx);
 					let _span = _span.enter();
 
 					loop {
 						let work_item_idx = current_job_idx.fetch_add(1, Ordering::Relaxed);
-						if work_item_idx >= workgroup.work_items.len() {
+						if work_item_idx >= num_work_items {
 							break;
 						}
 
