@@ -11,6 +11,7 @@ pub use petgraph;
 pub use symphonia;
 pub use rayon;
 pub use itertools;
+pub use image;
 
 pub use tracing;
 #[doc(hidden)]
