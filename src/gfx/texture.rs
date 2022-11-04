@@ -5,6 +5,8 @@ use crate::gfx::raw;
 #[derive(Debug)]
 pub struct Texture {
 	pub(super) texture_handle: u32,
+
+	// TODO(pat.m): sampler could probably be cached and stored separately.
 	pub(super) sampler_handle: u32,
 	size_mode: TextureSize,
 	format: TextureFormat,
