@@ -143,6 +143,7 @@ impl ImguiBackend {
 		gfx.bind_shader(self.shader);
 		gfx.bind_uniform_buffer(0, self.uniforms);
 		gfx.bind_vao(self.mesh.vao);
+		gfx.set_wireframe(false);
 
 		unsafe {
 			gfx::raw::Enable(gfx::raw::BLEND);
@@ -182,6 +183,7 @@ impl ImguiBackend {
 		let blend_dst_alpha = get_parameter(gfx::raw::BLEND_DST_ALPHA);
 		let blend_equation_rgb = get_parameter(gfx::raw::BLEND_EQUATION_RGB);
 		let blend_equation_alpha = get_parameter(gfx::raw::BLEND_EQUATION_ALPHA);
+		let wireframe_mode = get_parameter(gfx::raw::POLYGON_MODE) == gfx::raw::LINE as i32;
 
 		let depth_test_enabled;
 		let stencil_test_enabled;
@@ -283,6 +285,8 @@ impl ImguiBackend {
 				blend_dst_alpha as u32,
 			);
 		}
+
+		gfx.set_wireframe(wireframe_mode);
 	}
 }
 
