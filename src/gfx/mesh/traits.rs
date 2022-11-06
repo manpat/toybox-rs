@@ -1,5 +1,5 @@
 use common::*;
-use crate::gfx::mesh::PlaneMeshBuilderAdaptor;
+use crate::gfx::mesh::{PlaneMeshBuilderAdaptor, BuilderSurface};
 
 
 /// An interface for types capable of constructing geometry from [`Vec2s`][Vec2] and (by extension)
@@ -66,15 +66,15 @@ pub trait PolyBuilder3D {
 	}
 
 	/// Construct a type implementing [`PolyBuilder2D`] from this poly builder, given a 'plane' to build
-	/// new 2D geometry onto - defined by `uvw`.
+	/// new 2D geometry onto - defined by `surface`.
 	/// See [`PlaneMeshBuilderAdaptor`] for more information.
-	fn on_plane(self, uvw: Mat3) -> PlaneMeshBuilderAdaptor<Self> where Self: Sized {
-		PlaneMeshBuilderAdaptor::new(self, uvw)
+	fn on_plane(self, surface: impl Into<BuilderSurface>) -> PlaneMeshBuilderAdaptor<Self> where Self: Sized {
+		PlaneMeshBuilderAdaptor::new(self, surface)
 	}
 	
 	/// Same as [`PolyBuilder3D::on_plane`] but doesn't take ownership.
-	fn on_plane_ref(&mut self, uvw: Mat3) -> PlaneMeshBuilderAdaptor<&'_ mut Self> where Self: Sized {
-		PlaneMeshBuilderAdaptor::new(self, uvw)
+	fn on_plane_ref(&mut self, surface: impl Into<BuilderSurface>) -> PlaneMeshBuilderAdaptor<&'_ mut Self> where Self: Sized {
+		PlaneMeshBuilderAdaptor::new(self, surface)
 	}
 
 	/// Build some geometry from an iterator of vertices of length `num_vertices`.
@@ -137,4 +137,5 @@ impl<G: BuildableGeometry3D> BuildableGeometry3D for &G {
 		(*self).build(mb);
 	}
 }
+
 

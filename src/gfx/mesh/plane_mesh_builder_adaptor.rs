@@ -15,10 +15,10 @@ pub struct PlaneMeshBuilderAdaptor<MB: PolyBuilder3D> {
 
 
 impl<MB: PolyBuilder3D> PlaneMeshBuilderAdaptor<MB> {
-	pub fn new(builder_3d: MB, uvw: Mat3) -> Self {
+	pub fn new(builder_3d: MB, surface: impl Into<BuilderSurface>) -> Self {
 		PlaneMeshBuilderAdaptor {
 			builder_3d,
-			uvw,
+			uvw: surface.into().to_mat3(),
 		}
 	}
 
@@ -53,4 +53,95 @@ impl<MB: PolyBuilder3D> Deref for PlaneMeshBuilderAdaptor<MB> {
 
 impl<MB: PolyBuilder3D> DerefMut for PlaneMeshBuilderAdaptor<MB> {
 	fn deref_mut(&mut self) -> &mut MB { &mut self.builder_3d }
+}
+
+
+
+
+
+#[derive(Copy, Clone, Debug)]
+pub enum OrthogonalOrientation {
+	PositiveX,
+	NegativeX,
+
+	PositiveY,
+	NegativeY,
+
+	PositiveZ,
+	NegativeZ,
+}
+
+impl OrthogonalOrientation {
+	pub fn to_surface(self) -> BuilderSurface {
+		BuilderSurface::from_orthogonal(self)
+	}
+
+	pub fn to_surface_with_origin(self, origin: Vec3) -> BuilderSurface {
+		BuilderSurface::from_orthogonal(self)
+			.with_origin(origin)
+	}
+}
+
+
+#[derive(Copy, Clone, Debug)]
+pub struct BuilderSurface {
+	uvw: Mat3,
+}
+
+impl BuilderSurface {
+	pub fn from_bases(right: Vec3, up: Vec3) -> Self {
+		BuilderSurface {
+			uvw: Mat3::from_columns([
+				right,
+				up,
+				Vec3::zero(),
+			])
+		}
+	}
+
+	pub fn from_orthogonal(orientation: OrthogonalOrientation) -> Self {
+		use OrthogonalOrientation::*;
+
+		match orientation {
+			PositiveX => Self::from_bases(Vec3::from_z(-1.0), Vec3::from_y(1.0)),
+			NegativeX => Self::from_bases(Vec3::from_z(1.0), Vec3::from_y(1.0)),
+
+			PositiveY => Self::from_bases(Vec3::from_x(1.0), Vec3::from_z(-1.0)),
+			NegativeY => Self::from_bases(Vec3::from_x(1.0), Vec3::from_z(1.0)),
+
+			PositiveZ => Self::from_bases(Vec3::from_x(1.0), Vec3::from_y(1.0)),
+			NegativeZ => Self::from_bases(Vec3::from_x(-1.0), Vec3::from_y(1.0)),
+		}
+	}
+
+	pub fn from_quat(quat: Quat) -> Self {
+		Self::from_bases(quat.right(), quat.up())
+	}
+
+	pub fn with_origin(mut self, origin: Vec3) -> Self {
+		self.uvw.set_column_z(origin);
+		self
+	}
+
+	pub fn to_mat3(&self) -> Mat3 {
+		self.uvw
+	}
+}
+
+impl From<Mat3> for BuilderSurface {
+	fn from(uvw: Mat3) -> BuilderSurface {
+		BuilderSurface { uvw }
+	}
+}
+
+impl From<Quat> for BuilderSurface {
+	fn from(quat: Quat) -> BuilderSurface {
+		BuilderSurface::from_quat(quat)
+	}
+}
+
+impl From<OrthogonalOrientation> for BuilderSurface {
+	fn from(orientation: OrthogonalOrientation) -> BuilderSurface {
+		BuilderSurface::from_orthogonal(orientation)
+	}
 }

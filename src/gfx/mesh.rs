@@ -13,7 +13,7 @@ pub mod plane_mesh_builder_adaptor;
 
 #[doc(inline)] pub use traits::{PolyBuilder2D, PolyBuilder3D};
 #[doc(inline)] pub use color_mesh_builder::ColorMeshBuilder;
-#[doc(inline)] pub use plane_mesh_builder_adaptor::PlaneMeshBuilderAdaptor;
+#[doc(inline)] pub use plane_mesh_builder_adaptor::{PlaneMeshBuilderAdaptor, BuilderSurface, OrthogonalOrientation};
 
 /// Reexports [geom_2d] and [geom_3d] modules for convenience.
 pub mod geom {
