@@ -80,6 +80,10 @@ impl Engine {
 	pub fn process_events(&mut self) {
 		self.input.clear();
 
+		if self.input.is_mouse_captured() {
+			self.imgui.clear_input();
+		}
+
 		for event in self.event_pump.poll_iter() {
 			use sdl2::event::{Event, WindowEvent};
 

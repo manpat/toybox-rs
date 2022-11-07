@@ -89,3 +89,50 @@ impl BuildableGeometry3D for Cuboid {
 		mb.extend_3d(verts, indices);
 	}
 }
+
+
+
+
+
+
+pub trait Transformable3: Sized {
+	fn apply_transform(self, txform: Mat3x4) -> Self;
+
+	fn scale(self, scale: Vec3) -> Self {
+		self.apply_transform(Mat3x4::scale(scale))
+	}
+
+	fn uniform_scale(self, scale: f32) -> Self {
+		self.apply_transform(Mat3x4::uniform_scale(scale))
+	}
+
+	fn translate(self, translation: Vec3) -> Self {
+		self.apply_transform(Mat3x4::translate(translation))
+	}
+
+	fn rotate_x(self, rotation: f32) -> Self {
+		self.apply_transform(Mat3x4::rotate_x(rotation))
+	}
+
+	fn rotate_y(self, rotation: f32) -> Self {
+		self.apply_transform(Mat3x4::rotate_y(rotation))
+	}
+
+	fn rotate_z(self, rotation: f32) -> Self {
+		self.apply_transform(Mat3x4::rotate_z(rotation))
+	}
+}
+
+impl Transformable3 for Tetrahedron {
+	fn apply_transform(mut self, txform: Mat3x4) -> Self {
+		self.basis = txform * self.basis;
+		self
+	}
+}
+
+impl Transformable3 for Cuboid {
+	fn apply_transform(mut self, txform: Mat3x4) -> Self {
+		self.basis = txform * self.basis;
+		self
+	}
+}

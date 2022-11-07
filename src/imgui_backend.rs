@@ -120,6 +120,19 @@ impl ImguiBackend {
 		}
 	}
 
+	pub(crate) fn clear_input(&mut self) {
+		let imgui_ctx = imgui_mut();
+		let io = imgui_ctx.io_mut();
+
+		io.mouse_down.fill(false);
+		io.keys_down.fill(false);
+
+		io.key_shift = false;
+		io.key_ctrl = false;
+		io.key_alt = false;
+		io.key_super = false;
+	}
+
 	pub(crate) fn start_frame(&mut self) {
 		let imgui_ctx = imgui_mut();
 		let io = imgui_ctx.io_mut();
