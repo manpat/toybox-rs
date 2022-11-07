@@ -66,7 +66,7 @@ impl BuildableGeometry2D for Polygon {
 		let angle_increment = TAU / (self.num_faces as f32);
 		let vertices = (0..self.num_faces)
 			.map(|i| {
-				let angle = angle_increment * i as f32;
+				let angle = angle_increment * i as f32 + TAU/4.0;
 				translation + uxy * Vec2::from_angle(angle)
 			});
 
