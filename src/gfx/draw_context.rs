@@ -1,6 +1,5 @@
 use crate::prelude::*;
 use crate::gfx::*;
-use crate::utility::{ResourceLock};
 
 
 /// Provides access to everything needed to set up and submit draw calls and dispatch compute shaders.
@@ -55,14 +54,6 @@ impl<'ctx> DrawContext<'ctx> {
 		self.resources
 	}
 
-	pub fn get_framebuffer(&self, framebuffer: FramebufferKey) -> ResourceLock<Framebuffer> {
-		self.resources.get(framebuffer)
-	}
-
-	pub fn get_texture(&self, texture: TextureKey) -> ResourceLock<Texture> {
-		self.resources.get(texture)
-	}
-
 	pub fn bind_uniform_buffer<T: Copy>(&mut self, binding: u32, buffer: Buffer<T>) {
 		unsafe {
 			raw::BindBufferBase(raw::UNIFORM_BUFFER, binding, buffer.handle);
@@ -75,10 +66,11 @@ impl<'ctx> DrawContext<'ctx> {
 		}
 	}
 
-	fn bind_image_raw(&mut self, binding: u32, texture: TextureKey, rw_flags: u32) {
+	fn bind_image_raw(&mut self, binding: u32, texture_key: impl IntoTextureKey, rw_flags: u32) {
 		// https://www.khronos.org/opengl/wiki/Image_Load_Store#Images_in_the_context
 		let (level, layered, layer) = (0, 0, 0);
-		let texture = texture.get(self.resources);
+		let texture_key = texture_key.into_texture_key(self.resources);
+		let texture = self.resources.get(texture_key);
 
 		unsafe {
 			raw::BindImageTexture(binding, texture.texture_handle, level, layered, layer,
@@ -86,20 +78,21 @@ impl<'ctx> DrawContext<'ctx> {
 		}
 	}
 
-	pub fn bind_image_for_rw(&mut self, binding: u32, texture: TextureKey) {
-		self.bind_image_raw(binding, texture, raw::READ_WRITE)
+	pub fn bind_image_for_rw(&mut self, binding: u32, texture_key: impl IntoTextureKey) {
+		self.bind_image_raw(binding, texture_key, raw::READ_WRITE)
 	}
 
-	pub fn bind_image_for_read(&mut self, binding: u32, texture: TextureKey) {
-		self.bind_image_raw(binding, texture, raw::READ_ONLY)
+	pub fn bind_image_for_read(&mut self, binding: u32, texture_key: impl IntoTextureKey) {
+		self.bind_image_raw(binding, texture_key, raw::READ_ONLY)
 	}
 
-	pub fn bind_image_for_write(&mut self, binding: u32, texture: TextureKey) {
-		self.bind_image_raw(binding, texture, raw::WRITE_ONLY)
+	pub fn bind_image_for_write(&mut self, binding: u32, texture_key: impl IntoTextureKey) {
+		self.bind_image_raw(binding, texture_key, raw::WRITE_ONLY)
 	}
 
-	pub fn bind_texture(&mut self, binding: u32, texture: TextureKey) {
-		let texture = texture.get(self.resources);
+	pub fn bind_texture(&mut self, binding: u32, texture_key: impl IntoTextureKey) {
+		let texture_key = texture_key.into_texture_key(self.resources);
+		let texture = texture_key.get(self.resources);
 
 		unsafe {
 			raw::BindTextureUnit(binding, texture.texture_handle);

@@ -51,7 +51,7 @@ impl Resources {
 }
 
 
-pub trait ResourceKey : slotmap::Key {
+pub trait ResourceKey {
 	type Resource : Resource;
 
 	fn get(&self, _: &Resources) -> ResourceLock<Self::Resource>;
@@ -91,4 +91,78 @@ impl Resource for Texture {
 
 impl Resource for Framebuffer {
 	type Key = FramebufferKey;
+}
+
+
+
+pub trait IntoTextureKey {
+	fn into_texture_key(self, resources: &Resources) -> TextureKey;
+}
+
+impl IntoTextureKey for TextureKey {
+	fn into_texture_key(self, _: &Resources) -> TextureKey { self }
+}
+
+impl IntoTextureKey for FramebufferColorAttachmentKey {
+	fn into_texture_key(self, resources: &Resources) -> TextureKey {
+		let fb = resources.framebuffers.get(self.0);
+		fb.color_attachment(self.1)
+			.unwrap()
+	}
+}
+
+impl IntoTextureKey for FramebufferDepthStencilAttachmentKey {
+	fn into_texture_key(self, resources: &Resources) -> TextureKey {
+		let fb = resources.framebuffers.get(self.0);
+		fb.depth_stencil_attachment().unwrap()
+	}
+}
+
+
+
+impl FramebufferKey {
+	pub fn color_attachment(self, attachment: u32) -> FramebufferColorAttachmentKey {
+		FramebufferColorAttachmentKey(self, attachment)
+	}
+
+	pub fn depth_stencil_attachment(self) -> FramebufferDepthStencilAttachmentKey {
+		FramebufferDepthStencilAttachmentKey(self)
+	}
+}
+
+
+#[derive(Copy, Clone, Debug)]
+pub struct FramebufferColorAttachmentKey(FramebufferKey, u32);
+
+#[derive(Copy, Clone, Debug)]
+pub struct FramebufferDepthStencilAttachmentKey(FramebufferKey);
+
+
+
+impl ResourceKey for FramebufferColorAttachmentKey {
+	type Resource = Texture;
+
+	fn get(&self, resources: &Resources) -> ResourceLock<Self::Resource> {
+		let texture_key = self.into_texture_key(resources);
+		resources.textures.get(texture_key)
+	}
+
+	fn get_mut(&self, resources: &mut Resources) -> ResourceLockMut<Self::Resource> {
+		let texture_key = self.into_texture_key(resources);
+		resources.textures.get_mut(texture_key)
+	}
+}
+
+impl ResourceKey for FramebufferDepthStencilAttachmentKey {
+	type Resource = Texture;
+
+	fn get(&self, resources: &Resources) -> ResourceLock<Self::Resource> {
+		let texture_key = self.into_texture_key(resources);
+		resources.textures.get(texture_key)
+	}
+
+	fn get_mut(&self, resources: &mut Resources) -> ResourceLockMut<Self::Resource> {
+		let texture_key = self.into_texture_key(resources);
+		resources.textures.get_mut(texture_key)
+	}
 }
