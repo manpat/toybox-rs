@@ -54,6 +54,10 @@ impl<'ctx> DrawContext<'ctx> {
 		self.resources
 	}
 
+	pub fn backbuffer_size(&self) -> Vec2i {
+		self.backbuffer_size
+	}
+
 	pub fn bind_uniform_buffer<T: Copy>(&mut self, binding: u32, buffer: Buffer<T>) {
 		unsafe {
 			raw::BindBufferBase(raw::UNIFORM_BUFFER, binding, buffer.handle);
