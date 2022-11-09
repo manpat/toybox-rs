@@ -138,6 +138,27 @@ impl<'ctx> DrawContext<'ctx> {
 		}
 	}
 
+	/// Call before drawcalls that read textures/images written by shaders in previous drawcalls.
+	pub fn insert_texture_barrier(&self) {
+		unsafe {
+			raw::MemoryBarrier(raw::TEXTURE_FETCH_BARRIER_BIT | raw::SHADER_IMAGE_ACCESS_BARRIER_BIT);
+		}
+	}
+
+	/// Call before drawcalls that read shader storage buffers written by shaders in previous drawcalls.
+	pub fn insert_shader_storage_barrier(&self) {
+		unsafe {
+			raw::MemoryBarrier(raw::SHADER_STORAGE_BARRIER_BIT);
+		}
+	}
+
+	/// Call before drawcalls that read uniform buffers written by shaders in previous drawcalls.
+	pub fn insert_uniform_barrier(&self) {
+		unsafe {
+			raw::MemoryBarrier(raw::UNIFORM_BARRIER_BIT);
+		}
+	}
+
 	pub fn draw_arrays(&self, draw_mode: DrawMode, num_vertices: u32) {
 		if num_vertices == 0 {
 			return

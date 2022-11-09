@@ -1,4 +1,4 @@
-#![feature(array_chunks, array_windows, type_ascription, let_chains, generic_associated_types)]
+#![feature(array_chunks, array_windows, type_ascription, let_chains)]
 #![feature(portable_simd, associated_type_defaults)]
 #![feature(array_zip)]
 #![feature(slice_as_chunks)]
