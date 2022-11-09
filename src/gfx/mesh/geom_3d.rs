@@ -1,7 +1,7 @@
 //! Types that implement [`BuildableGeometry3D`][BuildableGeometry3D].
 
 use common::*;
-use crate::gfx::mesh::{PolyBuilder3D, traits::BuildableGeometry3D};
+use crate::gfx::mesh::{PolyBuilder3D, traits::BuildableGeometry3D, util::*};
 
 pub struct Tetrahedron {
 	basis: Mat3x4,
@@ -52,6 +52,19 @@ impl Cuboid {
 
 	pub fn unit() -> Cuboid {
 		Cuboid::from_matrix(Mat3x4::identity())
+	}
+
+	pub fn with_size(size: Vec3) -> Cuboid {
+		Cuboid::from_matrix(Mat3x4::scale(size))
+	}
+
+	pub fn from_points(Vec3{x: ax, y: ay, z: az}: Vec3, Vec3{x: bx, y: by, z: bz}: Vec3) -> Cuboid {
+		let min = Vec3::new(ax.min(bx), ay.min(by), az.min(bz));
+		let max = Vec3::new(ax.max(bx), ay.max(by), az.max(bz));
+
+		let size = max - min;
+		let center = min + size / 2.0;
+		Cuboid::from_matrix(Mat3x4::scale_translate(size, center))
 	}
 }
 

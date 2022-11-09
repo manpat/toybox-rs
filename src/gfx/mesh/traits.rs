@@ -14,35 +14,6 @@ pub trait PolyBuilder2D {
 	fn build(&mut self, geom: impl BuildableGeometry2D) where Self: Sized {
 		geom.build(self)
 	}
-
-	/// Build some geometry from an iterator of vertices of length `num_vertices`.
-	/// Generates triangles between the first vertex and every subsequent pair of vertices, forming a 'fan'.
-	fn extend_2d_fan(&mut self, num_vertices: u32, vs: impl IntoIterator<Item=Vec2>) {
-		if num_vertices < 3 {
-			return
-		}
-
-		let indices = (0..num_vertices as u16-2)
-			.flat_map(|i| [0, i+1, i+2]);
-
-		self.extend_2d(vs, indices);
-	}
-
-	/// Build some geometry from an iterator of vertices of length `num_vertices`.
-	/// Generates triangles between the first vertex and every subsequent pair of vertices, forming a 'fan'.
-	/// Different from [`PolyBuilder2D::extend_2d_fan`] in that this function duplicates the second vertex.
-	/// This is useful for geometry where the first vertex lies at some kind of 'center'.
-	fn extend_2d_fan_closed(&mut self, num_vertices: u32, vs: impl IntoIterator<Item=Vec2>) {
-		if num_vertices < 3 {
-			return
-		}
-
-		let indices = (0..num_vertices as u16-2)
-			.flat_map(|i| [0, i+1, i+2])
-			.chain([0, num_vertices as u16-1, 1]);
-
-		self.extend_2d(vs, indices);
-	}
 }
 
 impl<PB: PolyBuilder2D> PolyBuilder2D for &mut PB {
@@ -75,35 +46,6 @@ pub trait PolyBuilder3D {
 	/// Same as [`PolyBuilder3D::on_plane`] but doesn't take ownership.
 	fn on_plane_ref(&mut self, surface: impl Into<BuilderSurface>) -> PlaneMeshBuilderAdaptor<&'_ mut Self> where Self: Sized {
 		PlaneMeshBuilderAdaptor::new(self, surface)
-	}
-
-	/// Build some geometry from an iterator of vertices of length `num_vertices`.
-	/// Generates triangles between the first vertex and every subsequent pair of vertices, forming a 'fan'.
-	fn extend_3d_fan(&mut self, num_vertices: u32, vs: impl IntoIterator<Item=Vec3>) {
-		if num_vertices < 3 {
-			return
-		}
-
-		let indices = (0..num_vertices as u16-2)
-			.flat_map(|i| [0, i+1, i+2]);
-
-		self.extend_3d(vs, indices);
-	}
-
-	/// Build some geometry from an iterator of vertices of length `num_vertices`.
-	/// Generates triangles between the first vertex and every subsequent pair of vertices, forming a 'fan'.
-	/// Different from [`PolyBuilder3D::extend_3d_fan`] in that this function duplicates the second vertex.
-	/// This is useful for geometry where the first vertex lies at some kind of 'center'.
-	fn extend_3d_fan_closed(&mut self, num_vertices: u32, vs: impl IntoIterator<Item=Vec3>) {
-		if num_vertices < 3 {
-			return
-		}
-
-		let indices = (0..num_vertices as u16-2)
-			.flat_map(|i| [0, i+1, i+2])
-			.chain([0, num_vertices as u16-1, 1]);
-
-		self.extend_3d(vs, indices);
 	}
 }
 

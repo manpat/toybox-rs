@@ -6,11 +6,13 @@
 use crate::prelude::*;
 
 pub mod traits;
+pub mod util;
 pub mod geom_2d;
 pub mod geom_3d;
 pub mod color_mesh_builder;
 pub mod plane_mesh_builder_adaptor;
 
+#[doc(inline)] pub use util::*;
 #[doc(inline)] pub use traits::{PolyBuilder2D, PolyBuilder3D};
 #[doc(inline)] pub use color_mesh_builder::ColorMeshBuilder;
 #[doc(inline)] pub use plane_mesh_builder_adaptor::{PlaneMeshBuilderAdaptor, BuilderSurface, OrthogonalOrientation};

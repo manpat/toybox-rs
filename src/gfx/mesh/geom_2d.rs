@@ -1,7 +1,7 @@
 //! Types that implement [`BuildableGeometry2D`][BuildableGeometry2D].
 
 use common::*;
-use crate::gfx::mesh::{PolyBuilder2D, traits::BuildableGeometry2D};
+use crate::gfx::mesh::{PolyBuilder2D, traits::BuildableGeometry2D, util::*};
 
 
 #[derive(Copy, Clone, Debug)]
@@ -17,6 +17,10 @@ impl Quad {
 	pub fn unit() -> Quad {
 		Quad::from_matrix(Mat2x3::identity())
 	}
+
+	pub fn with_size(size: Vec2) -> Quad {
+		Quad::from_matrix(Mat2x3::scale(size))
+	}
 }
 
 impl BuildableGeometry2D for Quad {
@@ -24,12 +28,14 @@ impl BuildableGeometry2D for Quad {
 		let [ux, uy, translation] = self.basis.columns();
 		let (hx, hy) = (ux/2.0, uy/2.0);
 
-		mb.extend_2d_fan(4, [
+		let vertices = [
 			translation - hx - hy,
 			translation + hx - hy,
 			translation + hx + hy,
 			translation - hx + hy,
-		]);
+		];
+
+		mb.extend_2d(vertices, iter_fan_indices(vertices.len()));
 	}
 }
 
@@ -70,7 +76,7 @@ impl BuildableGeometry2D for Polygon {
 				translation + uxy * Vec2::from_angle(angle)
 			});
 
-		mb.extend_2d_fan(self.num_faces, vertices);
+		mb.extend_2d(vertices, iter_fan_indices(self.num_faces as usize));
 	}
 }
 
