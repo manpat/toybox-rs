@@ -1,4 +1,4 @@
-use crate::audio::scratch_buffer::ScratchBuffer;
+use crate::audio::runtime::scratch_buffer::ScratchBuffer;
 
 
 pub(in crate::audio) struct ScratchBufferCache {
