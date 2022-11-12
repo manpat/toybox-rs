@@ -1,7 +1,7 @@
 //! Types that implement [`BuildableGeometry3D`][BuildableGeometry3D].
 
 use common::*;
-use crate::gfx::mesh::{PolyBuilder3D, traits::BuildableGeometry3D, util::*};
+use crate::gfx::mesh::{PolyBuilder3D, traits::BuildableGeometry3D};
 
 pub struct Tetrahedron {
 	basis: Mat3x4,

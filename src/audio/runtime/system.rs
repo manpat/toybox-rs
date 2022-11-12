@@ -13,6 +13,7 @@ use std::thread::{self, JoinHandle};
 
 pub struct EvaluationContext<'sys> {
 	pub sample_rate: f32,
+	pub sample_dt: f32,
 	pub resources: &'sys Resources,
 }
 
@@ -323,7 +324,7 @@ fn audio_producer_worker(shared: Arc<Shared>, command_rx: Receiver<ProducerComma
 
 		expired_resource_scopes.sort();
 
-		let eval_ctx = EvaluationContext {sample_rate, resources};
+		let eval_ctx = EvaluationContext {sample_rate, sample_dt: sample_rate.recip(), resources};
 		node_graph.cleanup_finished_nodes(&eval_ctx, &expired_resource_scopes);
 		node_graph.update_topology(&eval_ctx);
 
@@ -339,7 +340,7 @@ fn audio_producer_worker(shared: Arc<Shared>, command_rx: Receiver<ProducerComma
 				break
 			}
 
-			let eval_ctx = EvaluationContext {sample_rate, resources};
+			let eval_ctx = EvaluationContext {sample_rate, sample_dt: sample_rate.recip(), resources};
 			let buffer = node_graph.process(&eval_ctx);
 
 			let write_lock = shared.sample_buffer.lock_for_write(buffer.len());
