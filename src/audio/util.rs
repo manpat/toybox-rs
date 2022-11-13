@@ -5,7 +5,7 @@ use crate::prelude::*;
 /// Integer parts correspond directly midi note values - where note 12 is C0 (16.35Hz) and
 /// note 69 is A4 (440Hz). The fractional part gives sub-semitone shifts - where 1 cent is 0.01 note.
 pub fn midi_note_to_frequency(midi_note: f32) -> f32 {
-	((midi_note - 69.0)/12.0).exp2()
+	440.0 * ((midi_note - 69.0)/12.0).exp2()
 }
 
 /// Convert a frequency to a midi note.
@@ -20,6 +20,7 @@ pub fn frequency_to_midi_note(frequency: f32) -> f32 {
 // TODO(pat.m): chord/scale construction
 
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum PitchClass {
 	C, Cs,
 	D, Ds,
@@ -31,7 +32,7 @@ pub enum PitchClass {
 }
 
 impl PitchClass {
-	fn from_midi(midi_note: i32) -> PitchClass {
+	pub fn from_midi(midi_note: i32) -> PitchClass {
 		match midi_note.rem_euclid(12) {
 			0 => PitchClass::C,
 			1 => PitchClass::Cs,
@@ -49,7 +50,7 @@ impl PitchClass {
 		}
 	}
 
-	fn to_midi(&self, octave: i32) -> i32 {
+	pub fn to_midi(&self, octave: i32) -> i32 {
 		let note = match self {
 			PitchClass::C => 0,
 			PitchClass::Cs => 1,
@@ -69,6 +70,29 @@ impl PitchClass {
 	}
 }
 
+use std::fmt;
+
+impl fmt::Display for PitchClass {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+		match self {
+			PitchClass::C => "C".fmt(f),
+			PitchClass::Cs => "C#".fmt(f),
+			PitchClass::D => "D".fmt(f),
+			PitchClass::Ds => "D#".fmt(f),
+			PitchClass::E => "E".fmt(f),
+			PitchClass::F => "F".fmt(f),
+			PitchClass::Fs => "F#".fmt(f),
+			PitchClass::G => "G".fmt(f),
+			PitchClass::Gs => "G#".fmt(f),
+			PitchClass::A => "A".fmt(f),
+			PitchClass::As => "A#".fmt(f),
+			PitchClass::B => "B".fmt(f),
+		}
+	}
+}
+
+
+#[derive(Copy, Clone, Debug)]
 pub struct Pitch {
 	pub pitch_class: PitchClass,
 	pub octave: i32,
@@ -76,7 +100,7 @@ pub struct Pitch {
 }
 
 impl Pitch {
-	fn from_midi(midi_note: f32) -> Pitch {
+	pub fn from_midi(midi_note: f32) -> Pitch {
 		let cents = midi_note.fract();
 		let midi_note = midi_note.trunc() as i32;
 		let octave = midi_note/12 - 1;
@@ -89,16 +113,16 @@ impl Pitch {
 		}
 	}
 
-	fn from_frequency(frequency: f32) -> Pitch {
+	pub fn from_frequency(frequency: f32) -> Pitch {
 		let midi_note = frequency_to_midi_note(frequency);
 		Pitch::from_midi(midi_note)
 	}
 
-	fn to_midi(&self) -> f32 {
+	pub fn to_midi(&self) -> f32 {
 		self.pitch_class.to_midi(self.octave) as f32 + self.cents
 	}
 
-	fn to_frequency(&self) -> f32 {
+	pub fn to_frequency(&self) -> f32 {
 		midi_note_to_frequency(self.to_midi())
 	}
 }
