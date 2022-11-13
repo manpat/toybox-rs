@@ -66,44 +66,6 @@ impl Node for PannerNode {
 
 
 
-pub struct OscillatorNode {
-	// parameter
-	freq: f32,
-
-	// state
-	phase: f32,
-}
-
-
-impl OscillatorNode {
-	pub fn new(freq: f32) -> OscillatorNode {
-		OscillatorNode {
-			freq,
-			phase: 0.0,
-		}
-	}
-}
-
-impl Node for OscillatorNode {
-	fn has_stereo_output(&self, _: &EvaluationContext<'_>) -> bool { false }
-
-	fn node_type(&self, _: &EvaluationContext<'_>) -> NodeType { NodeType::Source }
-
-	fn process(&mut self, ProcessContext{eval_ctx, inputs, output}: ProcessContext<'_>) {
-		assert!(inputs.is_empty());
-
-		let frame_period = TAU * self.freq / eval_ctx.sample_rate;
-
-		for out_sample in output.iter_mut() {
-			*out_sample = self.phase.sin();
-			self.phase += frame_period;
-		}
-
-		self.phase %= TAU;
-	}
-}
-
-
 
 pub struct WidenNode;
 

@@ -6,6 +6,7 @@ pub mod runtime;
 pub mod nodes;
 pub mod node_builder;
 pub mod generator;
+pub mod envelope;
 
 
 pub use runtime::system::{AudioSystem, SoundId, EvaluationContext};
@@ -14,3 +15,5 @@ pub use runtime::scratch_buffer::{ScratchBuffer};
 
 pub use nodes::{NodeType, Node, ProcessContext};
 pub use node_builder::*;
+
+pub use envelope::{Envelope, EnvelopeNode};

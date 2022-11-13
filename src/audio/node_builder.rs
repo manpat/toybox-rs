@@ -16,14 +16,8 @@ pub trait NodeBuilder<const CHANNELS: usize> : 'static + Send + Sync + Sized {
 		GainNode { inner: self, gain }
 	}
 
-	fn envelope(self, attack: f32, release: f32) -> EnvelopeNode<Self> {
-		EnvelopeNode {
-			inner: self,
-			attack,
-			sound_length: attack + release,
-
-			time: 0.0,
-		}
+	fn envelope<E: Envelope>(self, envelope: E) -> EnvelopeNode<Self, E> {
+		EnvelopeNode::new(self, envelope)
 	}
 }
 
@@ -111,34 +105,6 @@ impl<N: StereoNodeBuilder> Node for BuiltStereoNode<N> {
 	}
 }
 
-
-
-pub struct OscillatorGenerator {
-	freq: f32,
-	phase: f32,
-}
-
-impl OscillatorGenerator {
-	pub fn new(freq: f32) -> OscillatorGenerator {
-		OscillatorGenerator { freq, phase: 0.0 }
-	}
-}
-
-impl NodeBuilder<1> for OscillatorGenerator {
-	type ProcessState<'eval> = f32;
-
-	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) -> f32 {
-		self.phase %= TAU;
-		TAU * self.freq / eval_ctx.sample_rate
-	}
-
-	#[inline]
-	fn generate_frame(&mut self, frame_period: &mut f32) -> [f32; 1] {
-		let value = self.phase.sin();
-		self.phase += *frame_period;
-		[value]
-	}
-}
 
 
 use std::num::Wrapping;
@@ -292,41 +258,6 @@ impl<N> NodeBuilder<2> for WidenNode<N>
 	fn generate_frame(&mut self, state: &mut Self::ProcessState<'_>) -> [f32; 2] {
 		let [value] = self.inner.generate_frame(state);
 		[value; 2]
-	}
-}
-
-
-pub struct EnvelopeNode<N> {
-	inner: N,
-
-	attack: f32,
-	sound_length: f32,
-
-	time: f32,
-}
-
-impl<N, const CHANNELS: usize> NodeBuilder<CHANNELS> for EnvelopeNode<N>
-	where N: NodeBuilder<CHANNELS>
-{
-	type ProcessState<'eval> = (f32, N::ProcessState<'eval>);
-
-	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) -> Self::ProcessState<'eval> {
-		(1.0 / eval_ctx.sample_rate, self.inner.start_process(eval_ctx))
-	}
-
-	fn is_finished(&self, eval_ctx: &EvaluationContext<'_>) -> bool {
-		self.time > self.sound_length || self.inner.is_finished(eval_ctx)
-	}
-
-	#[inline]
-	fn generate_frame(&mut self, state: &mut Self::ProcessState<'_>) -> [f32; CHANNELS] {
-		let attack = (self.time / self.attack).min(1.0);
-		let release = (1.0 - (self.time - self.attack) / (self.sound_length - self.attack)).max(0.0).powi(8);
-		let envelope = (attack*attack*release).clamp(0.0, 1.0);
-
-		self.time += state.0;
-
-		self.inner.generate_frame(&mut state.1).map(|c| c * envelope)
 	}
 }
 

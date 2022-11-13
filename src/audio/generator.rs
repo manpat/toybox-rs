@@ -1,6 +1,5 @@
 use crate::prelude::*;
-use super::EvaluationContext;
-use super::NodeBuilder;
+use super::{EvaluationContext, NodeBuilder};
 
 
 pub fn sine_wave(phase: f32) -> f32 {
@@ -28,6 +27,8 @@ pub fn pulse_wave(phase: f32, width: f32) -> f32 {
 	(phase.fract() - width).floor() * -2.0 - 1.0
 }
 
+
+// TODO(pat.m): noise gen
 
 
 
