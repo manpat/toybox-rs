@@ -9,7 +9,6 @@ common = { git = "https://github.com/manpat/common-rs.git", version = "0.3" }
 toy = { git = "https://github.com/manpat/toy-rs.git" }
 bitflags = "1.2"
 slotmap = "1.0"
-imgui = "0.8"
 petgraph = "0.6"
 rayon = "1.5"
 itertools = "0.10"
@@ -28,6 +27,11 @@ tracing-subscriber = "0.3"
 [dependencies.image]
 version = "0.24"
 features = ["png"]
+
+
+[dependencies.imgui]
+version = "0.8"
+features = ["tables-api"]
 
 
 [dependencies.sdl2]

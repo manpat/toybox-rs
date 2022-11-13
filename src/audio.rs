@@ -7,6 +7,7 @@ pub mod nodes;
 pub mod node_builder;
 pub mod generator;
 pub mod envelope;
+pub mod util;
 
 
 pub use runtime::system::{AudioSystem, SoundId, EvaluationContext};

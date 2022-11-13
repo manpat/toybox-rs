@@ -9,6 +9,7 @@ pub trait Envelope {
 }
 
 
+#[derive(Copy, Clone, Debug)]
 pub struct AR {
 	attack: f32,
 	release: f32,
@@ -53,6 +54,7 @@ impl Envelope for AR {
 
 
 
+#[derive(Copy, Clone, Debug)]
 pub struct ExpAR {
 	attack: f32,
 	release: f32,
