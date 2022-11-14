@@ -34,6 +34,7 @@ pub fn pulse_wave(phase: f32, width: f32) -> f32 {
 
 pub struct GeneratorNode<F> {
 	phase: f32,
+	freq: f32,
 	phase_dt: f32, // TODO(pat.m): how do I make this dynamic
 	f: F,
 }
@@ -45,6 +46,7 @@ impl<F> GeneratorNode<F>
 	pub fn new(freq: f32, f: F) -> Self {
 		GeneratorNode {
 			phase: 0.0,
+			freq,
 			phase_dt: freq,
 			f
 		}
@@ -78,17 +80,17 @@ impl GeneratorNode<fn(f32) -> f32> {
 impl<F> NodeBuilder<1> for GeneratorNode<F>
 	where F: FnMut(f32) -> f32 + Send + Sync + 'static
 {
-	type ProcessState<'eval> = f32;
+	type ProcessState<'eval> = ();
 
 	fn start_process<'eval>(&mut self, ctx: &EvaluationContext<'eval>) -> Self::ProcessState<'eval> {
 		self.phase = self.phase.fract();
-		ctx.sample_dt
+		self.phase_dt = ctx.sample_dt * self.freq;
 	}
 
 	#[inline]
 	fn generate_frame(&mut self, sample_dt: &mut Self::ProcessState<'_>) -> [f32; 1] {
 		let value = (self.f)(self.phase);
-		self.phase += self.phase_dt * *sample_dt;
+		self.phase += self.phase_dt;
 		[value]
 	}
 }

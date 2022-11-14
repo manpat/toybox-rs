@@ -103,6 +103,8 @@ impl Envelope for ExpAR {
 pub struct EnvelopeNode<N, E> {
 	inner: N,
 	envelope: E,
+
+	sample_dt: f32,
 }
 
 impl<N, E> EnvelopeNode<N, E> {
@@ -110,6 +112,8 @@ impl<N, E> EnvelopeNode<N, E> {
 		EnvelopeNode {
 			inner,
 			envelope,
+
+			sample_dt: 0.0,
 		}
 	}
 }
@@ -119,10 +123,11 @@ impl<N, E, const CHANNELS: usize> NodeBuilder<CHANNELS> for EnvelopeNode<N, E>
 	where N: NodeBuilder<CHANNELS>
 		, E: Envelope + Sync + Send + 'static
 {
-	type ProcessState<'eval> = (f32, N::ProcessState<'eval>);
+	type ProcessState<'eval> = N::ProcessState<'eval>;
 
 	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) -> Self::ProcessState<'eval> {
-		(eval_ctx.sample_dt, self.inner.start_process(eval_ctx))
+		self.sample_dt = eval_ctx.sample_dt;
+		self.inner.start_process(eval_ctx)
 	}
 
 	fn is_finished(&self, eval_ctx: &EvaluationContext<'_>) -> bool {
@@ -131,7 +136,7 @@ impl<N, E, const CHANNELS: usize> NodeBuilder<CHANNELS> for EnvelopeNode<N, E>
 
 	#[inline]
 	fn generate_frame(&mut self, state: &mut Self::ProcessState<'_>) -> [f32; CHANNELS] {
-		let envelope = self.envelope.next(state.0);
-		self.inner.generate_frame(&mut state.1).map(|c| c * envelope)
+		let envelope = self.envelope.next(self.sample_dt);
+		self.inner.generate_frame(state).map(|c| c * envelope)
 	}
 }

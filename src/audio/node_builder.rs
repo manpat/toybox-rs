@@ -34,6 +34,7 @@ pub trait MonoNodeBuilder : NodeBuilder<1> {
 		LowPassNode {
 			inner: self,
 			cutoff,
+			coefficient: 0.0,
 			prev_value: 0.0,
 		}
 	}
@@ -42,6 +43,7 @@ pub trait MonoNodeBuilder : NodeBuilder<1> {
 		HighPassNode {
 			inner: self,
 			cutoff,
+			coefficient: 0.0,
 			prev_value_diff: 0.0,
 		}
 	}
@@ -147,19 +149,21 @@ impl NodeBuilder<1> for NoiseGenerator {
 pub struct LowPassNode<N> {
 	inner: N,
 	cutoff: f32,
+
+	coefficient: f32,
 	prev_value: f32,
 }
 
 impl<N> NodeBuilder<1> for LowPassNode<N>
 	where N: MonoNodeBuilder
 {
-	type ProcessState<'eval> = (N::ProcessState<'eval>, f32);
+	type ProcessState<'eval> = N::ProcessState<'eval>;
 
 	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) -> Self::ProcessState<'eval> {
-		let dt = 1.0 / eval_ctx.sample_rate;
-		let a = dt / (dt + 1.0 / (TAU * self.cutoff));
+		let dt = eval_ctx.sample_dt;
+		self.coefficient = dt / (dt + 1.0 / (TAU * self.cutoff));
 
-		(self.inner.start_process(eval_ctx), a)
+		self.inner.start_process(eval_ctx)
 	}
 
 	fn is_finished(&self, eval_ctx: &EvaluationContext<'_>) -> bool {
@@ -167,9 +171,9 @@ impl<N> NodeBuilder<1> for LowPassNode<N>
 	}
 
 	#[inline]
-	fn generate_frame(&mut self, (state, a): &mut Self::ProcessState<'_>) -> [f32; 1] {
+	fn generate_frame(&mut self, state: &mut Self::ProcessState<'_>) -> [f32; 1] {
 		let [new_value] = self.inner.generate_frame(state);
-		self.prev_value = a.lerp(self.prev_value, new_value);
+		self.prev_value = self.coefficient.lerp(self.prev_value, new_value);
 		[self.prev_value]
 	}
 }
@@ -178,20 +182,22 @@ impl<N> NodeBuilder<1> for LowPassNode<N>
 pub struct HighPassNode<N> {
 	inner: N,
 	cutoff: f32,
+
+	coefficient: f32,
 	prev_value_diff: f32,
 }
 
 impl<N> NodeBuilder<1> for HighPassNode<N>
 	where N: MonoNodeBuilder
 {
-	type ProcessState<'eval> = (N::ProcessState<'eval>, f32);
+	type ProcessState<'eval> = N::ProcessState<'eval>;
 
 	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) -> Self::ProcessState<'eval> {
 		let dt = 1.0 / eval_ctx.sample_rate;
 		let rc = 1.0 / (TAU * self.cutoff);
-		let a = rc / (rc + dt);
+		self.coefficient = rc / (rc + dt);
 
-		(self.inner.start_process(eval_ctx), a)
+		self.inner.start_process(eval_ctx)
 	}
 
 	fn is_finished(&self, eval_ctx: &EvaluationContext<'_>) -> bool {
@@ -199,9 +205,9 @@ impl<N> NodeBuilder<1> for HighPassNode<N>
 	}
 
 	#[inline]
-	fn generate_frame(&mut self, (state, a): &mut Self::ProcessState<'_>) -> [f32; 1] {
+	fn generate_frame(&mut self, state: &mut Self::ProcessState<'_>) -> [f32; 1] {
 		let [new_value] = self.inner.generate_frame(state);
-		let result = *a * (self.prev_value_diff + new_value);
+		let result = self.coefficient * (self.prev_value_diff + new_value);
 		self.prev_value_diff = result - new_value;
 		[result]
 	}
