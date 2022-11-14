@@ -80,15 +80,13 @@ impl GeneratorNode<fn(f32) -> f32> {
 impl<F> NodeBuilder<1> for GeneratorNode<F>
 	where F: FnMut(f32) -> f32 + Send + Sync + 'static
 {
-	type ProcessState<'eval> = ();
-
-	fn start_process<'eval>(&mut self, ctx: &EvaluationContext<'eval>) -> Self::ProcessState<'eval> {
+	fn start_process<'eval>(&mut self, ctx: &EvaluationContext<'eval>) {
 		self.phase = self.phase.fract();
 		self.phase_dt = ctx.sample_dt * self.freq;
 	}
 
 	#[inline]
-	fn generate_frame(&mut self, sample_dt: &mut Self::ProcessState<'_>) -> [f32; 1] {
+	fn generate_frame(&mut self) -> [f32; 1] {
 		let value = (self.f)(self.phase);
 		self.phase += self.phase_dt;
 		[value]

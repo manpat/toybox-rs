@@ -4,10 +4,8 @@ use crate::audio::*;
 
 
 pub trait NodeBuilder<const CHANNELS: usize> : 'static + Send + Sync + Sized {
-	type ProcessState<'eval>;
-
-	fn start_process<'eval>(&mut self, _: &EvaluationContext<'eval>) -> Self::ProcessState<'eval>;
-	fn generate_frame(&mut self, _: &mut Self::ProcessState<'_>) -> [f32; CHANNELS];
+	fn start_process<'eval>(&mut self, _: &EvaluationContext<'eval>) {}
+	fn generate_frame(&mut self) -> [f32; CHANNELS];
 
 	fn is_finished(&self, _: &EvaluationContext<'_>) -> bool { false }
 
@@ -75,10 +73,10 @@ impl<N: MonoNodeBuilder> Node for BuiltMonoNode<N> {
 
 	#[instrument(skip_all, name = "BuiltMonoNode::process")]
 	fn process(&mut self, ProcessContext{output, eval_ctx, ..}: ProcessContext<'_>) {
-		let mut state = self.node.start_process(eval_ctx);
+		self.node.start_process(eval_ctx);
 
 		for frame in output.iter_mut() {
-			*frame = self.node.generate_frame(&mut state)[0];
+			*frame = self.node.generate_frame()[0];
 		}
 	}
 }
@@ -99,10 +97,10 @@ impl<N: StereoNodeBuilder> Node for BuiltStereoNode<N> {
 
 	#[instrument(skip_all, name = "BuiltStereoNode::process")]
 	fn process(&mut self, ProcessContext{output, eval_ctx, ..}: ProcessContext<'_>) {
-		let mut state = self.node.start_process(eval_ctx);
+		self.node.start_process(eval_ctx);
 
 		for frame in output.array_chunks_mut() {
-			*frame = self.node.generate_frame(&mut state);
+			*frame = self.node.generate_frame();
 		}
 	}
 }
@@ -128,12 +126,8 @@ impl NoiseGenerator {
 }
 
 impl NodeBuilder<1> for NoiseGenerator {
-	type ProcessState<'eval> = ();
-
-	fn start_process<'eval>(&mut self, _: &EvaluationContext<'eval>) {}
-
 	#[inline]
-	fn generate_frame(&mut self, _: &mut ()) -> [f32; 1] {
+	fn generate_frame(&mut self) -> [f32; 1] {
 		#[allow(overflowing_literals)]
 		const SCALE: f32 = 2.0 / 0xffffffff as f32;
 
@@ -157,13 +151,10 @@ pub struct LowPassNode<N> {
 impl<N> NodeBuilder<1> for LowPassNode<N>
 	where N: MonoNodeBuilder
 {
-	type ProcessState<'eval> = N::ProcessState<'eval>;
-
-	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) -> Self::ProcessState<'eval> {
+	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) {
 		let dt = eval_ctx.sample_dt;
 		self.coefficient = dt / (dt + 1.0 / (TAU * self.cutoff));
-
-		self.inner.start_process(eval_ctx)
+		self.inner.start_process(eval_ctx);
 	}
 
 	fn is_finished(&self, eval_ctx: &EvaluationContext<'_>) -> bool {
@@ -171,8 +162,8 @@ impl<N> NodeBuilder<1> for LowPassNode<N>
 	}
 
 	#[inline]
-	fn generate_frame(&mut self, state: &mut Self::ProcessState<'_>) -> [f32; 1] {
-		let [new_value] = self.inner.generate_frame(state);
+	fn generate_frame(&mut self) -> [f32; 1] {
+		let [new_value] = self.inner.generate_frame();
 		self.prev_value = self.coefficient.lerp(self.prev_value, new_value);
 		[self.prev_value]
 	}
@@ -190,14 +181,11 @@ pub struct HighPassNode<N> {
 impl<N> NodeBuilder<1> for HighPassNode<N>
 	where N: MonoNodeBuilder
 {
-	type ProcessState<'eval> = N::ProcessState<'eval>;
-
-	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) -> Self::ProcessState<'eval> {
+	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) {
 		let dt = 1.0 / eval_ctx.sample_rate;
 		let rc = 1.0 / (TAU * self.cutoff);
 		self.coefficient = rc / (rc + dt);
-
-		self.inner.start_process(eval_ctx)
+		self.inner.start_process(eval_ctx);
 	}
 
 	fn is_finished(&self, eval_ctx: &EvaluationContext<'_>) -> bool {
@@ -205,8 +193,8 @@ impl<N> NodeBuilder<1> for HighPassNode<N>
 	}
 
 	#[inline]
-	fn generate_frame(&mut self, state: &mut Self::ProcessState<'_>) -> [f32; 1] {
-		let [new_value] = self.inner.generate_frame(state);
+	fn generate_frame(&mut self) -> [f32; 1] {
+		let [new_value] = self.inner.generate_frame();
 		let result = self.coefficient * (self.prev_value_diff + new_value);
 		self.prev_value_diff = result - new_value;
 		[result]
@@ -223,9 +211,7 @@ pub struct GainNode<N> {
 impl<N, const CHANNELS: usize> NodeBuilder<CHANNELS> for GainNode<N>
 	where N: NodeBuilder<CHANNELS>
 {
-	type ProcessState<'eval> = N::ProcessState<'eval>;
-
-	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) -> Self::ProcessState<'eval> {
+	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) {
 		self.inner.start_process(eval_ctx)
 	}
 
@@ -234,8 +220,8 @@ impl<N, const CHANNELS: usize> NodeBuilder<CHANNELS> for GainNode<N>
 	}
 
 	#[inline]
-	fn generate_frame(&mut self, state: &mut Self::ProcessState<'_>) -> [f32; CHANNELS] {
-		self.inner.generate_frame(state).map(|c| c * self.gain)
+	fn generate_frame(&mut self) -> [f32; CHANNELS] {
+		self.inner.generate_frame().map(|c| c * self.gain)
 	}
 }
 
@@ -250,9 +236,7 @@ pub struct WidenNode<N>
 impl<N> NodeBuilder<2> for WidenNode<N>
 	where N: MonoNodeBuilder
 {
-	type ProcessState<'eval> = N::ProcessState<'eval>;
-
-	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) -> Self::ProcessState<'eval> {
+	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) {
 		self.inner.start_process(eval_ctx)
 	}
 
@@ -261,8 +245,8 @@ impl<N> NodeBuilder<2> for WidenNode<N>
 	}
 
 	#[inline]
-	fn generate_frame(&mut self, state: &mut Self::ProcessState<'_>) -> [f32; 2] {
-		let [value] = self.inner.generate_frame(state);
+	fn generate_frame(&mut self) -> [f32; 2] {
+		let [value] = self.inner.generate_frame();
 		[value; 2]
 	}
 }
@@ -280,10 +264,8 @@ macro_rules! impl_nodebuilder_for_tuple {
 				$ty : NodeBuilder<CHANNELS>
 			),*
 		{
-			type ProcessState<'eval> = ( $( $ty::ProcessState<'eval>, )* );
-
-			fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) -> Self::ProcessState<'eval> {
-				( $( self.$idx.start_process(eval_ctx), )* )
+			fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) {
+				$( self.$idx.start_process(eval_ctx); )*
 			}
 
 			fn is_finished(&self, eval_ctx: &EvaluationContext<'_>) -> bool {
@@ -297,9 +279,9 @@ macro_rules! impl_nodebuilder_for_tuple {
 			}
 
 			#[inline]
-			fn generate_frame(&mut self, state: &mut Self::ProcessState<'_>) -> [f32; CHANNELS] {
+			fn generate_frame(&mut self) -> [f32; CHANNELS] {
 				let frames = [
-					$( self.$idx.generate_frame(&mut state.$idx), )*
+					$( self.$idx.generate_frame(), )*
 				];
 
 				frames.into_iter()

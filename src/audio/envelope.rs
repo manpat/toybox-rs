@@ -123,11 +123,9 @@ impl<N, E, const CHANNELS: usize> NodeBuilder<CHANNELS> for EnvelopeNode<N, E>
 	where N: NodeBuilder<CHANNELS>
 		, E: Envelope + Sync + Send + 'static
 {
-	type ProcessState<'eval> = N::ProcessState<'eval>;
-
-	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) -> Self::ProcessState<'eval> {
+	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) {
 		self.sample_dt = eval_ctx.sample_dt;
-		self.inner.start_process(eval_ctx)
+		self.inner.start_process(eval_ctx);
 	}
 
 	fn is_finished(&self, eval_ctx: &EvaluationContext<'_>) -> bool {
@@ -135,8 +133,8 @@ impl<N, E, const CHANNELS: usize> NodeBuilder<CHANNELS> for EnvelopeNode<N, E>
 	}
 
 	#[inline]
-	fn generate_frame(&mut self, state: &mut Self::ProcessState<'_>) -> [f32; CHANNELS] {
+	fn generate_frame(&mut self) -> [f32; CHANNELS] {
 		let envelope = self.envelope.next(self.sample_dt);
-		self.inner.generate_frame(state).map(|c| c * envelope)
+		self.inner.generate_frame().map(|c| c * envelope)
 	}
 }
