@@ -28,22 +28,16 @@ pub trait MonoNodeBuilder : NodeBuilder<1> {
 		WidenNode { inner: self }
 	}
 
-	fn low_pass(self, cutoff: f32) -> LowPassNode<Self> {
-		LowPassNode {
-			inner: self,
-			cutoff,
-			coefficient: 0.0,
-			prev_value: 0.0,
-		}
+	fn effect<E: Effect>(self, effect: E) -> EffectNode<Self, E> {
+		EffectNode::new(self, effect)
 	}
 
-	fn high_pass(self, cutoff: f32) -> HighPassNode<Self> {
-		HighPassNode {
-			inner: self,
-			cutoff,
-			coefficient: 0.0,
-			prev_value_diff: 0.0,
-		}
+	fn low_pass(self, cutoff: f32) -> EffectNode<Self, effect::LowPass> {
+		self.effect(effect::LowPass::new(cutoff))
+	}
+
+	fn high_pass(self, cutoff: f32) -> EffectNode<Self, effect::HighPass> {
+		self.effect(effect::HighPass::new(cutoff))
 	}
 }
 
@@ -138,68 +132,6 @@ impl NodeBuilder<1> for NoiseGenerator {
 	}
 }
 
-
-
-pub struct LowPassNode<N> {
-	inner: N,
-	cutoff: f32,
-
-	coefficient: f32,
-	prev_value: f32,
-}
-
-impl<N> NodeBuilder<1> for LowPassNode<N>
-	where N: MonoNodeBuilder
-{
-	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) {
-		let dt = eval_ctx.sample_dt;
-		self.coefficient = dt / (dt + 1.0 / (TAU * self.cutoff));
-		self.inner.start_process(eval_ctx);
-	}
-
-	fn is_finished(&self, eval_ctx: &EvaluationContext<'_>) -> bool {
-		self.inner.is_finished(eval_ctx)
-	}
-
-	#[inline]
-	fn generate_frame(&mut self) -> [f32; 1] {
-		let [new_value] = self.inner.generate_frame();
-		self.prev_value = self.coefficient.lerp(self.prev_value, new_value);
-		[self.prev_value]
-	}
-}
-
-
-pub struct HighPassNode<N> {
-	inner: N,
-	cutoff: f32,
-
-	coefficient: f32,
-	prev_value_diff: f32,
-}
-
-impl<N> NodeBuilder<1> for HighPassNode<N>
-	where N: MonoNodeBuilder
-{
-	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) {
-		let dt = 1.0 / eval_ctx.sample_rate;
-		let rc = 1.0 / (TAU * self.cutoff);
-		self.coefficient = rc / (rc + dt);
-		self.inner.start_process(eval_ctx);
-	}
-
-	fn is_finished(&self, eval_ctx: &EvaluationContext<'_>) -> bool {
-		self.inner.is_finished(eval_ctx)
-	}
-
-	#[inline]
-	fn generate_frame(&mut self) -> [f32; 1] {
-		let [new_value] = self.inner.generate_frame();
-		let result = self.coefficient * (self.prev_value_diff + new_value);
-		self.prev_value_diff = result - new_value;
-		[result]
-	}
-}
 
 
 

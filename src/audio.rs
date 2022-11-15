@@ -7,6 +7,7 @@ pub mod nodes;
 pub mod node_builder;
 pub mod generator;
 pub mod envelope;
+pub mod effect;
 pub mod util;
 
 
@@ -18,3 +19,4 @@ pub use nodes::{NodeType, Node, ProcessContext};
 pub use node_builder::*;
 
 pub use envelope::{Envelope, EnvelopeNode};
+pub use effect::{Effect, EffectNode};
