@@ -2,8 +2,10 @@ use crate::prelude::*;
 use crate::audio::runtime::{system, system::EvaluationContext, scratch_buffer::ScratchBuffer};
 
 mod mixer_node;
+mod compressor_node;
 
 pub use mixer_node::*;
+pub use compressor_node::*;
 
 
 

@@ -4,7 +4,7 @@ use super::{EvaluationContext, NodeBuilder};
 
 
 pub trait Effect {
-	fn start_process(&mut self, sample_dt: f32) {}
+	fn start_process(&mut self, _sample_dt: f32) {}
 	fn next(&mut self, input: f32) -> f32;
 }
 
