@@ -110,7 +110,7 @@ impl AudioSystem {
 		};
 
 		// TODO(pat.m): figure out how to tune this
-		let requested_ringbuffer_size = (6 * sample_rate as usize) / 60;
+		let requested_ringbuffer_size = (3 * sample_rate as usize) / 60;
 
 		let shared = Arc::new(Shared {
 			inner: Mutex::new(inner),

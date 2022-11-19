@@ -101,38 +101,6 @@ impl<N: StereoNodeBuilder> Node for BuiltStereoNode<N> {
 
 
 
-use std::num::Wrapping;
-
-// https://www.musicdsp.org/en/latest/Synthesis/216-fast-whitenoise-generator.html
-pub struct NoiseGenerator {
-	x1: Wrapping<i32>,
-	x2: Wrapping<i32>,
-}
-
-impl NoiseGenerator {
-	pub fn new() -> NoiseGenerator {
-		#[allow(overflowing_literals)]
-		NoiseGenerator {
-			x1: Wrapping(0x67452301i32),
-			x2: Wrapping(0xefcdab89i32),
-		}
-	}
-}
-
-impl NodeBuilder<1> for NoiseGenerator {
-	#[inline]
-	fn generate_frame(&mut self) -> [f32; 1] {
-		#[allow(overflowing_literals)]
-		const SCALE: f32 = 2.0 / 0xffffffff as f32;
-
-		self.x2 += self.x1;
-		self.x1 ^= self.x2;
-		
-		[(SCALE * self.x2.0 as f32).clamp(-1.0, 1.0)]
-	}
-}
-
-
 
 
 pub struct GainNode<N> {
