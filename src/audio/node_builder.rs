@@ -36,7 +36,9 @@ pub trait MonoNodeBuilder : NodeBuilder<1> {
 		EffectStage::new(self, effect)
 	}
 
-	fn low_pass(self, cutoff: f32) -> EffectStage<Self, effect::LowPass> {
+	fn low_pass<P>(self, cutoff: P) -> EffectStage<Self, effect::LowPass<P>>
+		where P: FloatParameter
+	{
 		self.effect(effect::LowPass::new(cutoff))
 	}
 
@@ -187,9 +189,6 @@ impl<N> NodeBuilder<2> for WidenNode<N>
 
 
 
-// TODO(pat.m): add sum and multiply combinators on (N, ...) that create AddNode and MultiplyNode
-
-
 pub struct TupleAddNode<T> (T);
 pub struct TupleMultiplyNode<T> (T);
 
@@ -265,15 +264,3 @@ impl_nodebuilder_for_tuple!(0 -> N0, 1 -> N1, 2 -> N2, 3 -> N3, 4 -> N4, 5 -> N5
 impl_nodebuilder_for_tuple!(0 -> N0, 1 -> N1, 2 -> N2, 3 -> N3, 4 -> N4, 5 -> N5, 6 -> N6, 7 -> N7);
 impl_nodebuilder_for_tuple!(0 -> N0, 1 -> N1, 2 -> N2, 3 -> N3, 4 -> N4, 5 -> N5, 6 -> N6, 7 -> N7, 8 -> N8);
 
-
-// TODO(pat.m): ComposeNode
-// impl<A, B> ComposeNode<A, B>
-// {
-// 	type ProcessState<'eval> = ( A::ProcessState<'eval>, B::ProcessState<'eval> );
-// 
-// 	fn generate_frame(&mut self, ..) -> Frame {
-// 		let inner_frame = self.inner.generate_frame(..);
-// 		outer.feed(inner_frame);
-// 	}
-// }
-// 

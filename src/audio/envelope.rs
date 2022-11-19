@@ -43,12 +43,12 @@ impl Ramp {
 
 impl Envelope for Ramp {
 	fn is_finished(&self) -> bool {
-		self.phase > self.duration
+		self.phase > 1.0
 	}
 
 	fn next(&mut self, dt: f32) -> f32 {
 		let phase = self.phase;
-		self.phase += dt;
+		self.phase += dt / self.duration;
 
 		phase.clamp(0.0, 1.0)
 			.lerp(self.from, self.to)

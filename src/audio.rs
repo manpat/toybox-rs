@@ -20,5 +20,5 @@ pub use nodes::{NodeType, Node, ProcessContext};
 pub use node_builder::*;
 
 pub use envelope::{Envelope, EnvelopeNode};
-pub use effect::{Effect, EffectStage, EffectNode};
-pub use parameter::FloatParameter;
+pub use effect::{Effect, EffectStage, EffectNode, StereoEffectNode};
+pub use parameter::{FloatParameter, AtomicFloatParameter};

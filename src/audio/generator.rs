@@ -32,6 +32,7 @@ pub fn pulse_wave(phase: f32, width: f32) -> f32 {
 
 
 
+#[derive(Clone)]
 pub struct GeneratorNode<F, FP> {
 	phase: f32,
 	freq: FP,
@@ -116,6 +117,7 @@ impl<F, FP> NodeBuilder<1> for GeneratorNode<F, FP>
 use std::num::Wrapping;
 
 // https://www.musicdsp.org/en/latest/Synthesis/216-fast-whitenoise-generator.html
+#[derive(Clone)]
 pub struct Noise {
 	x1: Wrapping<i32>,
 	x2: Wrapping<i32>,
