@@ -8,21 +8,21 @@ pub trait Effect {
 	fn next(&mut self, input: f32) -> f32;
 }
 
-pub struct EffectNode<N, E> {
+pub struct EffectStage<N, E> {
 	inner: N,
 	effect: E,
 }
 
-impl<N, E> EffectNode<N, E> {
+impl<N, E> EffectStage<N, E> {
 	pub fn new(inner: N, effect: E) -> Self {
-		EffectNode {
+		EffectStage {
 			inner,
 			effect,
 		}
 	}
 }
 
-impl<N, E> NodeBuilder<1> for EffectNode<N, E>
+impl<N, E> NodeBuilder<1> for EffectStage<N, E>
 	where N: NodeBuilder<1>
 		, E: Effect + Sync + Send + 'static
 {
@@ -41,6 +41,44 @@ impl<N, E> NodeBuilder<1> for EffectNode<N, E>
 		[self.effect.next(value)]
 	}
 }
+
+
+
+
+// TODO(pat.m): stereo effect nodes?
+pub struct EffectNode<E> {
+	effect: E,
+}
+
+impl<E> EffectNode<E> {
+	pub fn new(effect: E) -> Self {
+		EffectNode {
+			effect,
+		}
+	}
+}
+
+impl<E> Node for EffectNode<E>
+	where E: Effect + Sync + Send + 'static
+{
+	fn has_stereo_output(&self, _: &EvaluationContext<'_>) -> bool { false }
+
+	fn node_type(&self, _: &EvaluationContext<'_>) -> NodeType { NodeType::Effect }
+
+	fn process(&mut self, ProcessContext{inputs, output, eval_ctx, ..}: ProcessContext<'_>) {
+		assert!(!output.stereo());
+
+		let input = &inputs[0];
+		assert!(!input.stereo());
+
+		self.effect.start_process(eval_ctx.sample_dt);
+
+		for (out_sample, &in_sample) in output.iter_mut().zip(input.iter()) {
+			*out_sample = self.effect.next(in_sample);
+		}
+	}
+}
+
 
 
 
@@ -116,3 +154,6 @@ impl<F> Effect for F
 		(self)(input)
 	}
 }
+
+
+

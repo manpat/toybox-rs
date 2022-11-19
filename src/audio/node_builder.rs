@@ -28,15 +28,15 @@ pub trait MonoNodeBuilder : NodeBuilder<1> {
 		WidenNode { inner: self }
 	}
 
-	fn effect<E: Effect>(self, effect: E) -> EffectNode<Self, E> {
-		EffectNode::new(self, effect)
+	fn effect<E: Effect>(self, effect: E) -> EffectStage<Self, E> {
+		EffectStage::new(self, effect)
 	}
 
-	fn low_pass(self, cutoff: f32) -> EffectNode<Self, effect::LowPass> {
+	fn low_pass(self, cutoff: f32) -> EffectStage<Self, effect::LowPass> {
 		self.effect(effect::LowPass::new(cutoff))
 	}
 
-	fn high_pass(self, cutoff: f32) -> EffectNode<Self, effect::HighPass> {
+	fn high_pass(self, cutoff: f32) -> EffectStage<Self, effect::HighPass> {
 		self.effect(effect::HighPass::new(cutoff))
 	}
 }

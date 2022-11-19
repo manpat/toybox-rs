@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use super::{EvaluationContext, NodeBuilder};
+use super::{EvaluationContext, NodeBuilder, FloatParameter};
 
 
 pub fn sine_wave(phase: f32) -> f32 {
@@ -32,63 +32,80 @@ pub fn pulse_wave(phase: f32, width: f32) -> f32 {
 
 
 
-pub struct GeneratorNode<F> {
+pub struct GeneratorNode<F, FP> {
 	phase: f32,
-	freq: f32,
+	freq: FP,
 	phase_dt: f32, // TODO(pat.m): how do I make this dynamic
 	f: F,
 }
 
 
-impl<F> GeneratorNode<F>
+impl<F, FP> GeneratorNode<F, FP>
 	where F: FnMut(f32) -> f32
+		, FP: FloatParameter
 {
-	pub fn new(freq: f32, f: F) -> Self {
+	pub fn new(freq: FP, f: F) -> Self {
 		GeneratorNode {
 			phase: 0.0,
 			freq,
-			phase_dt: freq,
+			phase_dt: 0.0,
 			f
 		}
 	}
 }
 
-impl GeneratorNode<fn(f32) -> f32> {
-	pub fn new_sine(freq: f32) -> Self {
+impl<FP> GeneratorNode<fn(f32) -> f32, FP>
+	where FP: FloatParameter
+{
+	pub fn new_sine(freq: FP) -> Self {
 		GeneratorNode::new(freq, sine_wave)
 	}
 
-	pub fn new_saw(freq: f32) -> Self {
+	pub fn new_saw(freq: FP) -> Self {
 		GeneratorNode::new(freq, saw_wave)
 	}
 
-	pub fn new_triangle(freq: f32) -> Self {
+	pub fn new_triangle(freq: FP) -> Self {
 		GeneratorNode::new(freq, triangle_wave)
 	}
 
-	pub fn new_square(freq: f32) -> Self {
+	pub fn new_square(freq: FP) -> Self {
 		GeneratorNode::new(freq, square_wave)
 	}
 
-	pub fn new_pulse(freq: f32, width: f32) -> GeneratorNode<impl FnMut(f32) -> f32> {
+	pub fn new_pulse(freq: FP, width: f32) -> GeneratorNode<impl FnMut(f32) -> f32, FP> {
 		GeneratorNode::new(freq, move |ph| pulse_wave(ph, width))
 	}
 }
 
 
 
-impl<F> NodeBuilder<1> for GeneratorNode<F>
+impl<F, FP> NodeBuilder<1> for GeneratorNode<F, FP>
 	where F: FnMut(f32) -> f32 + Send + Sync + 'static
+		, FP: FloatParameter
 {
 	fn start_process<'eval>(&mut self, ctx: &EvaluationContext<'eval>) {
 		self.phase = self.phase.fract();
-		self.phase_dt = ctx.sample_dt * self.freq;
+
+		self.freq.update(ctx);
+
+		if FP::AUDIO_RATE {
+			self.phase_dt = ctx.sample_dt;
+		} else {
+			self.phase_dt = ctx.sample_dt * self.freq.eval();
+		}
 	}
 
 	#[inline]
 	fn generate_frame(&mut self) -> [f32; 1] {
 		let value = (self.f)(self.phase);
-		self.phase += self.phase_dt;
+
+		let phase_dt = match FP::AUDIO_RATE {
+			false => self.phase_dt,
+			true => self.phase_dt * self.freq.eval(),
+		};
+
+		self.phase += phase_dt;
 		[value]
 	}
 }

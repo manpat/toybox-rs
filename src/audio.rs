@@ -3,11 +3,12 @@
 
 pub mod runtime;
 
-pub mod nodes;
-pub mod node_builder;
-pub mod generator;
-pub mod envelope;
 pub mod effect;
+pub mod envelope;
+pub mod generator;
+pub mod node_builder;
+pub mod nodes;
+pub mod parameter;
 pub mod util;
 
 
@@ -19,4 +20,5 @@ pub use nodes::{NodeType, Node, ProcessContext};
 pub use node_builder::*;
 
 pub use envelope::{Envelope, EnvelopeNode};
-pub use effect::{Effect, EffectNode};
+pub use effect::{Effect, EffectStage, EffectNode};
+pub use parameter::FloatParameter;

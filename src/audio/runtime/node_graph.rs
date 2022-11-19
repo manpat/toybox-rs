@@ -156,6 +156,19 @@ impl NodeGraph {
 			self.topology_dirty = true;
 		}
 	}
+
+	// TODO(pat.m): test this
+	pub fn replace_node(&mut self, node_id: NodeId, new_node: impl Node) {
+		let node_slot = &mut self.nodes[node_id.key];
+
+		*node_slot = NodeSlot {
+			node: Box::pin(new_node),
+			..*node_slot
+		};
+
+		// The topology is still the same, but we need to rebuild the execution graph.
+		self.topology_dirty = true;
+	}
 }
 
 // Private API.
