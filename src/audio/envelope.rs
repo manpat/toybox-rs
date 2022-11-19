@@ -3,9 +3,56 @@ use crate::audio::*;
 use super::{EvaluationContext, NodeBuilder};
 
 
-pub trait Envelope {
+pub trait Envelope : Sized {
 	fn is_finished(&self) -> bool;
 	fn next(&mut self, dt: f32) -> f32;
+
+	fn to_parameter(self) -> parameter::EnvelopeParameter<Self> {
+		parameter::EnvelopeParameter(self, 0.0)
+	}
+}
+
+
+#[derive(Copy, Clone, Debug)]
+pub struct Ramp {
+	from: f32,
+	to: f32,
+	duration: f32,
+
+	phase: f32,
+}
+
+impl Ramp {
+	pub fn new(duration: f32, from: f32, to: f32) -> Ramp {
+		Ramp {
+			from,
+			to,
+			duration,
+			phase: 0.0,
+		}
+	}
+
+	pub fn up(duration: f32) -> Ramp {
+		Ramp::new(duration, 0.0, 1.0)
+	}
+
+	pub fn down(duration: f32) -> Ramp {
+		Ramp::new(duration, 1.0, 0.0)
+	}
+}
+
+impl Envelope for Ramp {
+	fn is_finished(&self) -> bool {
+		self.phase > self.duration
+	}
+
+	fn next(&mut self, dt: f32) -> f32 {
+		let phase = self.phase;
+		self.phase += dt;
+
+		phase.clamp(0.0, 1.0)
+			.lerp(self.from, self.to)
+	}
 }
 
 
@@ -138,3 +185,4 @@ impl<N, E, const CHANNELS: usize> NodeBuilder<CHANNELS> for EnvelopeNode<N, E>
 		self.inner.generate_frame().map(|c| c * envelope)
 	}
 }
+

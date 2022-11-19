@@ -14,6 +14,10 @@ pub trait NodeBuilder<const CHANNELS: usize> : 'static + Send + Sync + Sized {
 		GainNode { inner: self, gain }
 	}
 
+	fn gain_bias(self, gain: f32, bias: f32) -> GainBiasNode<Self> {
+		GainBiasNode { inner: self, gain, bias }
+	}
+
 	fn envelope<E: Envelope>(self, envelope: E) -> EnvelopeNode<Self, E> {
 		EnvelopeNode::new(self, envelope)
 	}
@@ -38,6 +42,10 @@ pub trait MonoNodeBuilder : NodeBuilder<1> {
 
 	fn high_pass(self, cutoff: f32) -> EffectStage<Self, effect::HighPass> {
 		self.effect(effect::HighPass::new(cutoff))
+	}
+
+	fn to_parameter(self) -> parameter::NodeBuilderParameter<Self> {
+		parameter::NodeBuilderParameter(self)
 	}
 }
 
@@ -127,6 +135,31 @@ impl<N, const CHANNELS: usize> NodeBuilder<CHANNELS> for GainNode<N>
 
 
 
+pub struct GainBiasNode<N> {
+	inner: N,
+	gain: f32,
+	bias: f32,
+}
+
+impl<N, const CHANNELS: usize> NodeBuilder<CHANNELS> for GainBiasNode<N>
+	where N: NodeBuilder<CHANNELS>
+{
+	fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) {
+		self.inner.start_process(eval_ctx)
+	}
+
+	fn is_finished(&self, eval_ctx: &EvaluationContext<'_>) -> bool {
+		self.inner.is_finished(eval_ctx)
+	}
+
+	#[inline]
+	fn generate_frame(&mut self) -> [f32; CHANNELS] {
+		self.inner.generate_frame().map(|c| c * self.gain + self.bias)
+	}
+}
+
+
+
 pub struct WidenNode<N>
 	where N: MonoNodeBuilder
 {
@@ -157,36 +190,65 @@ impl<N> NodeBuilder<2> for WidenNode<N>
 // TODO(pat.m): add sum and multiply combinators on (N, ...) that create AddNode and MultiplyNode
 
 
+pub struct TupleAddNode<T> (T);
+pub struct TupleMultiplyNode<T> (T);
+
+pub trait NodeBuilderTuple : Sized {
+	fn add(self) -> TupleAddNode<Self> { TupleAddNode(self) }
+	fn multiply(self) -> TupleMultiplyNode<Self> { TupleMultiplyNode(self) }
+}
+
+
 macro_rules! impl_nodebuilder_for_tuple {
 	($($idx:tt -> $ty:ident),*) => {
-		impl< $($ty),* , const CHANNELS: usize> NodeBuilder<CHANNELS> for ( $($ty,)* )
-			where $(
-				$ty : NodeBuilder<CHANNELS>
-			),*
+		impl< $($ty),* > NodeBuilderTuple for ( $($ty,)* ) {}
+
+
+		impl< $($ty),* , const CHANNELS: usize> NodeBuilder<CHANNELS> for TupleAddNode<( $($ty,)* )>
+			where $( $ty : NodeBuilder<CHANNELS> ),*
 		{
 			fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) {
-				$( self.$idx.start_process(eval_ctx); )*
+				$( self.0.$idx.start_process(eval_ctx); )*
 			}
 
 			fn is_finished(&self, eval_ctx: &EvaluationContext<'_>) -> bool {
-				$(
-					if !self.$idx.is_finished(eval_ctx) {
-						return false
-					}
-				)*
-
-				return true
+				$( self.0.$idx.is_finished(eval_ctx) && )* true
 			}
 
 			#[inline]
 			fn generate_frame(&mut self) -> [f32; CHANNELS] {
 				let frames = [
-					$( self.$idx.generate_frame(), )*
+					$( self.0.$idx.generate_frame(), )*
 				];
 
 				frames.into_iter()
 					.fold([0.0; CHANNELS], |acc, frame| {
 						acc.zip(frame).map(|(c0, c1)| c0 + c1)
+					})
+			}
+		}
+
+
+		impl< $($ty),* , const CHANNELS: usize> NodeBuilder<CHANNELS> for TupleMultiplyNode<( $($ty,)* )>
+			where $( $ty : NodeBuilder<CHANNELS> ),*
+		{
+			fn start_process<'eval>(&mut self, eval_ctx: &EvaluationContext<'eval>) {
+				$( self.0.$idx.start_process(eval_ctx); )*
+			}
+
+			fn is_finished(&self, eval_ctx: &EvaluationContext<'_>) -> bool {
+				$( self.0.$idx.is_finished(eval_ctx) || )* false
+			}
+
+			#[inline]
+			fn generate_frame(&mut self) -> [f32; CHANNELS] {
+				let frames = [
+					$( self.0.$idx.generate_frame(), )*
+				];
+
+				frames.into_iter()
+					.fold([1.0; CHANNELS], |acc, frame| {
+						acc.zip(frame).map(|(c0, c1)| c0 * c1)
 					})
 			}
 		}
