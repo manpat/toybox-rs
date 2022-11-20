@@ -1,6 +1,3 @@
-use crate::prelude::*;
-
-
 /// Convert a midi note to a frequency.
 /// Integer parts correspond directly midi note values - where note 12 is C0 (16.35Hz) and
 /// note 69 is A4 (440Hz). The fractional part gives sub-semitone shifts - where 1 cent is 0.01 note.

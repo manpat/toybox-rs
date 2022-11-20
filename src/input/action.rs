@@ -73,7 +73,7 @@ pub enum MouseSpace {
 	/// Exists only to maintain compatibility with old code.
 	/// Its direct use is not recommended.
 	// TODO(pat.m): this is dodgy, but maybe we should keep something like this for resolution independence.
-	#[deprecated = "Exists only for backwards compatibility."]
+	// #[deprecated = "Exists only for backwards compatibility."]
 	LegacyPixelRatio,
 }
 
