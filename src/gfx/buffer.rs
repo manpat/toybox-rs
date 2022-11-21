@@ -65,6 +65,65 @@ impl<T: Copy> Buffer<T> {
 	pub fn is_empty(&self) -> bool {
 		self.length == 0
 	}
+
+	/// Create a view of a single element of this buffer for binding.
+	///
+	/// ## Note
+	/// Some buffer types have fairly strict alignment requirements, and so it is up to the user to properly align `element`.
+	/// Notably UBOs can require 256B alignment for offsets.
+	/// See: Capabilities::ubo_offset_alignment
+	pub fn element_view(&self, element: u32) -> RangedBufferView<T> {
+		RangedBufferView::new(*self, element, 1)
+	}
+
+	/// Create a view of a range of elements in this buffer for binding.
+	///
+	/// ## Note
+	/// Some buffer types have fairly strict alignment requirements, and so it is up to the user to properly align `element`.
+	/// Notably UBOs can require 256B alignment for offsets.
+	/// See: Capabilities::ubo_offset_alignment
+	pub fn range_view(&self, offset: u32, count: u32) -> RangedBufferView<T> {
+		RangedBufferView::new(*self, offset, count)
+	}
+}
+
+
+
+/// Represents a range of elements of some Buffer.
+/// Used when only a subset of a buffer is to be bound to a bind point.
+#[derive(Copy, Clone, Debug)]
+pub struct RangedBufferView<T: Copy> {
+	pub(super) handle: u32,
+	offset: u32,
+	count: u32,
+	_phantom: PhantomData<*const T>,
+}
+
+impl<T: Copy> RangedBufferView<T> {
+	pub fn new(buffer: Buffer<T>, offset: u32, count: u32) -> Self {
+		assert!(offset + count <= buffer.length);
+		RangedBufferView {
+			handle: buffer.handle,
+			offset,
+			count,
+			_phantom: PhantomData
+		}
+	}
+
+	pub fn len(&self) -> u32 {
+		self.count
+	}
+
+	pub fn offset(&self) -> u32 {
+		self.offset
+	}
+}
+
+
+impl<T: Copy> From<Buffer<T>> for RangedBufferView<T> {
+	fn from(buffer: Buffer<T>) -> Self {
+		RangedBufferView::new(buffer, 0, buffer.len())
+	}
 }
 
 

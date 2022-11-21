@@ -58,16 +58,24 @@ impl<'ctx> DrawContext<'ctx> {
 		self.backbuffer_size
 	}
 
-	pub fn bind_uniform_buffer<T: Copy>(&mut self, binding: u32, buffer: Buffer<T>) {
+	fn bind_buffer<T: Copy>(&mut self, buffer_type: u32, binding: u32, buffer: impl Into<RangedBufferView<T>>) {
+		let buffer_view = buffer.into();
+		let element_size = std::mem::size_of::<T>() as isize;
+		let offset_bytes = element_size * buffer_view.offset() as isize;
+		let range_size_bytes = element_size * buffer_view.len() as isize;
+
 		unsafe {
-			raw::BindBufferBase(raw::UNIFORM_BUFFER, binding, buffer.handle);
+			raw::BindBufferRange(buffer_type, binding, buffer_view.handle,
+				offset_bytes, range_size_bytes);
 		}
 	}
 
-	pub fn bind_shader_storage_buffer<T: Copy>(&mut self, binding: u32, buffer: Buffer<T>) {
-		unsafe {
-			raw::BindBufferBase(raw::SHADER_STORAGE_BUFFER, binding, buffer.handle);
-		}
+	pub fn bind_uniform_buffer<T: Copy>(&mut self, binding: u32, buffer: impl Into<RangedBufferView<T>>) {
+		self.bind_buffer(raw::UNIFORM_BUFFER, binding, buffer);
+	}
+
+	pub fn bind_shader_storage_buffer<T: Copy>(&mut self, binding: u32, buffer: impl Into<RangedBufferView<T>>) {
+		self.bind_buffer(raw::SHADER_STORAGE_BUFFER, binding, buffer);
 	}
 
 	fn bind_image_raw(&mut self, binding: u32, texture_key: impl IntoTextureKey, rw_flags: u32) {
