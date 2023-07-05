@@ -28,6 +28,15 @@ impl<'ctx> DrawContext<'ctx> {
 		}
 	}
 
+	pub fn set_depth_test(&mut self, depth_test_enabled: bool) {
+		unsafe {
+			match depth_test_enabled {
+				true => raw::Enable(raw::DEPTH_TEST),
+				false => raw::Disable(raw::DEPTH_TEST),
+			}
+		}
+	}
+
 	pub fn set_backface_culling(&mut self, culling_enabled: bool) {
 		unsafe {
 			match culling_enabled {

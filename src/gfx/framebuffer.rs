@@ -49,7 +49,7 @@ impl Framebuffer {
 			})
 		};
 
-		let color_attachments = color_attachments.iter()
+		let color_attachments: Vec<_> = color_attachments.iter()
 			.enumerate()
 			.filter_map(|(s, maybe_f)| maybe_f.map(|f| (s, f))) // (attachment_point, format)
 			.map(|(attachment_point, format)| {
@@ -58,7 +58,7 @@ impl Framebuffer {
 				let attachment_point = raw::COLOR_ATTACHMENT0 + attachment_point as u32;
 				Attachment {attachment_point, texture_key}
 			})
-			.collect(): Vec<_>;
+			.collect();
 
 
 		// TODO(pat.m): this isn't actually correct I don't think

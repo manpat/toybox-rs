@@ -221,8 +221,12 @@ macro_rules! impl_nodebuilder_for_tuple {
 				];
 
 				frames.into_iter()
-					.fold([0.0; CHANNELS], |acc, frame| {
-						acc.zip(frame).map(|(c0, c1)| c0 + c1)
+					.fold([0.0; CHANNELS], |mut acc, frame| {
+						for (dst, src) in acc.iter_mut().zip(frame) {
+							*dst += src;
+						}
+
+						acc
 					})
 			}
 		}
@@ -246,8 +250,12 @@ macro_rules! impl_nodebuilder_for_tuple {
 				];
 
 				frames.into_iter()
-					.fold([1.0; CHANNELS], |acc, frame| {
-						acc.zip(frame).map(|(c0, c1)| c0 * c1)
+					.fold([1.0; CHANNELS], |mut acc, frame| {
+						for (dst, src) in acc.iter_mut().zip(frame) {
+							*dst *= src;
+						}
+						
+						acc
 					})
 			}
 		}

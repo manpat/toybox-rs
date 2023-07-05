@@ -77,7 +77,10 @@ pub struct ResonantLowPass<CP, QP> {
 	prev_1: f32,
 }
 
-impl<CP, QP> ResonantLowPass<CP, QP> {
+impl<CP, QP> ResonantLowPass<CP, QP>
+	where CP: FloatParameter
+		, QP: FloatParameter
+{
 	pub fn new(cutoff: CP, q: QP) -> Self {
 		ResonantLowPass {
 			cutoff,
