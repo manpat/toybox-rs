@@ -5,57 +5,53 @@ authors = ["Patrick Monaghan <0x5f.manpat@gmail.com>"]
 edition = "2021"
 
 [dependencies]
+toybox-host = { path = "../toybox-host" }
+
+
 common = { git = "https://github.com/manpat/common-rs.git", version = "0.3" }
 toy = { git = "https://github.com/manpat/toy-rs.git" }
-bitflags = "1.2"
-slotmap = "1.0"
-petgraph = "0.6"
-rayon = "1.5"
-itertools = "0.10"
+# bitflags = "1.2"
+# slotmap = "1.0"
+# petgraph = "0.6"
+# rayon = "1.5"
+# itertools = "0.10"
 
 # lewton = "0.10.*"
 # thiserror = "1.0"
 # dasp = "0.11"
 
 
-symphonia = "0.4"
+# symphonia = "0.4"
 
 tracing = "0.1"
 tracing-subscriber = "0.3"
+tracing-tracy = { version = "0.8", optional = true }
 
 
-[dependencies.image]
-version = "0.24"
-features = ["png"]
+# [dependencies.image]
+# version = "0.24"
+# features = ["png"]
 
 
-[dependencies.imgui]
-version = "0.8"
-features = ["tables-api"]
+# [dependencies.imgui]
+# version = "0.8"
+# features = ["tables-api"]
 
 
-[dependencies.sdl2]
-version = ">=0.33"
-features = ["bundled", "static-link"]
-
-[dependencies.tracing-tracy]
-version = "0.8"
-optional = true
+# [dependencies.sdl2]
+# version = ">=0.33"
+# features = ["bundled", "static-link"]
 
 
 # for thread priority
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"
+# [target.'cfg(unix)'.dependencies]
+# libc = "0.2"
 
-[target.'cfg(windows)'.dependencies]
-libc = "0.2"
-winapi = { version = "0.3", features = ["errhandlingapi", "processthreadsapi", "winnt", "minwindef", "winbase"] }
-
-
-[build-dependencies]
-gl_generator = "0.14.0"
+# [target.'cfg(windows)'.dependencies]
+# libc = "0.2"
+# winapi = { version = "0.3", features = ["errhandlingapi", "processthreadsapi", "winnt", "minwindef", "winbase"] }
 
 
 
 [features]
-tracy = ["tracing-tracy"]
+tracy = ["dep:tracing-tracy"]
