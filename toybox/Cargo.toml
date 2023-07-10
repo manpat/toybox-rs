@@ -11,6 +11,9 @@ toybox-gfx = { path = "../toybox-gfx" }
 
 common = { git = "https://github.com/manpat/common-rs.git", version = "0.3" }
 toy = { git = "https://github.com/manpat/toy-rs.git" }
+
+anyhow = "1.0"
+
 # bitflags = "1.2"
 # slotmap = "1.0"
 # petgraph = "0.6"

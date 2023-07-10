@@ -1,10 +1,11 @@
 use toybox_host as host;
 
 use host::prelude::*;
+use host::gl;
 
 
 pub mod prelude {
-    pub use gl;
+    pub use crate::host::gl;
 }
 
 

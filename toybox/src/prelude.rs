@@ -8,6 +8,8 @@ pub use host::prelude::*;
 pub use gfx::prelude::*;
 
 
+pub use anyhow;
+
 pub use tracing;
 #[doc(hidden)]
 pub use tracing::instrument;
