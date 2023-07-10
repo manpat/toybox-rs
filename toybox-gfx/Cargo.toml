@@ -1,0 +1,10 @@
+[package]
+name = "toybox-gfx"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+
+gl = { path = "../gl" }
+toybox-host = { path = "../toybox-host" }

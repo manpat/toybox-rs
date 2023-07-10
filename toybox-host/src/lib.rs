@@ -10,124 +10,45 @@ use winit::{
 
 use glutin_winit::DisplayBuilder;
 
+use glutin::prelude::*;
 use glutin::config::{ConfigTemplateBuilder, Api};
 use glutin::context::{GlProfile, ContextApi, Version, ContextAttributesBuilder, NotCurrentGlContextSurfaceAccessor};
-use glutin::display::{GlDisplay, GetGlDisplay};
+use glutin::display::{GetGlDisplay};
 use glutin::surface::{SurfaceAttributesBuilder, WindowSurface, SwapInterval};
-use glutin::prelude::GlSurface;
 
 use raw_window_handle::HasRawWindowHandle;
 
 use std::num::NonZeroU32;
 
-// use common::math::Vec2i;
+pub mod prelude {
+	pub use gl;
+	pub use winit;
+	pub use glutin;
+
+	pub use glutin::prelude::*;
+}
 
 
+pub use winit::window::Window;
 
-
-// pub fn run<F, M>(start_main_loop: F) -> anyhow::Result<()> {
-
-	// let config_template = ConfigTemplateBuilder::new()
-	// 	.with_api(Api::OPENGL)
-	// 	.with_stencil_size(8);
-
-	// let window_builder = WindowBuilder::new();
-
-	// let (window, config) = DisplayBuilder::new()
-	// 	.with_window_builder(Some(window_builder))
-	// 	.build(&event_loop, config_template, |configs| {
-	// 		use glutin::config::GlConfig;
-
-	// 		for config in configs {
-	// 			if !config.srgb_capable() { continue }
-	// 			return config;
-	// 		}
-
-	// 		panic!("No suitable config");
-	// 	})
-	// 	.unwrap();
-
-	// let window = window.unwrap();
-
-	// let display = config.display();
-
-	// let ctx_attributes = ContextAttributesBuilder::new()
-	// 	.with_debug(true)
-	// 	.with_profile(GlProfile::Core)
-	// 	.with_context_api(ContextApi::OpenGl(Some(Version::new(4, 5))))
-	// 	.build(Some(window.raw_window_handle()));
-
-	// let context = unsafe {
-	// 	display.create_context(&config, &ctx_attributes).unwrap()
-	// };
-
-
-	// let (width, height): (u32, u32) = window.inner_size().into();
-	// let attrs = SurfaceAttributesBuilder::<WindowSurface>::new().with_srgb(Some(true)).build(
-	// 	window.raw_window_handle(),
-	// 	NonZeroU32::new(width).unwrap(),
-	// 	NonZeroU32::new(height).unwrap(),
-	// );
-
-	// let surface = unsafe { display.create_window_surface(&config, &attrs).unwrap() };
-
-
-	// let context = context.make_current(&surface).unwrap();
-	// surface.set_swap_interval(&context, SwapInterval::Wait(NonZeroU32::new(1).unwrap())).unwrap();
-
-	// let gl = gl::Gl::load_with(|symbol| {
-	// 	let symbol = std::ffi::CString::new(symbol).unwrap();
-	// 	display.get_proc_address(symbol.as_c_str()).cast()
-	// });
-
-
-	// Set up srgb backbuffer
-	// unsafe {
-	//     gl.Enable(gl::FRAMEBUFFER_SRGB);
-	// }
-
-
-	// Set up debug callbacks
-	// unsafe {
-	//     gl.DebugMessageCallback(Some(gl_message_callback), std::ptr::null());
-	//     gl.Enable(gl::DEBUG_OUTPUT_SYNCHRONOUS);
-
-	//     // Disable performance messages
-	//     // gl.DebugMessageControl(
-	//     //  gl::DONT_CARE,
-	//     //  gl::DEBUG_TYPE_PERFORMANCE,
-	//     //  gl::DONT_CARE,
-	//     //  0, std::ptr::null(),
-	//     //  0 // false
-	//     // );
-
-	//     // Disable notification messages
-	//     gl.DebugMessageControl(
-	//         gl::DONT_CARE,
-	//         gl::DONT_CARE,
-	//         gl::DEBUG_SEVERITY_NOTIFICATION,
-	//         0, std::ptr::null(),
-	//         0 // false
-	//     );
-	// }
-// }
-
+pub type Surface = glutin::surface::Surface<WindowSurface>;
+pub type GlContext = glutin::context::PossiblyCurrentContext;
 
 
 pub struct Host {
 	pub event_loop: winit::event_loop::EventLoop<()>,
 
-	pub window: winit::window::Window,
+	pub window: Window,
 
-	pub surface: glutin::surface::Surface<WindowSurface>,
-	pub gl_context: glutin::context::PossiblyCurrentContext,
+	pub surface: Surface,
+	pub gl_context: GlContext,
 
 	pub gl_state: gl::Gl,
 }
 
 
 impl Host {
-	pub fn create() -> anyhow::Result<Host> {
+	pub fn create(title: &str) -> anyhow::Result<Host> {
 		let event_loop = EventLoop::new();
 		
 		let config_template = ConfigTemplateBuilder::new()
@@ -135,7 +56,7 @@ impl Host {
 			.with_stencil_size(8);
 
 		let window_builder = WindowBuilder::new()
-			.with_title("AAAAAAA");
+			.with_title(title);
 
 		let context_builder = ContextAttributesBuilder::new()
 			.with_debug(true)
@@ -146,9 +67,8 @@ impl Host {
 		let (maybe_window, config) = DisplayBuilder::new()
 			.with_window_builder(Some(window_builder))
 			.build(&event_loop, config_template, |configs| {
-				use glutin::config::GlConfig;
-
 				for config in configs {
+					// We require an sRGB capable backbuffer
 					if !config.srgb_capable() { continue }
 					return config;
 				}
@@ -162,11 +82,11 @@ impl Host {
 			anyhow::bail!("Failed to create a window")
 		};
 
-		let ctx_attributes = context_builder.build(Some(window.raw_window_handle()));
 		let display = config.display();
 
 		let gl_context = unsafe {
-			display.create_context(&config, &ctx_attributes).unwrap()
+			let ctx_attributes = context_builder.build(Some(window.raw_window_handle()));
+			display.create_context(&config, &ctx_attributes)?
 		};
 
 
@@ -190,6 +110,11 @@ impl Host {
 			display.get_proc_address(symbol.as_c_str()).cast()
 		});
 
+		// Make sure sRGB handling is enabled by default.
+		unsafe {
+			gl_state.Enable(gl::FRAMEBUFFER_SRGB);
+		}
+
 		Ok(Host {
 			event_loop,
 
@@ -200,5 +125,80 @@ impl Host {
 
 			gl_state,
 		})
+	}
+
+	pub fn install_default_error_handler(&self) {
+		let gl = &self.gl_state;
+
+		unsafe {
+			gl.DebugMessageCallback(Some(default_gl_error_handler), std::ptr::null());
+			gl.Enable(gl::DEBUG_OUTPUT_SYNCHRONOUS);
+
+			// Disable performance messages
+			gl.DebugMessageControl(
+				gl::DONT_CARE,
+				gl::DEBUG_TYPE_PERFORMANCE,
+				gl::DONT_CARE,
+				0, std::ptr::null(),
+				gl::FALSE
+			);
+
+			// Disable notification messages
+			gl.DebugMessageControl(
+				gl::DONT_CARE,
+				gl::DONT_CARE,
+				gl::DEBUG_SEVERITY_NOTIFICATION,
+				0, std::ptr::null(),
+				gl::FALSE
+			);
+		}
+	}
+}
+
+
+extern "system" fn default_gl_error_handler(source: u32, ty: u32, _id: u32, severity: u32,
+	_length: i32, msg: *const i8, _ud: *mut std::ffi::c_void)
+{
+	let severity_str = match severity {
+		gl::DEBUG_SEVERITY_HIGH => "high",
+		gl::DEBUG_SEVERITY_MEDIUM => "medium",
+		gl::DEBUG_SEVERITY_LOW => "low",
+		gl::DEBUG_SEVERITY_NOTIFICATION => return,
+		_ => panic!("Unknown severity {}", severity),
+	};
+
+	let ty = match ty {
+		gl::DEBUG_TYPE_ERROR => "error",
+		gl::DEBUG_TYPE_DEPRECATED_BEHAVIOR => "deprecated behaviour",
+		gl::DEBUG_TYPE_UNDEFINED_BEHAVIOR => "undefined behaviour",
+		gl::DEBUG_TYPE_PORTABILITY => "portability",
+		gl::DEBUG_TYPE_PERFORMANCE => "performance",
+		gl::DEBUG_TYPE_OTHER => "other",
+		_ => panic!("Unknown type {}", ty),
+	};
+
+	let source = match source {
+		gl::DEBUG_SOURCE_API => "api",
+		gl::DEBUG_SOURCE_WINDOW_SYSTEM => "window system",
+		gl::DEBUG_SOURCE_SHADER_COMPILER => "shader compiler",
+		gl::DEBUG_SOURCE_THIRD_PARTY => "third party",
+		gl::DEBUG_SOURCE_APPLICATION => "application",
+		gl::DEBUG_SOURCE_OTHER => "other",
+		_ => panic!("Unknown source {}", source),
+	};
+
+	eprintln!("GL ERROR!");
+	eprintln!("Source:   {}", source);
+	eprintln!("Severity: {}", severity_str);
+	eprintln!("Type:     {}", ty);
+
+	unsafe {
+		let msg = std::ffi::CStr::from_ptr(msg as _).to_str().unwrap();
+		eprintln!("Message: {}", msg);
+	}
+
+	match severity {
+		gl::DEBUG_SEVERITY_HIGH | gl::DEBUG_SEVERITY_MEDIUM => panic!("GL ERROR!"),
+		_ => {}
 	}
 }
