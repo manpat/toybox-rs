@@ -151,6 +151,15 @@ impl Host {
 				0, std::ptr::null(),
 				gl::FALSE
 			);
+
+			// Disable marker messages
+			gl.DebugMessageControl(
+				gl::DONT_CARE,
+				gl::DEBUG_TYPE_MARKER,
+				gl::DONT_CARE,
+				0, std::ptr::null(),
+				gl::FALSE
+			);
 		}
 	}
 }
