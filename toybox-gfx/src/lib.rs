@@ -3,32 +3,19 @@ use toybox_host as host;
 use host::prelude::*;
 use host::gl;
 
+pub mod core;
+pub use crate::core::*;
 
 pub mod prelude {
     pub use crate::host::gl;
+    pub use crate::core::*;
 }
 
 
-pub struct Core {
-    surface: host::Surface,
-    gl_context: host::GlContext,
-    pub gl: gl::Gl,
-}
-
-impl Core {
-    pub fn new(surface: host::Surface, gl_context: host::GlContext, gl: gl::Gl)
-        -> Core
-    {
-        Core {
-            surface,
-            gl_context,
-            gl,
-        }
-    }
-
-    pub fn finalize_frame(&self) {
-        self.surface.swap_buffers(&self.gl_context).unwrap();
-    }
+pub struct System {
+    pub core: core::Core,
+    pub resource_manager: ResourceManager,
+    pub encoder: Encoder,
 }
 
 
@@ -87,7 +74,6 @@ pub enum Command {
     CopyBuffer,
     CopyTexture,
 
-    // For debugging - does renderdoc show this?
     DebugMessage { label: String, },
 }
 

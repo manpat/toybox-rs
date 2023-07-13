@@ -31,10 +31,21 @@ impl Engine {
 			, F: FnOnce(&mut Context) -> anyhow::Result<A>
 	{
 		let Host{ event_loop, gl_state: gl, surface, gl_context, .. } = self.host;
-		let gfx_core = gfx::Core::new(surface, gl_context, gl);
+
+		let gfx = {
+			let core = gfx::Core::new(surface, gl_context, gl);
+			let resource_manager = gfx::ResourceManager{};
+			let encoder = gfx::Encoder{};
+
+			gfx::System {
+				core,
+				resource_manager,
+				encoder,
+			}
+		};
 
 		let mut context = Context {
-			gfx_core,
+			gfx,
 		};
 
 		let mut app = start_app(&mut context)?;
