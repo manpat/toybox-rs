@@ -3,6 +3,10 @@ use crate::prelude::*;
 use toybox_host as host;
 use host::prelude::*;
 
+pub mod fbo;
+
+pub use fbo::FboHandle;
+
 
 pub struct Core {
 	surface: host::Surface,
@@ -21,7 +25,7 @@ impl Core {
 		}
 	}
 
-	pub fn finalize_frame(&self) {
+	pub fn swap(&self) {
 		self.surface.swap_buffers(&self.gl_context).unwrap();
 	}
 }
@@ -57,4 +61,24 @@ impl Core {
 			);
 		}
 	}
+
+	pub fn set_debug_label<H>(&self, handle: H, label: &str)
+		where H: CoreHandle
+	{
+		unsafe {
+			self.gl.ObjectLabel(H::GL_IDENTIFIER, handle.as_raw(), label.len() as i32, label.as_ptr() as *const _);
+		}
+	}
+}
+
+
+
+pub trait CoreHandle {
+	const GL_IDENTIFIER: u32;
+	fn as_raw(&self) -> u32;
+}
+
+impl CoreHandle for FboHandle {
+	const GL_IDENTIFIER: u32 = gl::FRAMEBUFFER;
+	fn as_raw(&self) -> u32 { self.0 }
 }

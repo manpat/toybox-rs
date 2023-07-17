@@ -6,4 +6,5 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0"
 
+common = { git = "https://github.com/manpat/common-rs.git", version = "0.3" }
 toybox-host = { path = "../toybox-host" }

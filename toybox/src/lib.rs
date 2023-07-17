@@ -34,14 +34,7 @@ impl Engine {
 
 		let gfx = {
 			let core = gfx::Core::new(surface, gl_context, gl);
-			let resource_manager = gfx::ResourceManager{};
-			let encoder = gfx::Encoder{};
-
-			gfx::System {
-				core,
-				resource_manager,
-				encoder,
-			}
+			gfx::System::new(core)?
 		};
 
 		let mut context = Context {
