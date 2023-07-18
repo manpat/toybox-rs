@@ -1,5 +1,12 @@
 use crate::core;
 use std::path::{Path, PathBuf};
+use std::fmt::Debug;
+use std::hash::Hash;
+
+use std::collections::HashMap;
+
+pub mod shader;
+
 
 // Create/Destroy api for gpu resources
 // Load/Cache resources from disk
@@ -11,7 +18,7 @@ use std::path::{Path, PathBuf};
 pub struct ResourceManager {
 	resource_root_path: PathBuf,
 
-	shader_counter: u32,
+	shaders: ResourceStorage<shader::ShaderResource>,
 
 	resize_request: Option<common::Vec2i>,
 }
@@ -22,7 +29,7 @@ impl ResourceManager {
 
 		ResourceManager {
 			resource_root_path,
-			shader_counter: 0,
+			shaders: ResourceStorage::new(),
 
 			resize_request: None,
 		}
@@ -33,11 +40,25 @@ impl ResourceManager {
 	}
 
 	/// Attempt to turn requested resources into committed GPU resources.
-	pub fn process_requests(&mut self, _: &mut core::Core) -> anyhow::Result<()> {
+	pub fn process_requests(&mut self, core: &mut core::Core) -> anyhow::Result<()> {
 		if let Some(_size) = self.resize_request.take() {
 			// TODO(pat.m): Resize textures, recreate framebuffers etc
 			println!("RESIZE {_size:?}");
 		}
+
+		self.shaders.process_requests(|def| {
+			let full_path = self.resource_root_path.join(&def.path);
+
+			let mut name = unsafe {
+				core.gl.CreateShader(def.shader_type as u32)
+			};
+
+			println!("Loading shader ({name}) {}", full_path.display());
+
+			Ok(shader::ShaderResource {
+				name: shader::ShaderName(name),
+			})
+		});
 
 		Ok(())
 	}
@@ -46,5 +67,71 @@ impl ResourceManager {
 
 /// Request api
 impl ResourceManager {
+	pub fn create_shader(&mut self, def: shader::ShaderDef) -> shader::ShaderHandle {
+		self.shaders.get_or_request_handle(def)
+	}
+}
 
+
+pub trait ResourceHandle : Copy + Clone + Eq + PartialEq + Debug + Hash {
+	fn from_raw(value: u32) -> Self;
+}
+
+
+pub trait Resource : Debug {
+	type Handle : ResourceHandle;
+	type Name : core::ResourceName;
+	type Def : PartialEq + Eq + Hash;
+
+	// TODO(pat.m): ref counting?
+	fn get_name(&self) -> Self::Name;
+}
+
+
+#[derive(Debug)]
+struct ResourceStorage<R: Resource> {
+	handle_counter: u32,
+	resources: HashMap<R::Handle, R>,
+	def_to_handle: HashMap<R::Def, R::Handle>,
+	requests: HashMap<R::Def, R::Handle>,
+}
+
+impl<R: Resource> ResourceStorage<R> {
+	fn new() -> Self {
+		ResourceStorage {
+			handle_counter: 0,
+			resources: HashMap::new(),
+			def_to_handle: HashMap::new(),
+			requests: HashMap::new(),
+		}
+	}
+
+	fn get_handle(&self, def: &R::Def) -> Option<R::Handle> {
+		self.def_to_handle.get(def).cloned()
+	}
+
+	fn get_or_request_handle(&mut self, def: R::Def) -> R::Handle {
+		if let Some(handle) = self.get_handle(&def) {
+			return handle
+		}
+
+		*self.requests.entry(def)
+			.or_insert_with(|| {
+				let value = self.handle_counter;
+				self.handle_counter += 1;
+				R::Handle::from_raw(value)
+			})
+	}
+
+	fn process_requests<F>(&mut self, mut f: F) -> anyhow::Result<()>
+		where F: FnMut(&R::Def) -> anyhow::Result<R>
+	{
+		for (def, handle) in self.requests.drain() {
+			let resource = f(&def)?;
+			self.resources.insert(handle, resource);
+			self.def_to_handle.insert(def, handle);
+		}
+
+		Ok(())
+	}
 }

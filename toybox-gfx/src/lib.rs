@@ -51,7 +51,7 @@ impl System {
 		let clear_depth = 1.0; // 1.0 is the default clear depth for opengl
 		let clear_stencil = 0;
 
-		let backbuffer_handle = core::FboHandle::backbuffer();
+		let backbuffer_handle = core::FboName::backbuffer();
 		self.core.clear_framebuffer_color_buffer(backbuffer_handle, 0, clear_color);
 		self.core.clear_framebuffer_depth_stencil(backbuffer_handle, clear_depth, clear_stencil);
 

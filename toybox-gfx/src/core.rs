@@ -5,7 +5,7 @@ use host::prelude::*;
 
 pub mod fbo;
 
-pub use fbo::FboHandle;
+pub use fbo::FboName;
 
 
 pub struct Core {
@@ -62,23 +62,18 @@ impl Core {
 		}
 	}
 
-	pub fn set_debug_label<H>(&self, handle: H, label: &str)
-		where H: CoreHandle
+	pub fn set_debug_label<N>(&self, name: N, label: &str)
+		where N: ResourceName
 	{
 		unsafe {
-			self.gl.ObjectLabel(H::GL_IDENTIFIER, handle.as_raw(), label.len() as i32, label.as_ptr() as *const _);
+			self.gl.ObjectLabel(N::GL_IDENTIFIER, name.as_raw(), label.len() as i32, label.as_ptr() as *const _);
 		}
 	}
 }
 
 
 
-pub trait CoreHandle {
+pub trait ResourceName {
 	const GL_IDENTIFIER: u32;
 	fn as_raw(&self) -> u32;
-}
-
-impl CoreHandle for FboHandle {
-	const GL_IDENTIFIER: u32 = gl::FRAMEBUFFER;
-	fn as_raw(&self) -> u32 { self.0 }
 }
