@@ -1,4 +1,5 @@
 use toybox_host as host;
+use anyhow::Context;
 
 use host::prelude::*;
 use host::gl;
@@ -17,6 +18,7 @@ pub use frame_encoder::FrameEncoder;
 
 pub mod prelude {
 	pub use crate::host::gl;
+	pub use crate::core::ResourceName;
 }
 
 
@@ -32,6 +34,11 @@ impl System {
 		let resource_manager = resource_manager::ResourceManager::new(&mut core);
 		let frame_encoder = frame_encoder::FrameEncoder::new(&mut core);
 		
+		unsafe {
+			core.gl.Enable(gl::PROGRAM_POINT_SIZE);
+			core.gl.Enable(gl::DEPTH_TEST);
+		}
+
 		Ok(System {
 			core,
 			resource_manager,
@@ -45,7 +52,8 @@ impl System {
 
 	pub fn execute_frame(&mut self) {
 		self.resource_manager.process_requests(&mut self.core)
-			.expect("Failed to process resource requests");
+			.context("Error while processing resource requests")
+			.unwrap();
 
 		let clear_color = self.frame_encoder.backbuffer_clear_color;
 		let clear_depth = 1.0; // 1.0 is the default clear depth for opengl

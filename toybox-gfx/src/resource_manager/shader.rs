@@ -1,5 +1,10 @@
 use crate::prelude::*;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+use crate::core::{
+	self,
+	shader::{ShaderName, ShaderType},
+};
 
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -9,14 +14,6 @@ impl super::ResourceHandle for ShaderHandle {
 	fn from_raw(value: u32) -> Self { ShaderHandle(value) }
 }
 
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-#[repr(u32)]
-pub enum ShaderType {
-	Vertex = gl::VERTEX_SHADER,
-	Fragment = gl::FRAGMENT_SHADER,
-	Compute = gl::COMPUTE_SHADER,
-}
 
 #[derive(Hash, Clone, Debug, Eq, PartialEq)]
 pub struct ShaderDef {
@@ -74,15 +71,6 @@ impl ShaderDef {
 }
 
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct ShaderName(pub u32);
-
-impl crate::core::ResourceName for ShaderName {
-	const GL_IDENTIFIER: u32 = gl::PROGRAM;
-	fn as_raw(&self) -> u32 { self.0 }
-}
-
-
 #[derive(Debug)]
 pub struct ShaderResource {
 	pub name: ShaderName,
@@ -94,4 +82,28 @@ impl super::Resource for ShaderResource {
 	type Def = ShaderDef;
 
 	fn get_name(&self) -> ShaderName { self.name }
+}
+
+impl ShaderResource {
+	pub fn from_disk(core: &mut core::Core, shader_type: ShaderType, full_path: &Path) -> anyhow::Result<ShaderResource> {
+		let data = std::fs::read_to_string(full_path)?;
+		let std_output_block = match shader_type {
+			ShaderType::Vertex => "out gl_PerVertex { vec4 gl_Position; float gl_PointSize; };",
+			_ => "",
+		};
+
+		let name = core.create_shader(shader_type, &[
+			"#version 450",
+			std_output_block,
+			&data
+		])?;
+
+		let label = format!("shader:{}", full_path.display());
+		core.set_debug_label(name, &label);
+		core.debug_marker(&label);
+
+		Ok(ShaderResource {
+			name,
+		})
+	}
 }

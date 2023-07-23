@@ -4,8 +4,12 @@ use toybox_host as host;
 use host::prelude::*;
 
 pub mod fbo;
+pub mod shader;
+pub mod shader_pipeline;
 
-pub use fbo::FboName;
+pub use fbo::{FboName};
+pub use shader::{ShaderName, ShaderType};
+pub use shader_pipeline::{ShaderPipelineName};
 
 
 pub struct Core {

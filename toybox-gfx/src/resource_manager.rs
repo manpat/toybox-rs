@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use std::collections::HashMap;
+use anyhow::Context;
 
 pub mod shader;
 
@@ -18,7 +19,7 @@ pub mod shader;
 pub struct ResourceManager {
 	resource_root_path: PathBuf,
 
-	shaders: ResourceStorage<shader::ShaderResource>,
+	pub shaders: ResourceStorage<shader::ShaderResource>,
 
 	resize_request: Option<common::Vec2i>,
 }
@@ -41,6 +42,8 @@ impl ResourceManager {
 
 	/// Attempt to turn requested resources into committed GPU resources.
 	pub fn process_requests(&mut self, core: &mut core::Core) -> anyhow::Result<()> {
+		core.push_debug_group("Process Resource Requests");
+
 		if let Some(_size) = self.resize_request.take() {
 			// TODO(pat.m): Resize textures, recreate framebuffers etc
 			println!("RESIZE {_size:?}");
@@ -49,16 +52,13 @@ impl ResourceManager {
 		self.shaders.process_requests(|def| {
 			let full_path = self.resource_root_path.join(&def.path);
 
-			let mut name = unsafe {
-				core.gl.CreateShader(def.shader_type as u32)
-			};
+			shader::ShaderResource::from_disk(core, def.shader_type, &full_path)
+				.with_context(|| format!("Compiling shader '{}'", full_path.display()))
+		})?;
 
-			println!("Loading shader ({name}) {}", full_path.display());
-
-			Ok(shader::ShaderResource {
-				name: shader::ShaderName(name),
-			})
-		});
+		// TODO(pat.m): this will never be reached if the above fails, but if the above fails
+		// the whole engine is probably coming down anyway
+		core.pop_debug_group();
 
 		Ok(())
 	}
@@ -89,7 +89,7 @@ pub trait Resource : Debug {
 
 
 #[derive(Debug)]
-struct ResourceStorage<R: Resource> {
+pub struct ResourceStorage<R: Resource> {
 	handle_counter: u32,
 	resources: HashMap<R::Handle, R>,
 	def_to_handle: HashMap<R::Def, R::Handle>,
@@ -106,11 +106,16 @@ impl<R: Resource> ResourceStorage<R> {
 		}
 	}
 
-	fn get_handle(&self, def: &R::Def) -> Option<R::Handle> {
+	pub fn get_handle(&self, def: &R::Def) -> Option<R::Handle> {
 		self.def_to_handle.get(def).cloned()
 	}
 
-	fn get_or_request_handle(&mut self, def: R::Def) -> R::Handle {
+	pub fn get_name(&self, handle: R::Handle) -> Option<R::Name> {
+		self.resources.get(&handle)
+			.map(R::get_name)
+	}
+
+	pub fn get_or_request_handle(&mut self, def: R::Def) -> R::Handle {
 		if let Some(handle) = self.get_handle(&def) {
 			return handle
 		}

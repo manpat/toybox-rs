@@ -8,6 +8,12 @@ impl FboName {
 }
 
 
+impl super::ResourceName for FboName {
+	const GL_IDENTIFIER: u32 = gl::FRAMEBUFFER;
+	fn as_raw(&self) -> u32 { self.0 }
+}
+
+
 /// Fbo
 impl super::Core {
 	pub fn clear_framebuffer_color_buffer(&self, fbo: FboName, draw_buffer: i32, color: impl Into<common::Color>) {
@@ -20,10 +26,4 @@ impl super::Core {
 			self.gl.ClearNamedFramebufferfi(fbo.0, gl::DEPTH_STENCIL, 0, depth, stencil as i32);
 		}
 	}
-}
-
-
-impl super::ResourceName for FboName {
-	const GL_IDENTIFIER: u32 = gl::FRAMEBUFFER;
-	fn as_raw(&self) -> u32 { self.0 }
 }
