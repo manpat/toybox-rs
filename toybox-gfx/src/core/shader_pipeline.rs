@@ -29,6 +29,12 @@ impl super::Core {
 		}
 	}
 
+	pub fn clear_shader_pipeline(&self, name: ShaderPipelineName) {
+		unsafe {
+			self.gl.UseProgramStages(name.as_raw(), gl::ALL_SHADER_BITS, 0);
+		}
+	}
+
 	pub fn attach_shader_to_pipeline(&self, pipeline: ShaderPipelineName, shader: super::ShaderName) {
 		let stage_bit = match shader.shader_type {
 			ShaderType::Vertex => gl::VERTEX_SHADER_BIT,
@@ -38,6 +44,13 @@ impl super::Core {
 
 		unsafe {
 			self.gl.UseProgramStages(pipeline.as_raw(), stage_bit, shader.as_raw());
+		}
+	}
+
+	pub fn bind_shader_pipeline(&self, pipeline: ShaderPipelineName) {
+		unsafe {
+			// TODO(pat.m): state tracking
+			self.gl.BindProgramPipeline(pipeline.as_raw());
 		}
 	}
 }

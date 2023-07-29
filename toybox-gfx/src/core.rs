@@ -4,10 +4,12 @@ use toybox_host as host;
 use host::prelude::*;
 
 pub mod fbo;
+pub mod vao;
 pub mod shader;
 pub mod shader_pipeline;
 
 pub use fbo::{FboName};
+pub use vao::{VaoName};
 pub use shader::{ShaderName, ShaderType};
 pub use shader_pipeline::{ShaderPipelineName};
 

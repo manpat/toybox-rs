@@ -21,16 +21,22 @@ pub struct ResourceManager {
 
 	pub shaders: ResourceStorage<shader::ShaderResource>,
 
+	global_pipeline: crate::core::ShaderPipelineName,
+	pub global_vao: crate::core::VaoName,
+
 	resize_request: Option<common::Vec2i>,
 }
 
 impl ResourceManager {
-	pub fn new(_: &mut core::Core) -> ResourceManager {
+	pub fn new(core: &mut core::Core) -> ResourceManager {
 		let resource_root_path = PathBuf::from("resource");
 
 		ResourceManager {
 			resource_root_path,
 			shaders: ResourceStorage::new(),
+
+			global_pipeline: core.create_shader_pipeline(),
+			global_vao: core.create_vao(),
 
 			resize_request: None,
 		}
@@ -61,6 +67,26 @@ impl ResourceManager {
 		core.pop_debug_group();
 
 		Ok(())
+	}
+}
+
+/// Execution api
+impl ResourceManager {
+	pub fn resolve_draw_pipeline(&mut self, core: &mut core::Core,
+		vertex_shader: shader::ShaderHandle, fragment_shader: impl Into<Option<shader::ShaderHandle>>)
+		-> crate::core::ShaderPipelineName
+	{
+		core.clear_shader_pipeline(self.global_pipeline);
+
+		let vertex_shader_name = self.shaders.get_name(vertex_shader).unwrap();
+		core.attach_shader_to_pipeline(self.global_pipeline, vertex_shader_name);
+
+		if let Some(fragment_shader) = fragment_shader.into() {
+			let fragment_shader_name = self.shaders.get_name(fragment_shader).unwrap();
+			core.attach_shader_to_pipeline(self.global_pipeline, fragment_shader_name);
+		}
+
+		self.global_pipeline
 	}
 }
 

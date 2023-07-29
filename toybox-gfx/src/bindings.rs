@@ -2,6 +2,7 @@
 
 
 
+#[derive(Debug, Default)]
 pub struct BindingDescription {}
 
 

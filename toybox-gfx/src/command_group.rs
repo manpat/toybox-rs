@@ -1,5 +1,6 @@
 use crate::bindings::BindingDescription;
-use crate::command::Command;
+use crate::command::{Command, draw, dispatch};
+use crate::resource_manager::shader::ShaderHandle;
 
 
 // 
@@ -44,8 +45,9 @@ impl<'g> CommandGroupEncoder<'g> {
 		CommandGroupEncoder { group }
 	}
 
-	pub fn add(&mut self, command: Command) {
-		self.group.commands.push(command);
+	pub fn add(&mut self, command: impl Into<Command>) -> &mut Command {
+		self.group.commands.push(command.into());
+		self.group.commands.last_mut().unwrap()
 	}
 }
 
@@ -59,5 +61,10 @@ impl<'g> CommandGroupEncoder<'g> {
 
 	pub fn execute(&mut self, cb: impl FnOnce(&mut crate::Core, &mut crate::ResourceManager) + 'static) {
 		self.add(Command::Callback(Box::new(cb)));
+	}
+
+	pub fn draw(&mut self, vertex_shader: ShaderHandle, fragment_shader: ShaderHandle) -> draw::DrawCmdBuilder<'_> {
+		let Command::Draw(cmd) = self.add(draw::DrawCmd::from_shaders(vertex_shader, fragment_shader)) else { unreachable!() };
+		draw::DrawCmdBuilder {cmd}
 	}
 }

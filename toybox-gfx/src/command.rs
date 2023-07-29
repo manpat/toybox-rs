@@ -1,11 +1,14 @@
 use crate::bindings::BindingDescription;
 
+pub mod draw;
+pub mod dispatch;
+
+pub use draw::{DrawArgs, DrawCmd, PrimitiveType};
+pub use dispatch::DispatchArgs;
+
 
 pub enum Command {
-	Draw {
-		args: DrawArgs,
-		bindings: BindingDescription,
-	},
+	Draw(DrawCmd),
 
 	Compute {
 		args: DispatchArgs,
@@ -24,6 +27,3 @@ pub enum Command {
 }
 
 
-
-pub struct DrawArgs {}
-pub struct DispatchArgs {}

@@ -85,7 +85,7 @@ impl System {
 
 
 fn execute_command(command: command::Command, core: &mut Core, resource_manager: &mut ResourceManager) {
-	use command::{Command::*};
+	use command::{Command::*, draw};
 
 	match command {
 		DebugMessage { label } => {
@@ -95,6 +95,8 @@ fn execute_command(command: command::Command, core: &mut Core, resource_manager:
 		Callback(callback) => {
 			callback(core, resource_manager);
 		}
+
+		Draw(cmd) => cmd.execute(core, resource_manager),
 
 		_ => unimplemented!(),
 	}
