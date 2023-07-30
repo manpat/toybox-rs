@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use crate::bindings::BindingDescription;
 use crate::resource_manager::shader::ShaderHandle;
+use crate::upload_heap::UploadHeap;
 
 
 #[derive(Debug, Copy, Clone)]
@@ -73,6 +74,7 @@ impl DrawCmd {
 
 pub struct DrawCmdBuilder<'cg> {
 	pub(crate) cmd: &'cg mut DrawCmd,
+	pub(crate) upload_heap: &'cg mut UploadHeap,
 }
 
 impl<'cg> DrawCmdBuilder<'cg> {

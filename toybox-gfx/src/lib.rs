@@ -1,3 +1,5 @@
+#![feature(let_chains)]
+
 use toybox_host as host;
 use anyhow::Context;
 
@@ -63,6 +65,10 @@ impl System {
 		self.core.clear_framebuffer_color_buffer(backbuffer_handle, 0, clear_color);
 		self.core.clear_framebuffer_depth_stencil(backbuffer_handle, clear_depth, clear_stencil);
 
+		// TODO(pat.m): upload_heap alignment
+
+		self.frame_encoder.upload_heap.push_to_device(&mut self.core);
+
 		for command_group in self.frame_encoder.command_groups.iter_mut() {
 			if command_group.commands.is_empty() {
 				continue
@@ -78,7 +84,7 @@ impl System {
 		}
 
 		self.core.swap();
-		self.frame_encoder.reset();
+		self.frame_encoder.end_frame(&mut self.core);
 	}
 }
 

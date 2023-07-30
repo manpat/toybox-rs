@@ -1,6 +1,7 @@
 use crate::bindings::BindingDescription;
 use crate::command::{Command, draw, dispatch};
 use crate::resource_manager::shader::ShaderHandle;
+use crate::upload_heap::UploadHeap;
 
 
 // 
@@ -38,16 +39,16 @@ impl CommandGroup {
 
 pub struct CommandGroupEncoder<'g> {
 	group: &'g mut CommandGroup,
+	pub upload_heap: &'g mut UploadHeap,
 }
 
 impl<'g> CommandGroupEncoder<'g> {
-	pub fn new(group: &'g mut CommandGroup) -> Self {
-		CommandGroupEncoder { group }
+	pub fn new(group: &'g mut CommandGroup, upload_heap: &'g mut UploadHeap) -> Self {
+		CommandGroupEncoder { group, upload_heap }
 	}
 
-	pub fn add(&mut self, command: impl Into<Command>) -> &mut Command {
+	pub fn add(&mut self, command: impl Into<Command>) {
 		self.group.commands.push(command.into());
-		self.group.commands.last_mut().unwrap()
 	}
 }
 
@@ -64,7 +65,8 @@ impl<'g> CommandGroupEncoder<'g> {
 	}
 
 	pub fn draw(&mut self, vertex_shader: ShaderHandle, fragment_shader: ShaderHandle) -> draw::DrawCmdBuilder<'_> {
-		let Command::Draw(cmd) = self.add(draw::DrawCmd::from_shaders(vertex_shader, fragment_shader)) else { unreachable!() };
-		draw::DrawCmdBuilder {cmd}
+		self.add(draw::DrawCmd::from_shaders(vertex_shader, fragment_shader));
+		let Some(Command::Draw(cmd)) = self.group.commands.last_mut() else { unreachable!() };
+		draw::DrawCmdBuilder {cmd, upload_heap: self.upload_heap}
 	}
 }

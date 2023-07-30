@@ -92,8 +92,13 @@ impl ShaderResource {
 			_ => "",
 		};
 
+		let ubo_options = "layout(row_major, std140) uniform;";
+		let ssbo_options = "layout(row_major, std430) buffer;";
+
 		let name = core.create_shader(shader_type, &[
 			"#version 450",
+			ubo_options,
+			ssbo_options,
 			std_output_block,
 			&data
 		])?;
