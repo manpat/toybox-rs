@@ -6,6 +6,8 @@ use std::hash::Hash;
 use std::collections::HashMap;
 use anyhow::Context;
 
+use crate::upload_heap::UploadHeap;
+
 pub mod shader;
 
 
@@ -24,12 +26,17 @@ pub struct ResourceManager {
 	global_pipeline: crate::core::ShaderPipelineName,
 	pub global_vao: crate::core::VaoName,
 
+	pub upload_heap: UploadHeap,
+
 	resize_request: Option<common::Vec2i>,
 }
 
 impl ResourceManager {
 	pub fn new(core: &mut core::Core) -> ResourceManager {
 		let resource_root_path = PathBuf::from("resource");
+		if !resource_root_path.exists() {
+			panic!("Can't find resource directory - make sure to run from correct working directory!");
+		}
 
 		ResourceManager {
 			resource_root_path,
@@ -37,6 +44,8 @@ impl ResourceManager {
 
 			global_pipeline: core.create_shader_pipeline(),
 			global_vao: core.create_vao(),
+
+			upload_heap: UploadHeap::new(core),
 
 			resize_request: None,
 		}

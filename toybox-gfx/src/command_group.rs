@@ -1,7 +1,7 @@
 use crate::bindings::BindingDescription;
 use crate::command::{Command, draw, dispatch};
 use crate::resource_manager::shader::ShaderHandle;
-use crate::upload_heap::UploadHeap;
+use crate::upload_heap::UploadStage;
 
 
 // 
@@ -39,12 +39,12 @@ impl CommandGroup {
 
 pub struct CommandGroupEncoder<'g> {
 	group: &'g mut CommandGroup,
-	pub upload_heap: &'g mut UploadHeap,
+	pub upload_stage: &'g mut UploadStage,
 }
 
 impl<'g> CommandGroupEncoder<'g> {
-	pub fn new(group: &'g mut CommandGroup, upload_heap: &'g mut UploadHeap) -> Self {
-		CommandGroupEncoder { group, upload_heap }
+	pub fn new(group: &'g mut CommandGroup, upload_stage: &'g mut UploadStage) -> Self {
+		CommandGroupEncoder { group, upload_stage }
 	}
 
 	pub fn add(&mut self, command: impl Into<Command>) {
@@ -67,6 +67,6 @@ impl<'g> CommandGroupEncoder<'g> {
 	pub fn draw(&mut self, vertex_shader: ShaderHandle, fragment_shader: ShaderHandle) -> draw::DrawCmdBuilder<'_> {
 		self.add(draw::DrawCmd::from_shaders(vertex_shader, fragment_shader));
 		let Some(Command::Draw(cmd)) = self.group.commands.last_mut() else { unreachable!() };
-		draw::DrawCmdBuilder {cmd, upload_heap: self.upload_heap}
+		draw::DrawCmdBuilder {cmd, upload_stage: self.upload_stage}
 	}
 }

@@ -1,7 +1,7 @@
 use crate::command_group::{CommandGroup, CommandGroupEncoder};
 use crate::command::Command;
 use crate::core;
-use crate::upload_heap::UploadHeap;
+use crate::upload_heap::UploadStage;
 
 
 // Encodes per-frame commands, organised into passes/command groups
@@ -10,7 +10,7 @@ pub struct FrameEncoder {
 	pub(crate) backbuffer_clear_color: common::Color,
 
 	// TODO(pat.m): maybe this could be moved to resource manager
-	pub upload_heap: UploadHeap,
+	pub upload_stage: UploadStage,
 }
 
 impl FrameEncoder {
@@ -19,18 +19,16 @@ impl FrameEncoder {
 			command_groups: Vec::new(),
 			backbuffer_clear_color: [1.0, 0.5, 1.0].into(),
 
-			upload_heap: UploadHeap::new(core),
+			upload_stage: UploadStage::new(),
 		}
 	}
 
-	pub fn end_frame(&mut self, core: &mut core::Core) {
-		self.upload_heap.create_end_frame_fence(core);
-		
+	pub fn end_frame(&mut self, core: &mut core::Core) {		
 		for group in self.command_groups.iter_mut() {
 			group.reset();
 		}
 
-		self.upload_heap.reset();
+		self.upload_stage.reset();
 	}
 }
 
@@ -51,6 +49,6 @@ impl FrameEncoder {
 			}
 		};
 
-		CommandGroupEncoder::new(&mut self.command_groups[group_index], &mut self.upload_heap)
+		CommandGroupEncoder::new(&mut self.command_groups[group_index], &mut self.upload_stage)
 	}
 }

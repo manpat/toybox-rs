@@ -14,10 +14,6 @@ pub struct UploadHeap {
 	frame_start_cursor: usize,
 	locked_ranges: Vec<LockedRange>,
 
-	// TODO(pat.m): separate staging from buffer management
-	// staging should live in frame encoder, buffer management in resource manager
-	staging_allocator: bumpalo::Bump,
-	staged_uploads: Vec<StagedUpload>,
 	resolved_uploads: Vec<BufferAllocation>,
 }
 
@@ -46,8 +42,6 @@ impl UploadHeap {
 			frame_start_cursor: 0,
 			locked_ranges: Vec::new(),
 
-			staging_allocator: bumpalo::Bump::with_capacity(UPLOAD_BUFFER_SIZE),
-			staged_uploads: Vec::new(),
 			resolved_uploads: Vec::new(),
 		}
 	}
@@ -61,9 +55,6 @@ impl UploadHeap {
 
 		self.data_pushed_counter = 0;
 		self.buffer_usage_counter = 0;
-
-		self.staging_allocator.reset();
-		self.staged_uploads.clear();
 		self.resolved_uploads.clear();
 	}
 
@@ -140,58 +131,9 @@ impl UploadHeap {
 		allocation
 	}
 
-	pub fn stage_data<T>(&mut self, data: &[T]) -> StagedUploadId
-		where T: Copy + 'static
-	{
-		let index = self.staged_uploads.len();
-
-		let data_copied = self.staging_allocator.alloc_slice_copy(data);
-
-		// SAFETY: We are making a non-'static allocation 'static here.
-		// This is technically a no-no, but is safe so long as references into staging_allocator
-		// are banished before it is reset or dropped, and we don't call anything on staging_allocator 
-		// that can view these allocations
-		let bytes_static: &'static [u8] = unsafe {
-			let ptr = data_copied.as_ptr();
-			let byte_size = data_copied.len() * std::mem::size_of::<T>();
-
-			std::slice::from_raw_parts(ptr.cast(), byte_size)
-		};
-
-		self.staged_uploads.push(StagedUpload {
-			data: bytes_static,
-			alignment: 1,
-			index,
-		});
-
-		StagedUploadId(index)
-	}
-
-	pub fn update_staged_upload_alignment(&mut self, upload_id: StagedUploadId, new_aligment: usize) {
-		let Some(upload) = self.staged_uploads.get_mut(upload_id.0) else {
-			panic!("Trying to update alignment with invalid staged upload id");
-		};
-
-		upload.alignment = upload.alignment.max(new_aligment);
-	}
-
-	pub fn push_to_device(&mut self, core: &mut Core) {
-		core.push_debug_group("Push Upload Heap");
-
-		// Sort descending by alignment for better packing
-		let mut staged_uploads = std::mem::replace(&mut self.staged_uploads, Vec::new());
-		staged_uploads.sort_by_key(|upload| !upload.alignment);
-
-		self.resolved_uploads.resize(staged_uploads.len(), Default::default());
-
-		for upload in staged_uploads.drain(..) {
-			let allocation = self.write_to_device(core, upload.data, upload.alignment);
-			self.resolved_uploads[upload.index] = allocation;
-		}
-
-		self.staged_uploads = staged_uploads;
-
-		core.pop_debug_group();
+	pub fn resolve_allocation(&self, staged_upload: StagedUploadId) -> BufferAllocation {
+		self.resolved_uploads.get(staged_upload.0).cloned()
+			.expect("Invalid staged upload id")
 	}
 
 	pub fn create_end_frame_fence(&mut self, core: &mut Core) {
@@ -255,4 +197,75 @@ pub struct StagedUploadId(usize);
 pub struct BufferAllocation {
 	pub offset: usize,
 	pub size: usize,
+}
+
+
+pub struct UploadStage {
+	staging_allocator: bumpalo::Bump,
+	staged_uploads: Vec<StagedUpload>,
+}
+
+impl UploadStage {
+	pub fn new() -> Self {
+		UploadStage {
+			staging_allocator: bumpalo::Bump::with_capacity(UPLOAD_BUFFER_SIZE),
+			staged_uploads: Vec::new(),
+		}
+	}
+
+	pub fn reset(&mut self) {
+		self.staging_allocator.reset();
+		self.staged_uploads.clear();
+	}
+
+	pub fn stage_data<T>(&mut self, data: &[T]) -> StagedUploadId
+		where T: Copy + 'static
+	{
+		let index = self.staged_uploads.len();
+
+		let data_copied = self.staging_allocator.alloc_slice_copy(data);
+
+		// SAFETY: We are making a non-'static allocation 'static here.
+		// This is technically a no-no, but is safe so long as references into staging_allocator
+		// are banished before it is reset or dropped, and we don't call anything on staging_allocator 
+		// that can view these allocations
+		let bytes_static: &'static [u8] = unsafe {
+			let ptr = data_copied.as_ptr();
+			let byte_size = data_copied.len() * std::mem::size_of::<T>();
+
+			std::slice::from_raw_parts(ptr.cast(), byte_size)
+		};
+
+		self.staged_uploads.push(StagedUpload {
+			data: bytes_static,
+			alignment: 1,
+			index,
+		});
+
+		StagedUploadId(index)
+	}
+
+	pub fn update_staged_upload_alignment(&mut self, upload_id: StagedUploadId, new_aligment: usize) {
+		let Some(upload) = self.staged_uploads.get_mut(upload_id.0) else {
+			panic!("Trying to update alignment with invalid staged upload id");
+		};
+
+		upload.alignment = upload.alignment.max(new_aligment);
+	}
+
+	pub fn push_to_heap(&mut self, core: &mut Core, upload_heap: &mut UploadHeap) {
+		core.push_debug_group("Push Upload Heap");
+
+		// Sort descending by alignment for better packing
+		self.staged_uploads.sort_by_key(|upload| !upload.alignment);
+
+		upload_heap.resolved_uploads.resize(self.staged_uploads.len(), Default::default());
+
+		for upload in self.staged_uploads.drain(..) {
+			let allocation = upload_heap.write_to_device(core, upload.data, upload.alignment);
+			upload_heap.resolved_uploads[upload.index] = allocation;
+		}
+
+		core.pop_debug_group();
+	}
 }

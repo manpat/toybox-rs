@@ -67,7 +67,7 @@ impl System {
 
 		// TODO(pat.m): upload_heap alignment
 
-		self.frame_encoder.upload_heap.push_to_device(&mut self.core);
+		self.frame_encoder.upload_stage.push_to_heap(&mut self.core, &mut self.resource_manager.upload_heap);
 
 		for command_group in self.frame_encoder.command_groups.iter_mut() {
 			if command_group.commands.is_empty() {
@@ -83,8 +83,12 @@ impl System {
 			self.core.pop_debug_group();
 		}
 
+        self.resource_manager.upload_heap.create_end_frame_fence(&mut self.core);
+
 		self.core.swap();
 		self.frame_encoder.end_frame(&mut self.core);
+
+        self.resource_manager.upload_heap.reset();
 	}
 }
 
