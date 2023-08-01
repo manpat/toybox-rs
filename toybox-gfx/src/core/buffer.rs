@@ -11,9 +11,24 @@ impl super::ResourceName for BufferName {
 	fn as_raw(&self) -> u32 { self.0 }
 }
 
+#[derive(Copy, Clone, Debug)]
+#[repr(u32)]
+pub enum IndexedBufferTarget {
+	ShaderStorage = gl::SHADER_STORAGE_BUFFER,
+	Uniform = gl::UNIFORM_BUFFER,
+}
 
 
-/// Shader Pipelines
+#[derive(Copy, Clone, Debug)]
+#[repr(u32)]
+pub enum BufferTarget {
+	DispatchIndirect = gl::DISPATCH_INDIRECT_BUFFER,
+	DrawIndirect = gl::DRAW_INDIRECT_BUFFER,
+}
+
+
+
+/// Buffers
 impl super::Core {
 	pub fn create_buffer(&self) -> BufferName {
 		unsafe {
@@ -27,5 +42,50 @@ impl super::Core {
 		unsafe {
 			self.gl.DeleteBuffers(1, &name.as_raw());
 		}
+	}
+
+	// TODO(pat.m): impl Into<BufferRange> or smth
+	pub fn bind_indexed_buffer(&self, target: IndexedBufferTarget, index: u32,
+		name: impl Into<Option<BufferName>>, offset_size: impl Into<Option<(usize, usize)>>)
+	{
+		if let Some((offset, size)) = offset_size.into() {
+			unsafe {
+				self.gl.BindBufferRange(target as u32, index, name.into().as_raw(),
+					offset as isize, size as isize);
+			}
+		} else {
+			unsafe {
+				self.gl.BindBufferBase(target as u32, index, name.into().as_raw());
+			}
+		}
+	}
+
+	pub fn bind_buffer(&self, target: BufferTarget, name: impl Into<Option<BufferName>>) {
+		unsafe {
+			self.gl.BindBuffer(target as u32, name.into().as_raw());
+		}
+	}
+}
+
+/// Buffer Shorthands
+impl super::Core {
+	pub fn bind_ubo(&self, index: u32, name: impl Into<Option<BufferName>>,
+		offset_size: impl Into<Option<(usize, usize)>>)
+	{
+		self.bind_indexed_buffer(IndexedBufferTarget::Uniform, index, name, offset_size);
+	}
+
+	pub fn bind_ssbo(&self, index: u32, name: impl Into<Option<BufferName>>,
+		offset_size: impl Into<Option<(usize, usize)>>)
+	{
+		self.bind_indexed_buffer(IndexedBufferTarget::ShaderStorage, index, name, offset_size);
+	}
+
+	pub fn bind_draw_indirect_buffer(&self, name: impl Into<Option<BufferName>>) {
+		self.bind_buffer(BufferTarget::DrawIndirect, name);
+	}
+
+	pub fn bind_disptach_indirect_buffer(&self, name: impl Into<Option<BufferName>>) {
+		self.bind_buffer(BufferTarget::DispatchIndirect, name);
 	}
 }

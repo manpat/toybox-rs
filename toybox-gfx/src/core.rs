@@ -85,3 +85,16 @@ pub trait ResourceName {
 	const GL_IDENTIFIER: u32;
 	fn as_raw(&self) -> u32;
 }
+
+impl<T> ResourceName for Option<T>
+	where T: ResourceName
+{
+	const GL_IDENTIFIER: u32 = T::GL_IDENTIFIER;
+	fn as_raw(&self) -> u32 {
+		if let Some(inner) = self {
+			inner.as_raw()
+		} else {
+			0
+		}
+	}
+}
