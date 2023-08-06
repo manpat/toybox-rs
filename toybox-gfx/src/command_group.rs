@@ -1,7 +1,7 @@
 use crate::bindings::BindingDescription;
 use crate::command::{Command, draw, dispatch};
 use crate::resource_manager::shader::ShaderHandle;
-use crate::upload_heap::UploadStage;
+use crate::upload_heap::{UploadStage, StagedUploadId};
 
 
 // 
@@ -49,6 +49,12 @@ impl<'g> CommandGroupEncoder<'g> {
 
 	pub fn add(&mut self, command: impl Into<Command>) {
 		self.group.commands.push(command.into());
+	}
+
+	pub fn upload<T>(&mut self, data: &impl crate::AsSlice<Target=T>) -> StagedUploadId
+		where T: Copy + 'static
+	{
+		self.upload_stage.stage_data(data.as_slice())
 	}
 }
 

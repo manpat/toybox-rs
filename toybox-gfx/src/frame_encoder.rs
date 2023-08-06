@@ -1,7 +1,7 @@
 use crate::command_group::{CommandGroup, CommandGroupEncoder};
 use crate::command::Command;
 use crate::core;
-use crate::upload_heap::UploadStage;
+use crate::upload_heap::{UploadStage, StagedUploadId};
 
 
 // Encodes per-frame commands, organised into passes/command groups
@@ -36,6 +36,12 @@ impl FrameEncoder {
 impl FrameEncoder {
 	pub fn backbuffer_color(&mut self, color: impl Into<common::Color>) {
 		self.backbuffer_clear_color = color.into();
+	}
+
+	pub fn upload<T>(&mut self, data: &impl crate::AsSlice<Target=T>) -> StagedUploadId
+		where T: Copy + 'static
+	{
+		self.upload_stage.stage_data(data.as_slice())
 	}
 
 	pub fn command_group<'g>(&'g mut self, id: &str) -> CommandGroupEncoder<'g> {

@@ -134,14 +134,29 @@ impl<'cg> DrawCmdBuilder<'cg> {
 
 
 
+// TODO(pat.m):  move this somewhere else
 pub trait IntoBufferBindSourceOrData {
 	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSourceDesc;
 }
 
-impl<T> IntoBufferBindSourceOrData for T
-	where T: Into<BufferBindSourceDesc>
-{
+impl IntoBufferBindSourceOrData for crate::upload_heap::StagedUploadId {
 	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSourceDesc {
 		self.into()
+	}
+}
+
+impl IntoBufferBindSourceOrData for crate::core::BufferName {
+	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSourceDesc {
+		self.into()
+	}
+}
+
+// Accept anything that can be turned into a slice of sized, copyable items - including regular references
+impl<'t, T, U> IntoBufferBindSourceOrData for &'t T
+	where T: crate::AsSlice<Target=U>
+		, U: Copy + Sized + 'static
+{
+	fn into_bind_source(self, stage: &mut UploadStage) -> BufferBindSourceDesc {
+		stage.stage_data(self.as_slice()).into()
 	}
 }

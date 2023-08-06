@@ -211,12 +211,13 @@ impl UploadStage {
 		self.staged_uploads.clear();
 	}
 
-	pub fn stage_data<T>(&mut self, data: &[T]) -> StagedUploadId
-		where T: Copy + 'static
+	pub fn stage_data<T, U>(&mut self, data: &U) -> StagedUploadId
+		where T: Copy + Sized + 'static
+			, U: crate::AsSlice<Target=T> + ?Sized
 	{
 		let index = self.staged_uploads.len();
 
-		let data_copied = self.staging_allocator.alloc_slice_copy(data);
+		let data_copied = self.staging_allocator.alloc_slice_copy(data.as_slice());
 
 		// SAFETY: We are making a non-'static allocation 'static here.
 		// This is technically a no-no, but is safe so long as references into staging_allocator

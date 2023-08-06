@@ -129,3 +129,25 @@ fn execute_command(command: command::Command, core: &mut Core, resource_manager:
 		_ => unimplemented!(),
 	}
 }
+
+
+
+// TODO(pat.m): move to common
+pub trait AsSlice {
+	type Target;
+	fn as_slice(&self) -> &[Self::Target];
+}
+
+impl<T> AsSlice for [T] {
+	type Target = T;
+	fn as_slice(&self) -> &[T] {
+		self
+	}
+}
+
+impl<T> AsSlice for T {
+	type Target = T;
+	fn as_slice(&self) -> &[T] {
+		std::slice::from_ref(self)
+	}
+}
