@@ -37,6 +37,8 @@ impl Engine {
 			gfx::System::new(core)?
 		};
 
+		let _audio = audio::init()?;
+
 		let mut context = Context {
 			gfx,
 		};

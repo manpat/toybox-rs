@@ -49,7 +49,6 @@ impl super::Core {
 		}
 	}
 
-	// TODO(pat.m): impl Into<BufferRange> or smth
 	pub fn bind_indexed_buffer(&self, target: IndexedBufferTarget, index: u32,
 		name: impl Into<Option<BufferName>>, range: impl Into<Option<BufferRange>>)
 	{

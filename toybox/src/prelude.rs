@@ -3,9 +3,11 @@ pub use rand::prelude::*;
 
 pub use toybox_host as host;
 pub use toybox_gfx as gfx;
+pub use toybox_audio as audio;
 
 pub use host::prelude::*;
 pub use gfx::prelude::*;
+pub use audio::prelude::*;
 
 
 pub use anyhow;
