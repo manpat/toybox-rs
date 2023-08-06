@@ -26,6 +26,11 @@ pub enum BufferTarget {
 	DrawIndirect = gl::DRAW_INDIRECT_BUFFER,
 }
 
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
+pub struct BufferRange {
+	pub offset: usize,
+	pub size: usize,
+}
 
 
 /// Buffers
@@ -46,9 +51,9 @@ impl super::Core {
 
 	// TODO(pat.m): impl Into<BufferRange> or smth
 	pub fn bind_indexed_buffer(&self, target: IndexedBufferTarget, index: u32,
-		name: impl Into<Option<BufferName>>, offset_size: impl Into<Option<(usize, usize)>>)
+		name: impl Into<Option<BufferName>>, range: impl Into<Option<BufferRange>>)
 	{
-		if let Some((offset, size)) = offset_size.into() {
+		if let Some(BufferRange{offset, size}) = range.into() {
 			unsafe {
 				self.gl.BindBufferRange(target as u32, index, name.into().as_raw(),
 					offset as isize, size as isize);
@@ -70,15 +75,15 @@ impl super::Core {
 /// Buffer Shorthands
 impl super::Core {
 	pub fn bind_ubo(&self, index: u32, name: impl Into<Option<BufferName>>,
-		offset_size: impl Into<Option<(usize, usize)>>)
+		range: impl Into<Option<BufferRange>>)
 	{
-		self.bind_indexed_buffer(IndexedBufferTarget::Uniform, index, name, offset_size);
+		self.bind_indexed_buffer(IndexedBufferTarget::Uniform, index, name, range);
 	}
 
 	pub fn bind_ssbo(&self, index: u32, name: impl Into<Option<BufferName>>,
-		offset_size: impl Into<Option<(usize, usize)>>)
+		range: impl Into<Option<BufferRange>>)
 	{
-		self.bind_indexed_buffer(IndexedBufferTarget::ShaderStorage, index, name, offset_size);
+		self.bind_indexed_buffer(IndexedBufferTarget::ShaderStorage, index, name, range);
 	}
 
 	pub fn bind_draw_indirect_buffer(&self, name: impl Into<Option<BufferName>>) {

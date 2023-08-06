@@ -27,3 +27,24 @@ pub enum Command {
 }
 
 
+impl Command {
+	pub fn bindings_mut(&mut self) -> Option<&mut BindingDescription> {
+		use Command::*;
+
+		match self {
+			Draw(DrawCmd { bindings, .. }) => Some(bindings),
+			Compute{bindings, ..} => Some(bindings),
+			_ => None
+		}
+	}
+	
+	pub fn bindings(&self) -> Option<&BindingDescription> {
+		use Command::*;
+
+		match self {
+			Draw(DrawCmd { bindings, .. }) => Some(bindings),
+			Compute{bindings, ..} => Some(bindings),
+			_ => None
+		}
+	}
+}

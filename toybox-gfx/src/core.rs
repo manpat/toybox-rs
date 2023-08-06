@@ -3,12 +3,14 @@ use crate::prelude::*;
 use toybox_host as host;
 use host::prelude::*;
 
+pub mod capabilities;
 pub mod fbo;
 pub mod vao;
 pub mod buffer;
 pub mod shader;
 pub mod shader_pipeline;
 
+pub use capabilities::Capabilities;
 pub use fbo::{FboName};
 pub use vao::{VaoName};
 pub use buffer::{BufferName};
@@ -20,20 +22,28 @@ pub struct Core {
 	surface: host::Surface,
 	gl_context: host::GlContext,
 	pub gl: gl::Gl,
+	capabilities: Capabilities,
 }
 
 impl Core {
 	pub fn new(surface: host::Surface, gl_context: host::GlContext, gl: gl::Gl)
 		-> Core
 	{
+		let capabilities = Capabilities::from(&gl);
+
 		Core {
 			surface,
 			gl_context,
 			gl,
+			capabilities,
 		}
 	}
 
-	pub fn swap(&self) {
+	pub fn capabilities(&self) -> &Capabilities {
+		&self.capabilities
+	}
+
+	pub fn swap(&mut self) {
 		self.surface.swap_buffers(&self.gl_context).unwrap();
 	}
 }

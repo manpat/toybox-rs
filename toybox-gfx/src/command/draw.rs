@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::bindings::BindingDescription;
+use crate::bindings::{BindingDescription, BufferBindTargetDesc, BufferBindSourceDesc};
 use crate::resource_manager::shader::ShaderHandle;
 use crate::upload_heap::UploadStage;
 
@@ -63,6 +63,8 @@ impl DrawCmd {
 		core.bind_shader_pipeline(pipeline);
 		core.bind_vao(rm.global_vao);
 
+		self.bindings.bind(core);
+
 		let primitive_type = self.args.primitive_type as u32;
 
 		unsafe {
@@ -99,20 +101,20 @@ impl<'cg> DrawCmdBuilder<'cg> {
 	// 	self
 	// }
 
-	// pub fn buffer(&mut self, binding: impl Into<BlockBinding>, buffer: impl IntoBufferHandle) -> &mut Self {
-	// 	let buffer_handle = buffer.into_buffer_handle(self.frame_state);
-	// 	let binding = binding.into();
-	// 	self.cmd.block_bindings.push((binding, buffer_handle));
-	// 	self
-	// }
+	pub fn buffer(&mut self, target: impl Into<BufferBindTargetDesc>, buffer: impl IntoBufferBindSourceOrData) -> &mut Self {
+		self.cmd.bindings.bind_buffer(target, buffer.into_bind_source(self.upload_stage));
+		self
+	}
 
-	// pub fn ubo(&mut self, index: u32, buffer: impl IntoBufferHandle) -> &mut Self {
-	// 	self.buffer(BlockBindingLocation::Ubo(index), buffer)
-	// }
+	pub fn ubo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrData) -> &mut Self {
+		self.cmd.bindings.bind_buffer(BufferBindTargetDesc::UboIndex(index), buffer.into_bind_source(self.upload_stage));
+		self
+	}
 
-	// pub fn ssbo(&mut self, index: u32, buffer: impl IntoBufferHandle) -> &mut Self {
-	// 	self.buffer(BlockBindingLocation::Ssbo(index), buffer)
-	// }
+	pub fn ssbo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrData) -> &mut Self {
+		self.cmd.bindings.bind_buffer(BufferBindTargetDesc::SsboIndex(index), buffer.into_bind_source(self.upload_stage));
+		self
+	}
 
 	// pub fn texture(&mut self, location: impl Into<ImageBindingLocation>, image: ImageHandle, sampler: SamplerDef) -> &mut Self {
 	// 	self.cmd.image_bindings.push(ImageBinding::texture(image, sampler, location));
@@ -128,4 +130,18 @@ impl<'cg> DrawCmdBuilder<'cg> {
 	// 	self.cmd.image_bindings.push(ImageBinding::image_rw(image, location));
 	// 	self
 	// }
+}
+
+
+
+pub trait IntoBufferBindSourceOrData {
+	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSourceDesc;
+}
+
+impl<T> IntoBufferBindSourceOrData for T
+	where T: Into<BufferBindSourceDesc>
+{
+	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSourceDesc {
+		self.into()
+	}
 }

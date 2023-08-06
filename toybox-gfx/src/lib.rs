@@ -65,10 +65,28 @@ impl System {
 		self.core.clear_framebuffer_color_buffer(backbuffer_handle, 0, clear_color);
 		self.core.clear_framebuffer_depth_stencil(backbuffer_handle, clear_depth, clear_stencil);
 
-		// TODO(pat.m): upload_heap alignment
+		// Resolve alignment for staged uploads
+		for command_group in self.frame_encoder.command_groups.iter() {
+			for command in command_group.commands.iter() {
+				let Some(bindings) = command.bindings() else { continue };
+				// bindings.resolve_named_bindings();
+				bindings.imbue_staged_buffer_alignments(&mut self.frame_encoder.upload_stage, self.core.capabilities());
+			}
+		}
 
+		// Upload everything
 		self.frame_encoder.upload_stage.push_to_heap(&mut self.core, &mut self.resource_manager.upload_heap);
 
+		// Resolve all staged bind sources to concrete names and ranges
+		for command_group in self.frame_encoder.command_groups.iter_mut() {
+			for command in command_group.commands.iter_mut() {
+				let Some(bindings) = command.bindings_mut() else { continue };
+				bindings.resolve_staged_bindings(&self.resource_manager.upload_heap);
+			}
+		}
+
+
+		// Dispatch commands to GPU
 		for command_group in self.frame_encoder.command_groups.iter_mut() {
 			if command_group.commands.is_empty() {
 				continue

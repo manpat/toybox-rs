@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::core::{Core, BufferName};
+use crate::core::{Core, BufferName, buffer::BufferRange};
 
 pub const UPLOAD_BUFFER_SIZE: usize = 1<<15;
 
@@ -14,7 +14,7 @@ pub struct UploadHeap {
 	frame_start_cursor: usize,
 	locked_ranges: Vec<LockedRange>,
 
-	resolved_uploads: Vec<BufferAllocation>,
+	resolved_uploads: Vec<BufferRange>,
 }
 
 impl UploadHeap {
@@ -62,7 +62,7 @@ impl UploadHeap {
 		self.buffer_name
 	}
 
-	fn reserve_space(&mut self, core: &mut Core, size: usize, alignment: usize) -> BufferAllocation {
+	fn reserve_space(&mut self, core: &mut Core, size: usize, alignment: usize) -> BufferRange {
 		// Move to next alignment boundary
 		let pre_alignment_cursor = self.buffer_cursor;
 		self.buffer_cursor = (self.buffer_cursor + alignment - 1) & (!alignment + 1);
@@ -79,7 +79,7 @@ impl UploadHeap {
 		self.buffer_usage_counter += self.buffer_cursor.checked_sub(pre_alignment_cursor)
 			.unwrap_or(size + UPLOAD_BUFFER_SIZE - pre_alignment_cursor);
 
-		let allocation = BufferAllocation {
+		let allocation = BufferRange {
 			offset,
 			size,
 		};
@@ -115,7 +115,7 @@ impl UploadHeap {
 		allocation
 	}
 
-	fn write_to_device<T>(&mut self, core: &mut Core, data: &[T], alignment: usize) -> BufferAllocation
+	fn write_to_device<T>(&mut self, core: &mut Core, data: &[T], alignment: usize) -> BufferRange
 		where T: Copy + 'static
 	{
 		let byte_size = data.len() * std::mem::size_of::<T>();
@@ -131,7 +131,7 @@ impl UploadHeap {
 		allocation
 	}
 
-	pub fn resolve_allocation(&self, staged_upload: StagedUploadId) -> BufferAllocation {
+	pub fn resolve_allocation(&self, staged_upload: StagedUploadId) -> BufferRange {
 		self.resolved_uploads.get(staged_upload.0).cloned()
 			.expect("Invalid staged upload id")
 	}
@@ -168,7 +168,7 @@ struct LockedRange {
 }
 
 impl LockedRange {
-	fn contains_allocation(&self, allocation: &BufferAllocation) -> bool {
+	fn contains_allocation(&self, allocation: &BufferRange) -> bool {
 		let allocation_end = allocation.offset + allocation.size;
 		let range_end = self.start + self.size;
 
@@ -191,13 +191,6 @@ struct StagedUpload {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct StagedUploadId(usize);
-
-
-#[derive(Copy, Clone, Debug, Default)]
-pub struct BufferAllocation {
-	pub offset: usize,
-	pub size: usize,
-}
 
 
 pub struct UploadStage {
