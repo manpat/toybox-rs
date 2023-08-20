@@ -9,6 +9,7 @@ pub mod vao;
 pub mod buffer;
 pub mod shader;
 pub mod shader_pipeline;
+pub mod global_state;
 
 pub use capabilities::Capabilities;
 pub use fbo::{FboName};

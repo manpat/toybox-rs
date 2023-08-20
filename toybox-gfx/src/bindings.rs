@@ -71,7 +71,9 @@ impl BindingDescription {
 		BindingDescription::default()
 	}
 
-	pub fn clear(&mut self) {}
+	pub fn clear(&mut self) {
+		self.buffer_bindings.clear();
+	}
 
 	pub fn bind_buffer(&mut self, target: impl Into<BufferBindTargetDesc>, source: impl Into<BufferBindSourceDesc>) {
 		self.buffer_bindings.push(BufferBindDesc {

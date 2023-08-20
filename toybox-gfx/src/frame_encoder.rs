@@ -2,6 +2,7 @@ use crate::command_group::{CommandGroup, CommandGroupEncoder};
 use crate::command::Command;
 use crate::core;
 use crate::upload_heap::{UploadStage, StagedUploadId};
+use crate::bindings::BindingDescription;
 
 
 // Encodes per-frame commands, organised into passes/command groups
@@ -11,23 +12,27 @@ pub struct FrameEncoder {
 
 	// TODO(pat.m): maybe this could be moved to resource manager
 	pub upload_stage: UploadStage,
+
+	pub global_bindings: BindingDescription,
 }
 
 impl FrameEncoder {
-	pub fn new(core: &mut core::Core) -> FrameEncoder {
+	pub fn new(_core: &mut core::Core) -> FrameEncoder {
 		FrameEncoder {
 			command_groups: Vec::new(),
 			backbuffer_clear_color: [1.0, 0.5, 1.0].into(),
 
 			upload_stage: UploadStage::new(),
+			global_bindings: BindingDescription::new(),
 		}
 	}
 
-	pub fn end_frame(&mut self, core: &mut core::Core) {		
+	pub fn end_frame(&mut self, _core: &mut core::Core) {
 		for group in self.command_groups.iter_mut() {
 			group.reset();
 		}
 
+		self.global_bindings.clear();
 		self.upload_stage.reset();
 	}
 }

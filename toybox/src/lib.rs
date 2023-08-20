@@ -37,10 +37,11 @@ impl Engine {
 			gfx::System::new(core)?
 		};
 
-		let _audio = audio::init()?;
+		let audio = audio::init()?;
 
 		let mut context = Context {
 			gfx,
+			audio,
 		};
 
 		let mut app = start_app(&mut context)?;
