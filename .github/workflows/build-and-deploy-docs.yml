@@ -46,11 +46,16 @@ jobs:
         profile: minimal
         override: true
 
+    - uses: awalsh128/cache-apt-pkgs-action@latest
+      with:
+        packages: libasound2-dev
+        version: 1.0
+
     - name: Generate Docs
       uses: actions-rs/cargo@v1
       with:
         command: doc
-        args: --verbose --no-deps --all-features -ptoybox -ptoy -pcommon
+        args: --verbose --no-deps --all-features -ptoybox -ptoy -pcommon -ptoybox-gfx -ptoybox-audio -ptoybox-host -ptoybox-input
         
     - name: Finalize documentation
       run: |

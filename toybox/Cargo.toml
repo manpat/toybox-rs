@@ -8,6 +8,7 @@ edition = "2021"
 toybox-host = { path = "../toybox-host" }
 toybox-gfx = { path = "../toybox-gfx" }
 toybox-audio = { path = "../toybox-audio" }
+toybox-input = { path = "../toybox-input" }
 
 
 common = { git = "https://github.com/manpat/common-rs.git", version = "0.3" }
