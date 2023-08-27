@@ -97,7 +97,7 @@ impl System {
 
 #[derive(Debug, Copy, Clone)]
 pub struct Configuration {
-	pub sample_rate: f32,
+	pub sample_rate: u32,
 	pub channels: usize,
 }
 
@@ -124,11 +124,13 @@ fn build_output_stream(host: &cpal::Host, shared: &Arc<SharedState>) -> anyhow::
 	let supported_configs_range = device.supported_output_configs()
 		.expect("error while querying configs");
 
+	// TODO(pat.m): support different sample formats
 	let supported_config = supported_configs_range
+		.filter(|config| config.sample_format().is_float())
 		.max_by(cpal::SupportedStreamConfigRange::cmp_default_heuristics)
 		.expect("no supported config?!");
 
-	let desired_sample_rate = 44100.clamp(supported_config.min_sample_rate().0, supported_config.max_sample_rate().0);
+	let desired_sample_rate = 48000.clamp(supported_config.min_sample_rate().0, supported_config.max_sample_rate().0);
 	let supported_config = supported_config
 		.with_sample_rate(cpal::SampleRate(desired_sample_rate));
 
@@ -165,7 +167,7 @@ fn build_output_stream(host: &cpal::Host, shared: &Arc<SharedState>) -> anyhow::
 	stream.play()?;
 
 	let configuration = Configuration {
-		sample_rate: config.sample_rate.0 as f32,
+		sample_rate: config.sample_rate.0 as u32,
 		channels: config.channels as usize,
 	};
 

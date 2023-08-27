@@ -1,5 +1,5 @@
 use crate::bindings::BindingDescription;
-use crate::command::{Command, draw, dispatch};
+use crate::command::{Command, compute, draw};
 use crate::resource_manager::shader::ShaderHandle;
 use crate::upload_heap::{UploadStage, StagedUploadId};
 

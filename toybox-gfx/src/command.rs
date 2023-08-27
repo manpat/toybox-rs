@@ -1,19 +1,18 @@
-use crate::bindings::BindingDescription;
+use crate::bindings::{self, BindingDescription, BufferBindSourceDesc};
 
+use crate::core::{Capabilities};
+use crate::upload_heap::{UploadStage, UploadHeap};
+
+pub mod compute;
 pub mod draw;
-pub mod dispatch;
 
+pub use compute::{ComputeCmd, DispatchSize};
 pub use draw::{DrawArgs, DrawCmd, PrimitiveType};
-pub use dispatch::DispatchArgs;
 
 
 pub enum Command {
 	Draw(DrawCmd),
-
-	Compute {
-		args: DispatchArgs,
-		bindings: BindingDescription,
-	},
+	Compute(ComputeCmd),
 
 	ClearBuffer,
 	ClearTexture,
@@ -33,7 +32,7 @@ impl Command {
 
 		match self {
 			Draw(DrawCmd { bindings, .. }) => Some(bindings),
-			Compute{bindings, ..} => Some(bindings),
+			Compute(ComputeCmd { bindings, .. }) => Some(bindings),
 			_ => None
 		}
 	}
@@ -43,8 +42,48 @@ impl Command {
 
 		match self {
 			Draw(DrawCmd { bindings, .. }) => Some(bindings),
-			Compute{bindings, ..} => Some(bindings),
+			Compute(ComputeCmd { bindings, .. }) => Some(bindings),
 			_ => None
+		}
+	}
+
+	pub fn resolve_staged_buffer_alignments(&self, upload_stage: &mut UploadStage, capabilities: &Capabilities) {
+		use Command::*;
+
+		match self {
+			Draw(DrawCmd { bindings, .. }) => {
+				bindings.imbue_staged_buffer_alignments(upload_stage, capabilities);
+			},
+
+			Compute(ComputeCmd { bindings, dispatch_size, .. }) => {
+				bindings.imbue_staged_buffer_alignments(upload_stage, capabilities);
+
+				if let DispatchSize::Indirect(BufferBindSourceDesc::Staged(upload_id)) = dispatch_size {
+					upload_stage.update_staged_upload_alignment(*upload_id, 4);
+				}
+			},
+
+			_ => {}
+		}
+	}
+
+	pub fn resolve_staged_bind_sources(&mut self, upload_heap: &mut UploadHeap) {
+		use Command::*;
+
+		match self {
+			Draw(DrawCmd { bindings, .. }) => {
+				bindings.resolve_staged_bind_sources(upload_heap);
+			},
+
+			Compute(ComputeCmd { bindings, dispatch_size, .. }) => {
+				bindings.resolve_staged_bind_sources(upload_heap);
+
+				if let DispatchSize::Indirect(bind_source) = dispatch_size {
+					bindings::resolve_staged_bind_source(bind_source, upload_heap);
+				}
+			},
+
+			_ => {}
 		}
 	}
 }

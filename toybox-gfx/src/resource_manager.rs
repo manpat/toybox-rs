@@ -85,15 +85,27 @@ impl ResourceManager {
 		vertex_shader: shader::ShaderHandle, fragment_shader: impl Into<Option<shader::ShaderHandle>>)
 		-> crate::core::ShaderPipelineName
 	{
-		core.clear_shader_pipeline(self.global_pipeline);
+		if let Some(fragment_shader) = fragment_shader.into() {
+			let fragment_shader_name = self.shaders.get_name(fragment_shader).unwrap();
+			core.attach_shader_to_pipeline(self.global_pipeline, fragment_shader_name);
+		} else {
+			// Only clear if we're removing the fragment stage
+			core.clear_shader_pipeline(self.global_pipeline);
+		}
 
 		let vertex_shader_name = self.shaders.get_name(vertex_shader).unwrap();
 		core.attach_shader_to_pipeline(self.global_pipeline, vertex_shader_name);
 
-		if let Some(fragment_shader) = fragment_shader.into() {
-			let fragment_shader_name = self.shaders.get_name(fragment_shader).unwrap();
-			core.attach_shader_to_pipeline(self.global_pipeline, fragment_shader_name);
-		}
+		self.global_pipeline
+	}
+
+	pub fn resolve_compute_pipeline(&mut self, core: &mut core::Core, compute_shader: shader::ShaderHandle)
+		-> crate::core::ShaderPipelineName
+	{
+		// core.clear_shader_pipeline(self.global_pipeline);
+
+		let compute_shader_name = self.shaders.get_name(compute_shader).unwrap();
+		core.attach_shader_to_pipeline(self.global_pipeline, compute_shader_name);
 
 		self.global_pipeline
 	}

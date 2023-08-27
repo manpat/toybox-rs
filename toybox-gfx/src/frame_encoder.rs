@@ -10,7 +10,6 @@ pub struct FrameEncoder {
 	pub(crate) command_groups: Vec<CommandGroup>,
 	pub(crate) backbuffer_clear_color: common::Color,
 
-	// TODO(pat.m): maybe this could be moved to resource manager
 	pub upload_stage: UploadStage,
 
 	pub global_bindings: BindingDescription,

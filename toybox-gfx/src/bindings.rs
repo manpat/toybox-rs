@@ -82,8 +82,8 @@ impl BindingDescription {
 		});
 	}
 
-	pub fn resolve_named_bindings(&mut self) {
-		// resolve BufferBindTargetDesc::Named to UboIndex or SsboIndex
+	pub fn resolve_named_bind_targets(&mut self) {
+		// TODO(pat.m): resolve BufferBindTargetDesc::Named to UboIndex or SsboIndex
 		// Needs shader reflection
 	}
 
@@ -102,15 +102,9 @@ impl BindingDescription {
 		}
 	}
 
-	pub fn resolve_staged_bindings(&mut self, upload_heap: &UploadHeap) {
+	pub fn resolve_staged_bind_sources(&mut self, upload_heap: &UploadHeap) {
 		for bind_desc in self.buffer_bindings.iter_mut() {
-			let BufferBindSourceDesc::Staged(upload_id) = bind_desc.source else { continue };
-
-			let allocation = upload_heap.resolve_allocation(upload_id);
-			bind_desc.source = BufferBindSourceDesc::Name {
-				name: upload_heap.buffer_name(),
-				range: Some(allocation),
-			};
+			resolve_staged_bind_source(&mut bind_desc.source, upload_heap);
 		}
 	}
 
@@ -127,5 +121,15 @@ impl BindingDescription {
 
 			core.bind_indexed_buffer(indexed_target, index, name, range);
 		}
+	}
+}
+
+pub fn resolve_staged_bind_source(source: &mut BufferBindSourceDesc, upload_heap: &UploadHeap) {
+	if let BufferBindSourceDesc::Staged(upload_id) = *source {
+		let allocation = upload_heap.resolve_allocation(upload_id);
+		*source = BufferBindSourceDesc::Name {
+			name: upload_heap.buffer_name(),
+			range: Some(allocation),
+		};
 	}
 }

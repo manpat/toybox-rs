@@ -85,41 +85,19 @@ impl System {
 
 		self.core.set_viewport(self.backbuffer_size);
 
+		self.resolve_named_bind_targets();
+
 		// Resolve alignment for staged uploads
-		for command_group in self.frame_encoder.command_groups.iter() {
-			for command in command_group.commands.iter() {
-				let Some(bindings) = command.bindings() else { continue };
-				// bindings.resolve_named_bindings();
-				bindings.imbue_staged_buffer_alignments(&mut self.frame_encoder.upload_stage, self.core.capabilities());
-			}
-		}
+		self.resolve_staged_buffer_alignments();
 
 		// Upload everything
 		self.frame_encoder.upload_stage.push_to_heap(&mut self.core, &mut self.resource_manager.upload_heap);
 
 		// Resolve all staged bind sources to concrete names and ranges
-		for command_group in self.frame_encoder.command_groups.iter_mut() {
-			for command in command_group.commands.iter_mut() {
-				let Some(bindings) = command.bindings_mut() else { continue };
-				bindings.resolve_staged_bindings(&self.resource_manager.upload_heap);
-			}
-		}
-
+		self.resolve_staged_bind_sources();
 
 		// Dispatch commands to GPU
-		for command_group in self.frame_encoder.command_groups.iter_mut() {
-			if command_group.commands.is_empty() {
-				continue
-			}
-
-			self.core.push_debug_group(&command_group.label);
-
-			for command in command_group.commands.drain(..) {
-				execute_command(command, &mut self.core, &mut self.resource_manager);
-			}
-
-			self.core.pop_debug_group();
-		}
+		self.dispatch_commands();
 
         self.resource_manager.upload_heap.create_end_frame_fence(&mut self.core);
 
@@ -128,25 +106,79 @@ impl System {
 
         self.resource_manager.upload_heap.reset();
 	}
-}
 
+	fn resolve_named_bind_targets(&mut self) {
+		self.frame_encoder.global_bindings.resolve_named_bind_targets();
 
+		for command_group in self.frame_encoder.command_groups.iter_mut() {
+			command_group.shared_bindings.resolve_named_bind_targets();
 
-fn execute_command(command: command::Command, core: &mut Core, resource_manager: &mut ResourceManager) {
-	use command::{Command::*, draw};
-
-	match command {
-		DebugMessage { label } => {
-			core.debug_marker(&label);
+			for command in command_group.commands.iter_mut() {
+				if let Some(bindings) = command.bindings_mut() {
+					bindings.resolve_named_bind_targets();
+				}
+			}
 		}
+	}
 
-		Callback(callback) => {
-			callback(core, resource_manager);
+	fn resolve_staged_buffer_alignments(&mut self) {
+		let upload_stage = &mut self.frame_encoder.upload_stage;
+		let capabilities = self.core.capabilities();
+
+		self.frame_encoder.global_bindings.imbue_staged_buffer_alignments(upload_stage, capabilities);
+
+		for command_group in self.frame_encoder.command_groups.iter() {
+			command_group.shared_bindings.imbue_staged_buffer_alignments(upload_stage, capabilities);
+
+			for command in command_group.commands.iter() {
+				command.resolve_staged_buffer_alignments(upload_stage, capabilities);
+			}
 		}
+	}
 
-		Draw(cmd) => cmd.execute(core, resource_manager),
+	fn resolve_staged_bind_sources(&mut self) {
+		let upload_heap = &mut self.resource_manager.upload_heap;
 
-		_ => unimplemented!(),
+		self.frame_encoder.global_bindings.resolve_staged_bind_sources(upload_heap);
+
+		for command_group in self.frame_encoder.command_groups.iter_mut() {
+			command_group.shared_bindings.resolve_staged_bind_sources(upload_heap);
+
+			for command in command_group.commands.iter_mut() {
+				command.resolve_staged_bind_sources(upload_heap);
+			}
+		}
+	}
+
+	fn dispatch_commands(&mut self) {
+		use command::Command::*;
+
+		let core = &mut self.core;
+		let resource_manager = &mut self.resource_manager;
+
+		for command_group in self.frame_encoder.command_groups.iter_mut() {
+			if command_group.commands.is_empty() {
+				continue
+			}
+
+			core.push_debug_group(&command_group.label);
+
+			for command in command_group.commands.drain(..) {
+				match command {
+					DebugMessage { label } => {
+						core.debug_marker(&label);
+					}
+
+					Callback(callback) => callback(core, resource_manager),
+
+					Draw(cmd) => cmd.execute(core, resource_manager),
+
+					_ => unimplemented!(),
+				}
+			}
+
+			core.pop_debug_group();
+		}
 	}
 }
 
