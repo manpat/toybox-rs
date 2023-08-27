@@ -133,3 +133,31 @@ pub fn resolve_staged_bind_source(source: &mut BufferBindSourceDesc, upload_heap
 		};
 	}
 }
+
+
+
+pub trait IntoBufferBindSourceOrStageable {
+	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSourceDesc;
+}
+
+impl IntoBufferBindSourceOrStageable for crate::upload_heap::StagedUploadId {
+	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSourceDesc {
+		self.into()
+	}
+}
+
+impl IntoBufferBindSourceOrStageable for crate::core::BufferName {
+	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSourceDesc {
+		self.into()
+	}
+}
+
+// Accept anything that can be turned into a slice of sized, copyable items - including regular references
+impl<'t, T, U> IntoBufferBindSourceOrStageable for &'t T
+	where T: crate::AsSlice<Target=U>
+		, U: Copy + Sized + 'static
+{
+	fn into_bind_source(self, stage: &mut UploadStage) -> BufferBindSourceDesc {
+		stage.stage_data(self.as_slice()).into()
+	}
+}

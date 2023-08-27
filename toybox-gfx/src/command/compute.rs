@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::bindings::{BindingDescription, BufferBindTargetDesc, BufferBindSourceDesc};
+use crate::bindings::{BindingDescription, BufferBindTargetDesc, BufferBindSourceDesc, IntoBufferBindSourceOrStageable};
 use crate::resource_manager::shader::ShaderHandle;
 use crate::upload_heap::UploadStage;
 
@@ -58,3 +58,57 @@ impl ComputeCmd {
 		}
 	}
 }
+
+pub struct ComputeCmdBuilder<'cg> {
+	pub(crate) cmd: &'cg mut ComputeCmd,
+	pub(crate) upload_stage: &'cg mut UploadStage,
+}
+
+impl<'cg> ComputeCmdBuilder<'cg> {
+	pub fn groups(&mut self, num_groups: impl Into<Vec3i>) -> &mut Self {
+		self.cmd.dispatch_size = DispatchSize::Explicit(num_groups.into());
+		self
+	}
+
+	pub fn indirect(&mut self, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
+		self.cmd.dispatch_size = DispatchSize::Indirect(buffer.into_bind_source(self.upload_stage));
+		self
+	}
+
+	// pub fn indexed(&mut self, buffer: impl IntoBufferHandle) -> &mut Self {
+	// 	let buffer_handle = buffer.into_buffer_handle(self.frame_state);
+	// 	self.cmd.index_buffer = Some(buffer_handle);
+	// 	self
+	// }
+
+	pub fn buffer(&mut self, target: impl Into<BufferBindTargetDesc>, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
+		self.cmd.bindings.bind_buffer(target, buffer.into_bind_source(self.upload_stage));
+		self
+	}
+
+	pub fn ubo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
+		self.cmd.bindings.bind_buffer(BufferBindTargetDesc::UboIndex(index), buffer.into_bind_source(self.upload_stage));
+		self
+	}
+
+	pub fn ssbo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
+		self.cmd.bindings.bind_buffer(BufferBindTargetDesc::SsboIndex(index), buffer.into_bind_source(self.upload_stage));
+		self
+	}
+
+	// pub fn texture(&mut self, location: impl Into<ImageBindingLocation>, image: ImageHandle, sampler: SamplerDef) -> &mut Self {
+	// 	self.cmd.image_bindings.push(ImageBinding::texture(image, sampler, location));
+	// 	self
+	// }
+
+	// pub fn image(&mut self, location: impl Into<ImageBindingLocation>, image: ImageHandle) -> &mut Self {
+	// 	self.cmd.image_bindings.push(ImageBinding::image(image, location));
+	// 	self
+	// }
+
+	// pub fn image_rw(&mut self, location: impl Into<ImageBindingLocation>, image: ImageHandle) -> &mut Self {
+	// 	self.cmd.image_bindings.push(ImageBinding::image_rw(image, location));
+	// 	self
+	// }
+}
+

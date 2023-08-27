@@ -75,4 +75,10 @@ impl<'g> CommandGroupEncoder<'g> {
 		let Some(Command::Draw(cmd)) = self.group.commands.last_mut() else { unreachable!() };
 		draw::DrawCmdBuilder {cmd, upload_stage: self.upload_stage}
 	}
+
+	pub fn compute(&mut self, compute_shader: ShaderHandle) -> compute::ComputeCmdBuilder<'_> {
+		self.add(compute::ComputeCmd::new(compute_shader));
+		let Some(Command::Compute(cmd)) = self.group.commands.last_mut() else { unreachable!() };
+		compute::ComputeCmdBuilder {cmd, upload_stage: self.upload_stage}
+	}
 }

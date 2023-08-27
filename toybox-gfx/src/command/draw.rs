@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::bindings::{BindingDescription, BufferBindTargetDesc, BufferBindSourceDesc};
+use crate::bindings::{BindingDescription, BufferBindTargetDesc, IntoBufferBindSourceOrStageable};
 use crate::resource_manager::shader::ShaderHandle;
 use crate::upload_heap::UploadStage;
 
@@ -101,17 +101,17 @@ impl<'cg> DrawCmdBuilder<'cg> {
 	// 	self
 	// }
 
-	pub fn buffer(&mut self, target: impl Into<BufferBindTargetDesc>, buffer: impl IntoBufferBindSourceOrData) -> &mut Self {
+	pub fn buffer(&mut self, target: impl Into<BufferBindTargetDesc>, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
 		self.cmd.bindings.bind_buffer(target, buffer.into_bind_source(self.upload_stage));
 		self
 	}
 
-	pub fn ubo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrData) -> &mut Self {
+	pub fn ubo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
 		self.cmd.bindings.bind_buffer(BufferBindTargetDesc::UboIndex(index), buffer.into_bind_source(self.upload_stage));
 		self
 	}
 
-	pub fn ssbo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrData) -> &mut Self {
+	pub fn ssbo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
 		self.cmd.bindings.bind_buffer(BufferBindTargetDesc::SsboIndex(index), buffer.into_bind_source(self.upload_stage));
 		self
 	}
@@ -132,31 +132,3 @@ impl<'cg> DrawCmdBuilder<'cg> {
 	// }
 }
 
-
-
-// TODO(pat.m):  move this somewhere else
-pub trait IntoBufferBindSourceOrData {
-	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSourceDesc;
-}
-
-impl IntoBufferBindSourceOrData for crate::upload_heap::StagedUploadId {
-	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSourceDesc {
-		self.into()
-	}
-}
-
-impl IntoBufferBindSourceOrData for crate::core::BufferName {
-	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSourceDesc {
-		self.into()
-	}
-}
-
-// Accept anything that can be turned into a slice of sized, copyable items - including regular references
-impl<'t, T, U> IntoBufferBindSourceOrData for &'t T
-	where T: crate::AsSlice<Target=U>
-		, U: Copy + Sized + 'static
-{
-	fn into_bind_source(self, stage: &mut UploadStage) -> BufferBindSourceDesc {
-		stage.stage_data(self.as_slice()).into()
-	}
-}
