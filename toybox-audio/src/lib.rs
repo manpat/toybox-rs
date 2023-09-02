@@ -12,7 +12,7 @@ pub mod prelude {
 pub fn init() -> anyhow::Result<System> {
 	let host = cpal::default_host();
 
-	{
+	if false {
 		println!("vvvvvvv Available audio devices vvvvvvvv");
 
 		for device in host.output_devices()? {

@@ -172,6 +172,7 @@ impl System {
 					Callback(callback) => callback(core, resource_manager),
 
 					Draw(cmd) => cmd.execute(core, resource_manager),
+					Compute(cmd) => cmd.execute(core, resource_manager),
 
 					_ => unimplemented!(),
 				}

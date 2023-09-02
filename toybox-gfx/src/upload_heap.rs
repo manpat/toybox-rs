@@ -19,15 +19,15 @@ pub struct UploadHeap {
 
 impl UploadHeap {
 	pub fn new(core: &mut Core) -> Self {
+		let create_flags = gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT | gl::MAP_WRITE_BIT;
+
 		let buffer_name = core.create_buffer();
 		core.set_debug_label(buffer_name, "Upload Heap");
+		core.allocate_buffer_storage(buffer_name, UPLOAD_BUFFER_SIZE, create_flags);
 
 		let buffer_ptr;
 
 		unsafe {
-			let create_flags = gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT | gl::MAP_WRITE_BIT;
-			core.gl.NamedBufferStorage(buffer_name.as_raw(), UPLOAD_BUFFER_SIZE as isize, std::ptr::null(), create_flags);
-
 			let map_flags = gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT | gl::MAP_WRITE_BIT;
 			buffer_ptr = core.gl.MapNamedBufferRange(buffer_name.as_raw(), 0, UPLOAD_BUFFER_SIZE as isize, map_flags) as *mut u8;
 		};

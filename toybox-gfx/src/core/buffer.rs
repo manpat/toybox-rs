@@ -49,6 +49,15 @@ impl super::Core {
 		}
 	}
 
+	// TODO(pat.m): make usage better
+	pub fn allocate_buffer_storage(&self, name: BufferName, size: usize, usage: u32) {
+		unsafe {
+			self.gl.NamedBufferStorage(name.as_raw(), size as isize, std::ptr::null(), usage);
+		}
+	}
+
+	// TODO(pat.m): buffer mapping
+
 	pub fn bind_indexed_buffer(&self, target: IndexedBufferTarget, index: u32,
 		name: impl Into<Option<BufferName>>, range: impl Into<Option<BufferRange>>)
 	{
