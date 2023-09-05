@@ -1,5 +1,5 @@
 use crate::prelude::*;
-
+use crate::core::BufferName;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct VaoName(pub u32);
@@ -30,6 +30,12 @@ impl super::Core {
 	pub fn bind_vao(&self, name: VaoName) {
 		unsafe {
 			self.gl.BindVertexArray(name.as_raw());
+		}
+	}
+
+	pub fn set_vao_index_buffer(&self, name: VaoName, buffer: BufferName) {
+		unsafe {
+			self.gl.VertexArrayElementBuffer(name.as_raw(), buffer.as_raw());
 		}
 	}
 }

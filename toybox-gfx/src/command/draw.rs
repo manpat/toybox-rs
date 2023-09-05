@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::bindings::{BindingDescription, BufferBindTargetDesc, IntoBufferBindSourceOrStageable};
+use crate::bindings::{BindingDescription, BufferBindTargetDesc, BufferBindSourceDesc, IntoBufferBindSourceOrStageable};
 use crate::resource_manager::shader::ShaderHandle;
 use crate::upload_heap::UploadStage;
 
@@ -14,7 +14,9 @@ pub enum PrimitiveType {
 
 
 #[derive(Debug)]
-pub struct DrawArgs {
+pub struct DrawCmd {
+	pub bindings: BindingDescription,
+
 	pub vertex_shader: ShaderHandle,
 	pub fragment_shader: Option<ShaderHandle>,
 
@@ -23,15 +25,7 @@ pub struct DrawArgs {
 	pub num_elements: u32,
 	pub num_instances: u32,
 
-	// pub index_buffer: Option<BufferHandle>,
-}
-
-
-
-#[derive(Debug)]
-pub struct DrawCmd {
-	pub args: DrawArgs,
-	pub bindings: BindingDescription,
+	pub index_buffer: Option<BufferBindSourceDesc>,
 }
 
 impl From<DrawCmd> for super::Command {
@@ -45,30 +39,49 @@ impl DrawCmd {
 		let fragment_shader = fragment_shader.into();
 
 		DrawCmd {
-			args: DrawArgs {
-				vertex_shader,
-				fragment_shader,
-				primitive_type: PrimitiveType::Triangles,
+			vertex_shader,
+			fragment_shader,
+			primitive_type: PrimitiveType::Triangles,
 
-				num_elements: 3,
-				num_instances: 1,
-			},
+			num_elements: 3,
+			num_instances: 1,
+
+			index_buffer: None,
 
 			bindings: Default::default(),
 		}
 	}
 
 	pub fn execute(&self, core: &mut crate::core::Core, rm: &mut crate::resource_manager::ResourceManager) {
-		let pipeline = rm.resolve_draw_pipeline(core, self.args.vertex_shader, self.args.fragment_shader);
+		let pipeline = rm.resolve_draw_pipeline(core, self.vertex_shader, self.fragment_shader);
 		core.bind_shader_pipeline(pipeline);
 		core.bind_vao(rm.global_vao);
 
 		self.bindings.bind(core);
 
-		let primitive_type = self.args.primitive_type as u32;
+		let primitive_type = self.primitive_type as u32;
+		let num_elements = self.num_elements as i32;
+		let num_instances = self.num_instances as i32;
 
-		unsafe {
-			core.gl.DrawArraysInstanced(primitive_type, 0, self.args.num_elements as i32, self.args.num_instances as i32);
+		if let Some(bind_source) = self.index_buffer {
+			let BufferBindSourceDesc::Name{name, range} = bind_source
+				else { panic!("Unresolved buffer bind source description") };
+
+			// TODO(pat.m): allow non 32b indices
+			let index_type = gl::UNSIGNED_INT;
+			let offset_ptr = range.map(|r| r.offset).unwrap_or(0) as *const _;
+
+			core.set_vao_index_buffer(rm.global_vao, name);
+
+			unsafe {
+				core.gl.DrawElementsInstanced(primitive_type, num_elements, index_type,
+					offset_ptr, num_instances);
+			}
+
+		} else {
+			unsafe {
+				core.gl.DrawArraysInstanced(primitive_type, 0, num_elements, num_instances);
+			}
 		}
 	}
 }
@@ -81,25 +94,25 @@ pub struct DrawCmdBuilder<'cg> {
 
 impl<'cg> DrawCmdBuilder<'cg> {
 	pub fn elements(&mut self, num_elements: u32) -> &mut Self {
-		self.cmd.args.num_elements = num_elements;
+		self.cmd.num_elements = num_elements;
 		self
 	}
 
 	pub fn instances(&mut self, num_instances: u32) -> &mut Self {
-		self.cmd.args.num_instances = num_instances;
+		self.cmd.num_instances = num_instances;
 		self
 	}
 
 	pub fn primitive(&mut self, ty: PrimitiveType) -> &mut Self {
-		self.cmd.args.primitive_type = ty;
+		self.cmd.primitive_type = ty;
 		self
 	}
 
-	// pub fn indexed(&mut self, buffer: impl IntoBufferHandle) -> &mut Self {
-	// 	let buffer_handle = buffer.into_buffer_handle(self.frame_state);
-	// 	self.cmd.index_buffer = Some(buffer_handle);
-	// 	self
-	// }
+	pub fn indexed(&mut self, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
+		let bind_source = buffer.into_bind_source(self.upload_stage);
+		self.cmd.index_buffer = Some(bind_source);
+		self
+	}
 
 	pub fn buffer(&mut self, target: impl Into<BufferBindTargetDesc>, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
 		self.cmd.bindings.bind_buffer(target, buffer.into_bind_source(self.upload_stage));

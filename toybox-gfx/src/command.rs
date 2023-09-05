@@ -7,7 +7,7 @@ pub mod compute;
 pub mod draw;
 
 pub use compute::{ComputeCmd, DispatchSize};
-pub use draw::{DrawArgs, DrawCmd, PrimitiveType};
+pub use draw::{DrawCmd, PrimitiveType};
 
 
 pub enum Command {
@@ -51,8 +51,13 @@ impl Command {
 		use Command::*;
 
 		match self {
-			Draw(DrawCmd { bindings, .. }) => {
+			Draw(DrawCmd { bindings, index_buffer, .. }) => {
 				bindings.imbue_staged_buffer_alignments(upload_stage, capabilities);
+
+				if let Some(BufferBindSourceDesc::Staged(upload_id)) = index_buffer {
+					// TODO(pat.m): allow non-32b indices
+					upload_stage.update_staged_upload_alignment(*upload_id, 4);
+				}
 			},
 
 			Compute(ComputeCmd { bindings, dispatch_size, .. }) => {
@@ -71,8 +76,12 @@ impl Command {
 		use Command::*;
 
 		match self {
-			Draw(DrawCmd { bindings, .. }) => {
+			Draw(DrawCmd { bindings, index_buffer, .. }) => {
 				bindings.resolve_staged_bind_sources(upload_heap);
+
+				if let Some(bind_source) = index_buffer {
+					bindings::resolve_staged_bind_source(bind_source, upload_heap);
+				}
 			},
 
 			Compute(ComputeCmd { bindings, dispatch_size, .. }) => {
