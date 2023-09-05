@@ -108,6 +108,17 @@ impl BindingDescription {
 		}
 	}
 
+	pub fn merge_unspecified_from(&mut self, other: &BindingDescription) {
+		let num_initial_bindings = self.buffer_bindings.len();
+
+		for needle in other.buffer_bindings.iter() {
+			let haystack = &self.buffer_bindings[..num_initial_bindings];
+			if haystack.iter().all(|h| h.target != needle.target) {
+				self.buffer_bindings.push(needle.clone());
+			}
+		}
+	}
+
 	// TODO(pat.m): not sure if I want to do this here.
 	// It does limit things a bit if I want to look things up in a per-pass BindingDescription.
 	// Also binding should probably be done through a bindings tracker.

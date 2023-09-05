@@ -87,13 +87,11 @@ impl<'cg> ComputeCmdBuilder<'cg> {
 	}
 
 	pub fn ubo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
-		self.cmd.bindings.bind_buffer(BufferBindTargetDesc::UboIndex(index), buffer.into_bind_source(self.upload_stage));
-		self
+		self.buffer(BufferBindTargetDesc::UboIndex(index), buffer)
 	}
 
 	pub fn ssbo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
-		self.cmd.bindings.bind_buffer(BufferBindTargetDesc::SsboIndex(index), buffer.into_bind_source(self.upload_stage));
-		self
+		self.buffer(BufferBindTargetDesc::SsboIndex(index), buffer)
 	}
 
 	// pub fn texture(&mut self, location: impl Into<ImageBindingLocation>, image: ImageHandle, sampler: SamplerDef) -> &mut Self {

@@ -1,4 +1,4 @@
-use crate::bindings::BindingDescription;
+use crate::bindings::{BindingDescription, BufferBindTargetDesc, BufferBindSourceDesc, IntoBufferBindSourceOrStageable};
 use crate::command::{Command, compute, draw};
 use crate::resource_manager::shader::ShaderHandle;
 use crate::upload_heap::{UploadStage, StagedUploadId};
@@ -55,6 +55,21 @@ impl<'g> CommandGroupEncoder<'g> {
 		where T: Copy + 'static
 	{
 		self.upload_stage.stage_data(data.as_slice())
+	}
+}
+
+impl<'g> CommandGroupEncoder<'g> {
+	pub fn buffer(&mut self, target: impl Into<BufferBindTargetDesc>, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
+		self.group.shared_bindings.bind_buffer(target, buffer.into_bind_source(self.upload_stage));
+		self
+	}
+
+	pub fn ubo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
+		self.buffer(BufferBindTargetDesc::UboIndex(index), buffer)
+	}
+
+	pub fn ssbo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
+		self.buffer(BufferBindTargetDesc::SsboIndex(index), buffer)
 	}
 }
 

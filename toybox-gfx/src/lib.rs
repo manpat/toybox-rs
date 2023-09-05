@@ -96,6 +96,8 @@ impl System {
 		// Resolve all staged bind sources to concrete names and ranges
 		self.resolve_staged_bind_sources();
 
+		self.merge_bindings();
+
 		// Dispatch commands to GPU
 		self.dispatch_commands();
 
@@ -146,6 +148,21 @@ impl System {
 
 			for command in command_group.commands.iter_mut() {
 				command.resolve_staged_bind_sources(upload_heap);
+			}
+		}
+	}
+
+	// TODO(pat.m): this sucks. it would be better for commands to 'pull' the bindings they need
+	// rather than bindings be 'pushed' like this - although a binding tracker may make this less bad.
+	// its still pretty wasteful though.
+	fn merge_bindings(&mut self) {
+		for command_group in self.frame_encoder.command_groups.iter_mut() {
+			command_group.shared_bindings.merge_unspecified_from(&self.frame_encoder.global_bindings);
+
+			for command in command_group.commands.iter_mut() {
+				if let Some(bindings) = command.bindings_mut() {
+					bindings.merge_unspecified_from(&command_group.shared_bindings);
+				}
 			}
 		}
 	}
