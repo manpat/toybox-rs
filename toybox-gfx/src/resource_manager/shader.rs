@@ -74,6 +74,7 @@ impl ShaderDef {
 #[derive(Debug)]
 pub struct ShaderResource {
 	pub name: ShaderName,
+	pub num_user_clip_planes: u32,
 }
 
 impl super::Resource for ShaderResource {
@@ -87,8 +88,19 @@ impl super::Resource for ShaderResource {
 impl ShaderResource {
 	pub fn from_disk(core: &mut core::Core, shader_type: ShaderType, full_path: &Path) -> anyhow::Result<ShaderResource> {
 		let data = std::fs::read_to_string(full_path)?;
+
+		// TODO(pat.m): ugh
+		let uses_user_clipping = data.contains("gl_ClipDistance");
+
 		let std_output_block = match shader_type {
-			ShaderType::Vertex => "out gl_PerVertex { vec4 gl_Position; float gl_PointSize; };",
+			ShaderType::Vertex => {
+				if uses_user_clipping {
+					// TODO(pat.m): fixed clip distances is no bueno
+					"out gl_PerVertex { vec4 gl_Position; float gl_ClipDistance[4]; float gl_PointSize; };"
+				} else {
+					"out gl_PerVertex { vec4 gl_Position; float gl_PointSize; };"
+				}
+			}
 			_ => "",
 		};
 
@@ -109,6 +121,7 @@ impl ShaderResource {
 
 		Ok(ShaderResource {
 			name,
+			num_user_clip_planes: if uses_user_clipping { 4 } else { 0 },
 		})
 	}
 }

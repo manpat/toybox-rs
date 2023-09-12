@@ -28,6 +28,12 @@ impl super::Core {
 	}
 
 	pub fn bind_vao(&self, name: VaoName) {
+		if self.bound_vao.get() == name {
+			return;
+		}
+
+		self.bound_vao.set(name);
+
 		unsafe {
 			self.gl.BindVertexArray(name.as_raw());
 		}

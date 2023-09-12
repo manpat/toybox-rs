@@ -85,6 +85,8 @@ impl ResourceManager {
 		vertex_shader: shader::ShaderHandle, fragment_shader: impl Into<Option<shader::ShaderHandle>>)
 		-> crate::core::ShaderPipelineName
 	{
+		// TODO(pat.m): avoid repeated work
+
 		if let Some(fragment_shader) = fragment_shader.into() {
 			let fragment_shader_name = self.shaders.get_name(fragment_shader).unwrap();
 			core.attach_shader_to_pipeline(self.global_pipeline, fragment_shader_name);
@@ -160,6 +162,10 @@ impl<R: Resource> ResourceStorage<R> {
 	pub fn get_name(&self, handle: R::Handle) -> Option<R::Name> {
 		self.resources.get(&handle)
 			.map(R::get_name)
+	}
+
+	pub fn get_resource(&self, handle: R::Handle) -> Option<&'_ R> {
+		self.resources.get(&handle)
 	}
 
 	pub fn get_or_request_handle(&mut self, def: R::Def) -> R::Handle {

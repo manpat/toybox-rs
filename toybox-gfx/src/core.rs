@@ -18,12 +18,18 @@ pub use buffer::{BufferName};
 pub use shader::{ShaderName, ShaderType};
 pub use shader_pipeline::{ShaderPipelineName};
 
+use std::cell::Cell;
+
 
 pub struct Core {
 	surface: host::Surface,
 	gl_context: host::GlContext,
 	pub gl: gl::Gl,
 	capabilities: Capabilities,
+
+	num_active_clip_planes: Cell<u32>,
+
+	bound_vao: Cell<VaoName>,
 }
 
 impl Core {
@@ -37,6 +43,9 @@ impl Core {
 			gl_context,
 			gl,
 			capabilities,
+
+			num_active_clip_planes: Cell::new(0),
+			bound_vao: Cell::new(VaoName(0)),
 		}
 	}
 
@@ -87,6 +96,32 @@ impl Core {
 		unsafe {
 			self.gl.ObjectLabel(N::GL_IDENTIFIER, name.as_raw(), label.len() as i32, label.as_ptr() as *const _);
 		}
+	}
+}
+
+
+/// Features
+impl Core {
+	pub fn set_user_clip_planes(&self, new_count: u32) {
+		assert!(new_count <= self.capabilities.max_user_clip_planes as u32, "GL_MAX_CLIP_DISTANCES exceeded");
+
+		let current_count = self.num_active_clip_planes.get();
+
+		for i in 0..new_count {
+			unsafe {
+				self.gl.Enable(gl::CLIP_DISTANCE0 + i);
+			}
+		}
+
+		if new_count < current_count {
+			for i in new_count..current_count {
+				unsafe {
+					self.gl.Disable(gl::CLIP_DISTANCE0 + i);
+				}
+			}
+		}
+
+		self.num_active_clip_planes.set(new_count);
 	}
 }
 

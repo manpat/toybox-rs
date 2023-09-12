@@ -53,6 +53,10 @@ impl DrawCmd {
 	}
 
 	pub fn execute(&self, core: &mut crate::core::Core, rm: &mut crate::resource_manager::ResourceManager) {
+		// TODO(pat.m): eugh. should probably be part of a larger pipeline state management system
+		let num_user_clip_planes = rm.shaders.get_resource(self.vertex_shader).unwrap().num_user_clip_planes;
+		core.set_user_clip_planes(num_user_clip_planes);
+
 		let pipeline = rm.resolve_draw_pipeline(core, self.vertex_shader, self.fragment_shader);
 		core.bind_shader_pipeline(pipeline);
 		core.bind_vao(rm.global_vao);

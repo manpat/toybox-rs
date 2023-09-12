@@ -75,12 +75,6 @@ impl<'cg> ComputeCmdBuilder<'cg> {
 		self
 	}
 
-	// pub fn indexed(&mut self, buffer: impl IntoBufferHandle) -> &mut Self {
-	// 	let buffer_handle = buffer.into_buffer_handle(self.frame_state);
-	// 	self.cmd.index_buffer = Some(buffer_handle);
-	// 	self
-	// }
-
 	pub fn buffer(&mut self, target: impl Into<BufferBindTargetDesc>, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
 		self.cmd.bindings.bind_buffer(target, buffer.into_bind_source(self.upload_stage));
 		self
