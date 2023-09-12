@@ -101,4 +101,16 @@ impl super::Core {
 	pub fn bind_dispatch_indirect_buffer(&self, name: impl Into<Option<BufferName>>) {
 		self.bind_buffer(BufferTarget::DispatchIndirect, name);
 	}
+
+	pub fn bind_index_buffer(&self, name: impl Into<Option<BufferName>>) {
+		let name = name.into();
+
+		if self.bound_index_buffer.get() != name {
+			unsafe {
+				self.gl.VertexArrayElementBuffer(self.global_vao_name, name.as_raw());
+			}
+
+			self.bound_index_buffer.set(name);
+		}
+	}
 }

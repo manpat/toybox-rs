@@ -48,9 +48,12 @@ impl super::Core {
 	}
 
 	pub fn bind_shader_pipeline(&self, pipeline: ShaderPipelineName) {
-		unsafe {
-			// TODO(pat.m): state tracking
-			self.gl.BindProgramPipeline(pipeline.as_raw());
+		if self.bound_shader_pipeline.get() != pipeline {
+			unsafe {
+				self.gl.BindProgramPipeline(pipeline.as_raw());
+			}
+
+			self.bound_shader_pipeline.set(pipeline);
 		}
 	}
 }

@@ -27,7 +27,8 @@ pub struct Core {
 	capabilities: Capabilities,
 
 	num_active_clip_planes: Cell<u32>,
-	bound_index_buffer: Cell<BufferName>,
+	bound_index_buffer: Cell<Option<BufferName>>,
+	bound_shader_pipeline: Cell<ShaderPipelineName>,
 
 	global_vao_name: u32,
 }
@@ -46,7 +47,8 @@ impl Core {
 			capabilities,
 
 			num_active_clip_planes: Cell::new(0),
-			bound_index_buffer: Cell::new(BufferName(0)),
+			bound_index_buffer: Cell::new(None),
+			bound_shader_pipeline: Cell::new(ShaderPipelineName(0)),
 
 			global_vao_name,
 		}
