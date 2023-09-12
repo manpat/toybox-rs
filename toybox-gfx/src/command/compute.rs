@@ -49,7 +49,7 @@ impl ComputeCmd {
 
 				let offset = range.map(|r| r.offset).unwrap_or(0);
 
-				core.bind_draw_indirect_buffer(name);
+				core.bind_dispatch_indirect_buffer(name);
 
 				unsafe {
 					core.gl.DispatchComputeIndirect(offset as isize);

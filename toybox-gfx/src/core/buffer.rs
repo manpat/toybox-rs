@@ -98,7 +98,7 @@ impl super::Core {
 		self.bind_buffer(BufferTarget::DrawIndirect, name);
 	}
 
-	pub fn bind_disptach_indirect_buffer(&self, name: impl Into<Option<BufferName>>) {
+	pub fn bind_dispatch_indirect_buffer(&self, name: impl Into<Option<BufferName>>) {
 		self.bind_buffer(BufferTarget::DispatchIndirect, name);
 	}
 }

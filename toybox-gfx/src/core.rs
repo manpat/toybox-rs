@@ -110,9 +110,11 @@ impl Core {
 
 		let current_count = self.num_active_clip_planes.get();
 
-		for i in 0..new_count {
-			unsafe {
-				self.gl.Enable(gl::CLIP_DISTANCE0 + i);
+		if new_count > current_count {
+			for i in current_count..new_count {
+				unsafe {
+					self.gl.Enable(gl::CLIP_DISTANCE0 + i);
+				}
 			}
 		}
 
