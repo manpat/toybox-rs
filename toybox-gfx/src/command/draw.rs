@@ -59,7 +59,6 @@ impl DrawCmd {
 
 		let pipeline = rm.resolve_draw_pipeline(core, self.vertex_shader, self.fragment_shader);
 		core.bind_shader_pipeline(pipeline);
-		core.bind_vao(rm.global_vao);
 
 		self.bindings.bind(core);
 
@@ -75,7 +74,7 @@ impl DrawCmd {
 			let index_type = gl::UNSIGNED_INT;
 			let offset_ptr = range.map(|r| r.offset).unwrap_or(0) as *const _;
 
-			core.set_vao_index_buffer(rm.global_vao, name);
+			core.bind_index_buffer(name);
 
 			unsafe {
 				core.gl.DrawElementsInstanced(primitive_type, num_elements, index_type,

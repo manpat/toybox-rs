@@ -13,7 +13,6 @@ pub mod global_state;
 
 pub use capabilities::Capabilities;
 pub use fbo::{FboName};
-pub use vao::{VaoName};
 pub use buffer::{BufferName};
 pub use shader::{ShaderName, ShaderType};
 pub use shader_pipeline::{ShaderPipelineName};
@@ -28,8 +27,9 @@ pub struct Core {
 	capabilities: Capabilities,
 
 	num_active_clip_planes: Cell<u32>,
+	bound_index_buffer: Cell<BufferName>,
 
-	bound_vao: Cell<VaoName>,
+	global_vao_name: u32,
 }
 
 impl Core {
@@ -37,6 +37,7 @@ impl Core {
 		-> Core
 	{
 		let capabilities = Capabilities::from(&gl);
+		let global_vao_name = Self::create_and_bind_global_vao(&gl);
 
 		Core {
 			surface,
@@ -45,7 +46,9 @@ impl Core {
 			capabilities,
 
 			num_active_clip_planes: Cell::new(0),
-			bound_vao: Cell::new(VaoName(0)),
+			bound_index_buffer: Cell::new(BufferName(0)),
+
+			global_vao_name,
 		}
 	}
 
@@ -122,6 +125,13 @@ impl Core {
 		}
 
 		self.num_active_clip_planes.set(new_count);
+	}
+}
+
+
+impl Drop for Core {
+	fn drop(&mut self) {
+		self.destroy_global_vao();
 	}
 }
 

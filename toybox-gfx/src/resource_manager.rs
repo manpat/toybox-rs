@@ -24,7 +24,6 @@ pub struct ResourceManager {
 	pub shaders: ResourceStorage<shader::ShaderResource>,
 
 	global_pipeline: crate::core::ShaderPipelineName,
-	pub global_vao: crate::core::VaoName,
 
 	pub upload_heap: UploadHeap,
 
@@ -43,7 +42,6 @@ impl ResourceManager {
 			shaders: ResourceStorage::new(),
 
 			global_pipeline: core.create_shader_pipeline(),
-			global_vao: core.create_vao(),
 
 			upload_heap: UploadHeap::new(core),
 
