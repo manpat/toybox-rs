@@ -1,18 +1,27 @@
 use crate::prelude::*;
-use crate::core::{self, Core, BufferName, Capabilities};
+use crate::core::{self, Core, BufferName, ImageName, SamplerName, Capabilities};
 use crate::core::buffer::{IndexedBufferTarget, BufferRange};
 use crate::upload_heap::{UploadStage, UploadHeap, StagedUploadId};
 
 
 // TODO: string interning would be great
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub enum BufferBindTargetDesc {
+pub enum BufferBindTarget {
 	UboIndex(u32),
 	SsboIndex(u32),
 	Named(&'static str),
 }
 
-impl BufferBindTargetDesc {
+// TODO: string interning would be great
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub enum ImageBindTarget {
+	Sampled(u32),
+	ReadonlyImage(u32),
+	ReadWriteImage(u32),
+	Named(&'static str),
+}
+
+impl BufferBindTarget {
 	pub fn to_indexed_buffer_target(&self) -> Option<IndexedBufferTarget> {
 		match self {
 			Self::UboIndex(_) => Some(IndexedBufferTarget::Uniform),
@@ -31,7 +40,7 @@ impl BufferBindTargetDesc {
 
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub enum BufferBindSourceDesc {
+pub enum BufferBindSource {
 	Name {
 		name: BufferName, 
 		range: Option<BufferRange>,
@@ -39,15 +48,28 @@ pub enum BufferBindSourceDesc {
 	Staged(StagedUploadId),
 }
 
-impl From<StagedUploadId> for BufferBindSourceDesc {
+impl From<StagedUploadId> for BufferBindSource {
 	fn from(upload_id: StagedUploadId) -> Self {
 		Self::Staged(upload_id)
 	}
 }
 
-impl From<BufferName> for BufferBindSourceDesc {
+impl From<BufferName> for BufferBindSource {
 	fn from(name: BufferName) -> Self {
 		Self::Name{name, range: None}
+	}
+}
+
+
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+pub enum ImageBindSource {
+	Name(ImageName),
+	// Handle
+}
+
+impl From<ImageName> for ImageBindSource {
+	fn from(name: ImageName) -> Self {
+		Self::Name(name)
 	}
 }
 
@@ -55,15 +77,22 @@ impl From<BufferName> for BufferBindSourceDesc {
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct BufferBindDesc {
-	pub target: BufferBindTargetDesc,
-	pub source: BufferBindSourceDesc,
+	pub target: BufferBindTarget,
+	pub source: BufferBindSource,
+}
+
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+pub struct ImageBindDesc {
+	pub target: ImageBindTarget,
+	pub source: ImageBindSource,
+	pub sampler: Option<SamplerName>,
 }
 
 
 #[derive(Debug, Default)]
 pub struct BindingDescription {
 	pub buffer_bindings: Vec<BufferBindDesc>,
-	// Image bindings
+	pub image_bindings: Vec<ImageBindDesc>,
 }
 
 
@@ -76,26 +105,35 @@ impl BindingDescription {
 		self.buffer_bindings.clear();
 	}
 
-	pub fn bind_buffer(&mut self, target: impl Into<BufferBindTargetDesc>, source: impl Into<BufferBindSourceDesc>) {
+	pub fn bind_buffer(&mut self, target: impl Into<BufferBindTarget>, source: impl Into<BufferBindSource>) {
 		self.buffer_bindings.push(BufferBindDesc {
 			target: target.into(),
 			source: source.into(),
 		});
 	}
 
+	pub fn bind_image(&mut self, target: impl Into<ImageBindTarget>, source: impl Into<ImageBindSource>, sampler: impl Into<Option<SamplerName>>) {
+		self.image_bindings.push(ImageBindDesc {
+			target: target.into(),
+			source: source.into(),
+			sampler: sampler.into(),
+		});
+	}
+
 	pub fn resolve_named_bind_targets(&mut self) {
-		// TODO(pat.m): resolve BufferBindTargetDesc::Named to UboIndex or SsboIndex
+		// TODO(pat.m): resolve BufferBindTarget::Named to UboIndex or SsboIndex
+		// ImageBindTarget::Named to Unit
 		// Needs shader reflection
 	}
 
 	pub fn imbue_staged_buffer_alignments(&self, upload_stage: &mut UploadStage, capabilities: &Capabilities) {
 		for bind_desc in self.buffer_bindings.iter() {
-			let BufferBindSourceDesc::Staged(upload_id) = bind_desc.source else { continue };
+			let BufferBindSource::Staged(upload_id) = bind_desc.source else { continue };
 
 			// https://registry.khronos.org/OpenGL/specs/gl/glspec45.core.pdf#subsection.6.7.1
 			let alignment = match bind_desc.target {
-				BufferBindTargetDesc::UboIndex(_) => capabilities.ubo_bind_alignment,
-				BufferBindTargetDesc::SsboIndex(_) => capabilities.ssbo_bind_alignment,
+				BufferBindTarget::UboIndex(_) => capabilities.ubo_bind_alignment,
+				BufferBindTarget::SsboIndex(_) => capabilities.ssbo_bind_alignment,
 				_ => panic!("Named buffer bind target encountered in imbue_staged_buffer_alignments. Names must be resolved before this point"),
 			};
 
@@ -110,12 +148,20 @@ impl BindingDescription {
 	}
 
 	pub fn merge_unspecified_from(&mut self, other: &BindingDescription) {
-		let num_initial_bindings = self.buffer_bindings.len();
+		let num_initial_buffer_bindings = self.buffer_bindings.len();
+		let num_initial_image_bindings = self.image_bindings.len();
 
 		for needle in other.buffer_bindings.iter() {
-			let haystack = &self.buffer_bindings[..num_initial_bindings];
+			let haystack = &self.buffer_bindings[..num_initial_buffer_bindings];
 			if haystack.iter().all(|h| h.target != needle.target) {
 				self.buffer_bindings.push(needle.clone());
+			}
+		}
+
+		for needle in other.image_bindings.iter() {
+			let haystack = &self.image_bindings[..num_initial_image_bindings];
+			if haystack.iter().all(|h| h.target != needle.target) {
+				self.image_bindings.push(needle.clone());
 			}
 		}
 	}
@@ -127,11 +173,11 @@ impl BindingDescription {
 		let mut barrier_tracker = core.barrier_tracker();
 
 		for BufferBindDesc{target, source} in self.buffer_bindings.iter() {
-			let BufferBindSourceDesc::Name{name, range} = *source
-				else { panic!("Unresolved buffer bind source description") };
+			let BufferBindSource::Name{name, range} = *source
+				else { panic!("Unresolved buffer bind source") };
 
 			let Some((index, indexed_target)) = target.to_raw_index().zip(target.to_indexed_buffer_target())
-				else { panic!("Unresolve buffer target description") };
+				else { panic!("Unresolved buffer target") };
 
 			match indexed_target {
 				// TODO(pat.m): this is pessimistic - but we need shader reflection to guarantee that an ssbo is bound
@@ -142,13 +188,40 @@ impl BindingDescription {
 
 			core.bind_indexed_buffer(indexed_target, index, name, range);
 		}
+
+		for ImageBindDesc{target, source, sampler} in self.image_bindings.iter() {
+			let ImageBindSource::Name(image_name) = *source
+				else { panic!("Unresolved image bind source") };
+
+			match *target {
+				ImageBindTarget::Sampled(unit) => { 
+					barrier_tracker.read_image(image_name, gl::TEXTURE_FETCH_BARRIER_BIT);
+
+					let sampler_name = sampler.expect("Sampled bind target missing sampler");
+					core.bind_sampler(unit, sampler_name);
+					core.bind_sampled_image(unit, image_name);
+				}
+
+				ImageBindTarget::ReadonlyImage(unit) => { 
+					barrier_tracker.read_image(image_name, gl::SHADER_IMAGE_ACCESS_BARRIER_BIT);
+					core.bind_image(unit, image_name);
+				}
+
+				ImageBindTarget::ReadWriteImage(unit) => { 
+					barrier_tracker.write_image(image_name, gl::SHADER_IMAGE_ACCESS_BARRIER_BIT);
+					core.bind_image_rw(unit, image_name);
+				}
+
+				_ => panic!("Unresolved image bind target"),
+			}
+		}
 	}
 }
 
-pub fn resolve_staged_bind_source(source: &mut BufferBindSourceDesc, upload_heap: &UploadHeap) {
-	if let BufferBindSourceDesc::Staged(upload_id) = *source {
+pub fn resolve_staged_bind_source(source: &mut BufferBindSource, upload_heap: &UploadHeap) {
+	if let BufferBindSource::Staged(upload_id) = *source {
 		let allocation = upload_heap.resolve_allocation(upload_id);
-		*source = BufferBindSourceDesc::Name {
+		*source = BufferBindSource::Name {
 			name: upload_heap.buffer_name(),
 			range: Some(allocation),
 		};
@@ -158,17 +231,17 @@ pub fn resolve_staged_bind_source(source: &mut BufferBindSourceDesc, upload_heap
 
 
 pub trait IntoBufferBindSourceOrStageable {
-	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSourceDesc;
+	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSource;
 }
 
 impl IntoBufferBindSourceOrStageable for crate::upload_heap::StagedUploadId {
-	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSourceDesc {
+	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSource {
 		self.into()
 	}
 }
 
 impl IntoBufferBindSourceOrStageable for crate::core::BufferName {
-	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSourceDesc {
+	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSource {
 		self.into()
 	}
 }
@@ -178,7 +251,7 @@ impl<'t, T, U> IntoBufferBindSourceOrStageable for &'t T
 	where T: crate::AsSlice<Target=U>
 		, U: Copy + Sized + 'static
 {
-	fn into_bind_source(self, stage: &mut UploadStage) -> BufferBindSourceDesc {
+	fn into_bind_source(self, stage: &mut UploadStage) -> BufferBindSource {
 		stage.stage_data(self.as_slice()).into()
 	}
 }

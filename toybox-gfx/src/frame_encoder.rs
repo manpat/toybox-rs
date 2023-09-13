@@ -2,7 +2,10 @@ use crate::command_group::{CommandGroup, CommandGroupEncoder};
 use crate::command::Command;
 use crate::core;
 use crate::upload_heap::{UploadStage, StagedUploadId};
-use crate::bindings::BindingDescription;
+
+use crate::bindings::{BindingDescription, BufferBindTarget, IntoBufferBindSourceOrStageable, ImageBindTarget, ImageBindSource};
+use crate::core::SamplerName;
+
 
 
 // Encodes per-frame commands, organised into passes/command groups
@@ -60,5 +63,33 @@ impl FrameEncoder {
 		};
 
 		CommandGroupEncoder::new(&mut self.command_groups[group_index], &mut self.upload_stage)
+	}
+}
+
+/// Global per-frame bindings.
+impl FrameEncoder {
+	pub fn bind_global_buffer(&mut self, target: impl Into<BufferBindTarget>, buffer: impl IntoBufferBindSourceOrStageable) {
+		self.global_bindings.bind_buffer(target, buffer.into_bind_source(&mut self.upload_stage));
+	}
+
+	pub fn bind_global_ubo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) {
+		self.bind_global_buffer(BufferBindTarget::UboIndex(index), buffer);
+	}
+
+	pub fn bind_global_ssbo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) {
+		self.bind_global_buffer(BufferBindTarget::SsboIndex(index), buffer);
+	}
+
+	pub fn bind_global_sampled_image(&mut self, unit: u32, image: impl Into<ImageBindSource>, sampler: SamplerName) {
+		self.global_bindings.bind_image(ImageBindTarget::Sampled(unit), image, sampler);
+	}
+
+	pub fn bind_global_image(&mut self, unit: u32, image: impl Into<ImageBindSource>) {
+		self.global_bindings.bind_image(ImageBindTarget::ReadonlyImage(unit), image, None);
+	}
+
+	// TODO(pat.m): do I want RW to be explicit?
+	pub fn bind_global_image_rw(&mut self, unit: u32, image: impl Into<ImageBindSource>) {
+		self.global_bindings.bind_image(ImageBindTarget::ReadWriteImage(unit), image, None);
 	}
 }

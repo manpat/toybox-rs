@@ -37,12 +37,36 @@ impl super::Core {
 		}
 	}
 
-	pub fn bind_image(&self, unit: u32, name: ImageName) {
+	pub fn bind_sampled_image(&self, unit: u32, name: ImageName) {
 		assert!(unit < self.capabilities.max_image_units as u32);
 
 		// TODO(pat.m): state tracking
 		unsafe {
 			self.gl.BindTextureUnit(unit, name.raw);
+		}
+	}
+
+	// TODO(pat.m): this api is both underpowered and sucks
+	pub fn bind_image(&self, unit: u32, name: ImageName) {
+		assert!(unit < self.capabilities.max_image_units as u32);
+
+		// TODO(pat.m): state tracking
+		unsafe {
+			let (level, layered, layer) = (0, gl::FALSE, 0);
+			let format = gl::RGBA8; // HACK
+			self.gl.BindImageTexture(unit, name.raw, level, layered, layer, gl::READ_ONLY, format);
+		}
+	}
+
+	// TODO(pat.m): this api is both underpowered and sucks
+	pub fn bind_image_rw(&self, unit: u32, name: ImageName) {
+		assert!(unit < self.capabilities.max_image_units as u32);
+
+		// TODO(pat.m): state tracking
+		unsafe {
+			let (level, layered, layer) = (0, gl::FALSE, 0);
+			let format = gl::RGBA8; // HACK
+			self.gl.BindImageTexture(unit, name.raw, level, layered, layer, gl::READ_WRITE, format);
 		}
 	}
 
@@ -55,13 +79,13 @@ impl super::Core {
 	// TODO(pat.m): this is just enough to get moving but is ultimately a v dumb api.
 	// allocation and creation can probably be tied together, since glCreateTextures requires immutable storage,
 	// but separate from data upload, since we may want to go through the upload heap
-	pub fn allocate_and_upload_srgba8_image(&self, name: ImageName, size: Vec2i, data: &[u8]) {
+	pub fn allocate_and_upload_rgba8_image(&self, name: ImageName, size: Vec2i, data: &[u8]) {
 		assert!(name.image_type == ImageType::Image2D);
 		assert!(data.len() == (size.x * size.y * 4) as usize);
 
 		unsafe {
 			let levels = 1; // no mips
-			self.gl.TextureStorage2D(name.raw, levels, gl::SRGB8_ALPHA8, size.x, size.y);
+			self.gl.TextureStorage2D(name.raw, levels, gl::RGBA8, size.x, size.y);
 
 			let (level, x, y) = (0, 0, 0);
 			self.gl.TextureSubImage2D(name.raw, level, x, y, size.x, size.y, gl::RGBA, gl::UNSIGNED_BYTE, data.as_ptr() as *const _);

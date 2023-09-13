@@ -1,7 +1,8 @@
-use crate::bindings::{BindingDescription, BufferBindTargetDesc, BufferBindSourceDesc, IntoBufferBindSourceOrStageable};
+use crate::bindings::{BindingDescription, BufferBindTarget, IntoBufferBindSourceOrStageable, ImageBindTarget, ImageBindSource};
 use crate::command::{Command, compute, draw};
 use crate::resource_manager::shader::ShaderHandle;
 use crate::upload_heap::{UploadStage, StagedUploadId};
+use crate::core::SamplerName;
 
 
 // 
@@ -58,22 +59,35 @@ impl<'g> CommandGroupEncoder<'g> {
 	}
 }
 
+/// Bindings shared between all commands in the group.
 impl<'g> CommandGroupEncoder<'g> {
-	pub fn buffer(&mut self, target: impl Into<BufferBindTargetDesc>, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
+	pub fn bind_shared_buffer(&mut self, target: impl Into<BufferBindTarget>, buffer: impl IntoBufferBindSourceOrStageable) {
 		self.group.shared_bindings.bind_buffer(target, buffer.into_bind_source(self.upload_stage));
-		self
 	}
 
-	pub fn ubo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
-		self.buffer(BufferBindTargetDesc::UboIndex(index), buffer)
+	pub fn bind_shared_ubo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) {
+		self.bind_shared_buffer(BufferBindTarget::UboIndex(index), buffer);
 	}
 
-	pub fn ssbo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
-		self.buffer(BufferBindTargetDesc::SsboIndex(index), buffer)
+	pub fn bind_shared_ssbo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) {
+		self.bind_shared_buffer(BufferBindTarget::SsboIndex(index), buffer);
+	}
+
+	pub fn bind_shared_sampled_image(&mut self, unit: u32, image: impl Into<ImageBindSource>, sampler: SamplerName) {
+		self.group.shared_bindings.bind_image(ImageBindTarget::Sampled(unit), image, sampler);
+	}
+
+	pub fn bind_shared_image(&mut self, unit: u32, image: impl Into<ImageBindSource>) {
+		self.group.shared_bindings.bind_image(ImageBindTarget::ReadonlyImage(unit), image, None);
+	}
+
+	// TODO(pat.m): do I want RW to be explicit?
+	pub fn bind_shared_image_rw(&mut self, unit: u32, image: impl Into<ImageBindSource>) {
+		self.group.shared_bindings.bind_image(ImageBindTarget::ReadWriteImage(unit), image, None);
 	}
 }
 
-
+/// Commands
 impl<'g> CommandGroupEncoder<'g> {
 	pub fn debug_marker(&mut self, label: impl Into<String>) {
 		self.add(Command::DebugMessage {

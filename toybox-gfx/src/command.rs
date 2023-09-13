@@ -1,4 +1,4 @@
-use crate::bindings::{self, BindingDescription, BufferBindSourceDesc};
+use crate::bindings::{self, BindingDescription, BufferBindSource};
 
 use crate::core::{Capabilities};
 use crate::upload_heap::{UploadStage, UploadHeap};
@@ -54,7 +54,7 @@ impl Command {
 			Draw(DrawCmd { bindings, index_buffer, .. }) => {
 				bindings.imbue_staged_buffer_alignments(upload_stage, capabilities);
 
-				if let Some(BufferBindSourceDesc::Staged(upload_id)) = index_buffer {
+				if let Some(BufferBindSource::Staged(upload_id)) = index_buffer {
 					// TODO(pat.m): allow non-32b indices
 					upload_stage.update_staged_upload_alignment(*upload_id, 4);
 				}
@@ -63,7 +63,7 @@ impl Command {
 			Compute(ComputeCmd { bindings, dispatch_size, .. }) => {
 				bindings.imbue_staged_buffer_alignments(upload_stage, capabilities);
 
-				if let DispatchSize::Indirect(BufferBindSourceDesc::Staged(upload_id)) = dispatch_size {
+				if let DispatchSize::Indirect(BufferBindSource::Staged(upload_id)) = dispatch_size {
 					upload_stage.update_staged_upload_alignment(*upload_id, 4);
 				}
 			},

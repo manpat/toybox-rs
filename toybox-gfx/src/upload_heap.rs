@@ -81,7 +81,10 @@ impl UploadHeap {
 
 		let allocation = BufferRange {
 			offset,
-			size,
+
+			// HACK: this is a measure to avoid binding ranges smaller than the minimum required size - specifically UBOs.
+			// this is needs a bit more thinking about tho, as alignment is not necessarily the correct value to use here
+			size: size.max(alignment),
 		};
 
 		// Check if we need to wait for the earliest range to be used.

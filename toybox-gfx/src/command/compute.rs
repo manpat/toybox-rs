@@ -1,12 +1,13 @@
 use crate::prelude::*;
-use crate::bindings::{BindingDescription, BufferBindTargetDesc, BufferBindSourceDesc, IntoBufferBindSourceOrStageable};
+use crate::bindings::{BindingDescription, BufferBindTarget, BufferBindSource, IntoBufferBindSourceOrStageable, ImageBindSource, ImageBindTarget};
 use crate::resource_manager::shader::ShaderHandle;
 use crate::upload_heap::UploadStage;
+use crate::core::SamplerName;
 
 #[derive(Debug)]
 pub enum DispatchSize {
 	Explicit(Vec3i),
-	Indirect(BufferBindSourceDesc),
+	Indirect(BufferBindSource),
 }
 
 
@@ -47,7 +48,7 @@ impl ComputeCmd {
 			}
 
 			DispatchSize::Indirect(bind_source) => {
-				let BufferBindSourceDesc::Name{name, range} = bind_source
+				let BufferBindSource::Name{name, range} = bind_source
 					else { panic!("Unresolved buffer bind source description") };
 
 				let offset = range.map(|r| r.offset).unwrap_or(0);
@@ -81,32 +82,33 @@ impl<'cg> ComputeCmdBuilder<'cg> {
 		self
 	}
 
-	pub fn buffer(&mut self, target: impl Into<BufferBindTargetDesc>, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
+	pub fn buffer(&mut self, target: impl Into<BufferBindTarget>, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
 		self.cmd.bindings.bind_buffer(target, buffer.into_bind_source(self.upload_stage));
 		self
 	}
 
 	pub fn ubo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
-		self.buffer(BufferBindTargetDesc::UboIndex(index), buffer)
+		self.buffer(BufferBindTarget::UboIndex(index), buffer)
 	}
 
 	pub fn ssbo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
-		self.buffer(BufferBindTargetDesc::SsboIndex(index), buffer)
+		self.buffer(BufferBindTarget::SsboIndex(index), buffer)
 	}
 
-	// pub fn texture(&mut self, location: impl Into<ImageBindingLocation>, image: ImageHandle, sampler: SamplerDef) -> &mut Self {
-	// 	self.cmd.image_bindings.push(ImageBinding::texture(image, sampler, location));
-	// 	self
-	// }
+	pub fn sampled_image(&mut self, unit: u32, image: impl Into<ImageBindSource>, sampler: SamplerName) -> &mut Self {
+		self.cmd.bindings.bind_image(ImageBindTarget::Sampled(unit), image, sampler);
+		self
+	}
 
-	// pub fn image(&mut self, location: impl Into<ImageBindingLocation>, image: ImageHandle) -> &mut Self {
-	// 	self.cmd.image_bindings.push(ImageBinding::image(image, location));
-	// 	self
-	// }
+	pub fn image(&mut self, unit: u32, image: impl Into<ImageBindSource>) -> &mut Self {
+		self.cmd.bindings.bind_image(ImageBindTarget::ReadonlyImage(unit), image, None);
+		self
+	}
 
-	// pub fn image_rw(&mut self, location: impl Into<ImageBindingLocation>, image: ImageHandle) -> &mut Self {
-	// 	self.cmd.image_bindings.push(ImageBinding::image_rw(image, location));
-	// 	self
-	// }
+	// TODO(pat.m): do I want RW to be explicit?
+	pub fn image_rw(&mut self, unit: u32, image: impl Into<ImageBindSource>) -> &mut Self {
+		self.cmd.bindings.bind_image(ImageBindTarget::ReadWriteImage(unit), image, None);
+		self
+	}
 }
 
