@@ -143,6 +143,23 @@ impl Host {
 				gl::FALSE
 			);
 
+			// Disable medium and low portability messages
+			// Otherwise we get spammed about opengl es 3 portability which we don't care about.
+			gl.DebugMessageControl(
+				gl::DONT_CARE,
+				gl::DEBUG_TYPE_PORTABILITY,
+				gl::DEBUG_SEVERITY_MEDIUM,
+				0, std::ptr::null(),
+				gl::FALSE
+			);
+			gl.DebugMessageControl(
+				gl::DONT_CARE,
+				gl::DEBUG_TYPE_PORTABILITY,
+				gl::DEBUG_SEVERITY_LOW,
+				0, std::ptr::null(),
+				gl::FALSE
+			);
+
 			// Disable notification messages
 			gl.DebugMessageControl(
 				gl::DONT_CARE,
@@ -176,7 +193,7 @@ extern "system" fn default_gl_error_handler(source: u32, ty: u32, _id: u32, seve
 		_ => panic!("Unknown severity {}", severity),
 	};
 
-	let ty = match ty {
+	let ty_str = match ty {
 		gl::DEBUG_TYPE_ERROR => "error",
 		gl::DEBUG_TYPE_DEPRECATED_BEHAVIOR => "deprecated behaviour",
 		gl::DEBUG_TYPE_UNDEFINED_BEHAVIOR => "undefined behaviour",
@@ -199,15 +216,16 @@ extern "system" fn default_gl_error_handler(source: u32, ty: u32, _id: u32, seve
 	eprintln!("GL ERROR!");
 	eprintln!("Source:   {}", source);
 	eprintln!("Severity: {}", severity_str);
-	eprintln!("Type:     {}", ty);
+	eprintln!("Type:     {}", ty_str);
 
 	unsafe {
 		let msg = std::ffi::CStr::from_ptr(msg as _).to_str().unwrap();
 		eprintln!("Message: {}", msg);
 	}
 
-	match severity {
-		gl::DEBUG_SEVERITY_HIGH | gl::DEBUG_SEVERITY_MEDIUM => panic!("GL ERROR!"),
+	match (severity, ty) {
+		(_, gl::DEBUG_TYPE_PORTABILITY | gl::DEBUG_TYPE_PERFORMANCE | gl::DEBUG_TYPE_OTHER) => {}
+		(gl::DEBUG_SEVERITY_HIGH | gl::DEBUG_SEVERITY_MEDIUM, _) => panic!("GL ERROR!"),
 		_ => {}
 	}
 }

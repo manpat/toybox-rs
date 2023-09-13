@@ -10,10 +10,11 @@ use crate::upload_heap::UploadHeap;
 
 pub mod shader;
 
+pub use shader::ShaderDef;
 
 // Create/Destroy api for gpu resources
 // Load/Cache resources from disk
-// Render target/FBO/temporary image cahage
+// Render target/FBO/temporary image cache
 //  - cache of images for use as single-frame render targets, automatically resized
 //  - cache of images for use as single-frame image resources -  fixed size
 //  - cache of FBOs for render passes
@@ -37,11 +38,14 @@ impl ResourceManager {
 			panic!("Can't find resource directory - make sure to run from correct working directory!");
 		}
 
+		let global_pipeline = core.create_shader_pipeline();
+		core.set_debug_label(global_pipeline, "Global shader pipeline");
+
 		ResourceManager {
 			resource_root_path,
 			shaders: ResourceStorage::new(),
 
-			global_pipeline: core.create_shader_pipeline(),
+			global_pipeline,
 
 			upload_heap: UploadHeap::new(core),
 

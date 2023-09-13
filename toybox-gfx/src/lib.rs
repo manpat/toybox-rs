@@ -221,3 +221,10 @@ impl<T> AsSlice for T {
 		std::slice::from_ref(self)
 	}
 }
+
+
+// TODO(pat.m): move somewhere else
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum Axis {
+	X, Y, Z
+}

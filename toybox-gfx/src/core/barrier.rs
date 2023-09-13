@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::core::{BufferName,};
+use crate::core::{BufferName,ImageName};
 
 use std::collections::HashMap;
 
@@ -19,6 +19,7 @@ const ALL_IMAGE_BARRIER_BITS: u32 = gl::TEXTURE_FETCH_BARRIER_BIT
 #[derive(Debug, Default)]
 pub struct BarrierTracker {
 	buffers: HashMap<BufferName, u32>,
+	images: HashMap<ImageName, u32>,
 
 	next_barrier_flags: u32,
 }
@@ -26,6 +27,16 @@ pub struct BarrierTracker {
 impl BarrierTracker {
 	pub fn new() -> Self {
 		Self::default()
+	}
+
+	pub fn read_buffer(&mut self, name: BufferName, read_usage_bits: u32) {
+		// If a buffer has been written to and a barrier matching read_usage_bits has not yet been emitted
+		// then we need to emit one before it gets read.
+		if let Some(needs_barrier_flags) = self.buffers.get(&name)
+			&& *needs_barrier_flags & read_usage_bits != 0
+		{
+			self.next_barrier_flags |= read_usage_bits;
+		}
 	}
 
 	pub fn write_buffer(&mut self, name: BufferName, read_usage_bits: u32) {
@@ -39,14 +50,25 @@ impl BarrierTracker {
 		self.buffers.insert(name, ALL_BUFFER_BARRIER_BITS);
 	}
 
-	pub fn read_buffer(&mut self, name: BufferName, read_usage_bits: u32) {
-		// If a buffer has been written to and a barrier matching read_usage_bits has not yet been emitted
+	pub fn read_image(&mut self, name: ImageName, read_usage_bits: u32) {
+		// If a image has been written to and a barrier matching read_usage_bits has not yet been emitted
 		// then we need to emit one before it gets read.
-		if let Some(needs_barrier_flags) = self.buffers.get(&name)
+		if let Some(needs_barrier_flags) = self.images.get(&name)
 			&& *needs_barrier_flags & read_usage_bits != 0
 		{
 			self.next_barrier_flags |= read_usage_bits;
 		}
+	}
+
+	pub fn write_image(&mut self, name: ImageName, read_usage_bits: u32) {
+		// We assume a write hazard is _also_ a read hazard (that is all writes are actually read/writes).
+		// so subsequent draw calls that write to the same image still need a barrier to ensure ordering.
+		self.read_image(name, read_usage_bits);
+
+		// Any reads from this image after the next draw call will require a barrier of the right type.
+		// Since barriers apply for _all_ images, keep track of which barriers we are yet to emit for any
+		// given image.
+		self.images.insert(name, ALL_IMAGE_BARRIER_BITS);
 	}
 
 	/// Inserts any barriers required for the next draw call to be well defined, assuming appropriate calls to
@@ -61,8 +83,12 @@ impl BarrierTracker {
 			}
 		}
 
-		for buffer_read_flags in self.buffers.values_mut() {
-			*buffer_read_flags &= !barrier_flags;
+		for needs_barrier_flags in self.buffers.values_mut() {
+			*needs_barrier_flags &= !barrier_flags;
+		}
+
+		for needs_barrier_flags in self.images.values_mut() {
+			*needs_barrier_flags &= !barrier_flags;
 		}
 	}
 }

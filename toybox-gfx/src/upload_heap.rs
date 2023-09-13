@@ -25,12 +25,12 @@ impl UploadHeap {
 		core.set_debug_label(buffer_name, "Upload Heap");
 		core.allocate_buffer_storage(buffer_name, UPLOAD_BUFFER_SIZE, create_flags);
 
-		let buffer_ptr;
-
-		unsafe {
+		let buffer_ptr = unsafe {
 			let map_flags = gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT | gl::MAP_WRITE_BIT;
-			buffer_ptr = core.gl.MapNamedBufferRange(buffer_name.as_raw(), 0, UPLOAD_BUFFER_SIZE as isize, map_flags) as *mut u8;
+			core.gl.MapNamedBufferRange(buffer_name.as_raw(), 0, UPLOAD_BUFFER_SIZE as isize, map_flags) as *mut u8
 		};
+
+		assert!(!buffer_ptr.is_null(), "Failed to map upload heap");
 
 		UploadHeap {
 			buffer_name,

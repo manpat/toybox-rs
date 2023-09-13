@@ -8,6 +8,8 @@ pub mod fbo;
 pub mod vao;
 pub mod buffer;
 pub mod barrier;
+pub mod sampler;
+pub mod image;
 pub mod shader;
 pub mod shader_pipeline;
 pub mod global_state;
@@ -15,6 +17,8 @@ pub mod global_state;
 pub use capabilities::Capabilities;
 pub use fbo::{FboName};
 pub use buffer::{BufferName};
+pub use sampler::{SamplerName, AddressingMode, FilterMode};
+pub use image::{ImageName, ImageType};
 pub use shader::{ShaderName, ShaderType};
 pub use shader_pipeline::{ShaderPipelineName};
 
