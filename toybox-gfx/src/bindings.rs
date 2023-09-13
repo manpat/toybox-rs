@@ -103,6 +103,7 @@ impl BindingDescription {
 
 	pub fn clear(&mut self) {
 		self.buffer_bindings.clear();
+		self.image_bindings.clear();
 	}
 
 	pub fn bind_buffer(&mut self, target: impl Into<BufferBindTarget>, source: impl Into<BufferBindSource>) {
