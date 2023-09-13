@@ -7,6 +7,7 @@ pub mod capabilities;
 pub mod fbo;
 pub mod vao;
 pub mod buffer;
+pub mod barrier;
 pub mod shader;
 pub mod shader_pipeline;
 pub mod global_state;
@@ -17,7 +18,7 @@ pub use buffer::{BufferName};
 pub use shader::{ShaderName, ShaderType};
 pub use shader_pipeline::{ShaderPipelineName};
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell, RefMut};
 
 
 pub struct Core {
@@ -25,6 +26,8 @@ pub struct Core {
 	gl_context: host::GlContext,
 	pub gl: gl::Gl,
 	capabilities: Capabilities,
+
+	barrier_tracker: RefCell<barrier::BarrierTracker>,
 
 	num_active_clip_planes: Cell<u32>,
 	bound_index_buffer: Cell<Option<BufferName>>,
@@ -46,6 +49,8 @@ impl Core {
 			gl,
 			capabilities,
 
+			barrier_tracker: RefCell::new(barrier::BarrierTracker::new()),
+
 			num_active_clip_planes: Cell::new(0),
 			bound_index_buffer: Cell::new(None),
 			bound_shader_pipeline: Cell::new(ShaderPipelineName(0)),
@@ -56,6 +61,10 @@ impl Core {
 
 	pub fn capabilities(&self) -> &Capabilities {
 		&self.capabilities
+	}
+
+	pub fn barrier_tracker(&self) -> RefMut<'_, barrier::BarrierTracker> {
+		self.barrier_tracker.borrow_mut()
 	}
 
 	pub fn swap(&mut self) {

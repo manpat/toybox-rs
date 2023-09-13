@@ -38,8 +38,11 @@ impl ComputeCmd {
 
 		self.bindings.bind(core);
 
+		let mut barrier_tracker = core.barrier_tracker();
+
 		match self.dispatch_size {
 			DispatchSize::Explicit(size) => unsafe {
+				barrier_tracker.emit_barriers(&core.gl);
 				core.gl.DispatchCompute(size.x as u32, size.y as u32, size.z as u32);
 			}
 
@@ -50,6 +53,9 @@ impl ComputeCmd {
 				let offset = range.map(|r| r.offset).unwrap_or(0);
 
 				core.bind_dispatch_indirect_buffer(name);
+
+				barrier_tracker.read_buffer(name, gl::COMMAND_BARRIER_BIT);
+				barrier_tracker.emit_barriers(&core.gl);
 
 				unsafe {
 					core.gl.DispatchComputeIndirect(offset as isize);

@@ -1,3 +1,4 @@
+use crate::prelude::*;
 use crate::core::{self, Core, BufferName, Capabilities};
 use crate::core::buffer::{IndexedBufferTarget, BufferRange};
 use crate::upload_heap::{UploadStage, UploadHeap, StagedUploadId};
@@ -123,12 +124,21 @@ impl BindingDescription {
 	// It does limit things a bit if I want to look things up in a per-pass BindingDescription.
 	// Also binding should probably be done through a bindings tracker.
 	pub fn bind(&self, core: &mut Core) {
+		let mut barrier_tracker = core.barrier_tracker();
+
 		for BufferBindDesc{target, source} in self.buffer_bindings.iter() {
 			let BufferBindSourceDesc::Name{name, range} = *source
 				else { panic!("Unresolved buffer bind source description") };
 
 			let Some((index, indexed_target)) = target.to_raw_index().zip(target.to_indexed_buffer_target())
 				else { panic!("Unresolve buffer target description") };
+
+			match indexed_target {
+				// TODO(pat.m): this is pessimistic - but we need shader reflection to guarantee that an ssbo is bound
+				// as readonly.
+				IndexedBufferTarget::ShaderStorage => barrier_tracker.write_buffer(name, gl::SHADER_STORAGE_BARRIER_BIT),
+				IndexedBufferTarget::Uniform => barrier_tracker.read_buffer(name, gl::UNIFORM_BARRIER_BIT),
+			}
 
 			core.bind_indexed_buffer(indexed_target, index, name, range);
 		}

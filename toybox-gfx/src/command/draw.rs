@@ -66,6 +66,8 @@ impl DrawCmd {
 		let num_elements = self.num_elements as i32;
 		let num_instances = self.num_instances as i32;
 
+		let mut barrier_tracker = core.barrier_tracker();
+
 		if let Some(bind_source) = self.index_buffer {
 			let BufferBindSourceDesc::Name{name, range} = bind_source
 				else { panic!("Unresolved buffer bind source description") };
@@ -76,12 +78,17 @@ impl DrawCmd {
 
 			core.bind_index_buffer(name);
 
+			barrier_tracker.read_buffer(name, gl::ELEMENT_ARRAY_BARRIER_BIT);
+			barrier_tracker.emit_barriers(&core.gl);
+
 			unsafe {
 				core.gl.DrawElementsInstanced(primitive_type, num_elements, index_type,
 					offset_ptr, num_instances);
 			}
 
 		} else {
+			barrier_tracker.emit_barriers(&core.gl);
+
 			unsafe {
 				core.gl.DrawArraysInstanced(primitive_type, 0, num_elements, num_instances);
 			}
