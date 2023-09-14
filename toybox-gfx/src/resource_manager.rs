@@ -10,7 +10,7 @@ use crate::upload_heap::UploadHeap;
 
 pub mod shader;
 
-pub use shader::ShaderDef;
+pub use shader::*;
 
 // Create/Destroy api for gpu resources
 // Load/Cache resources from disk
@@ -22,9 +22,12 @@ pub use shader::ShaderDef;
 pub struct ResourceManager {
 	resource_root_path: PathBuf,
 
+	load_shader_requests: ResourceRequestMap<LoadShaderRequest, shader::ShaderResource>,
+	compile_shader_requests: ResourceRequestMap<CompileShaderRequest, shader::ShaderResource>,
 	pub shaders: ResourceStorage<shader::ShaderResource>,
 
-	global_pipeline: crate::core::ShaderPipelineName,
+	draw_pipelines: HashMap<(ShaderHandle, Option<ShaderHandle>), core::ShaderPipelineName>,
+	compute_pipelines: HashMap<ShaderHandle, core::ShaderPipelineName>,
 
 	pub upload_heap: UploadHeap,
 
@@ -38,14 +41,15 @@ impl ResourceManager {
 			panic!("Can't find resource directory - make sure to run from correct working directory!");
 		}
 
-		let global_pipeline = core.create_shader_pipeline();
-		core.set_debug_label(global_pipeline, "Global shader pipeline");
-
 		ResourceManager {
 			resource_root_path,
+
+			load_shader_requests: ResourceRequestMap::new(),
+			compile_shader_requests: ResourceRequestMap::new(),
 			shaders: ResourceStorage::new(),
 
-			global_pipeline,
+			draw_pipelines: HashMap::new(),
+			compute_pipelines: HashMap::new(),
 
 			upload_heap: UploadHeap::new(core),
 
@@ -66,11 +70,16 @@ impl ResourceManager {
 			println!("RESIZE {_size:?}");
 		}
 
-		self.shaders.process_requests(|def| {
+		self.load_shader_requests.process_requests(&mut self.shaders, |def| {
 			let full_path = self.resource_root_path.join(&def.path);
 
 			shader::ShaderResource::from_disk(core, def.shader_type, &full_path)
 				.with_context(|| format!("Compiling shader '{}'", full_path.display()))
+		})?;
+
+		self.compile_shader_requests.process_requests(&mut self.shaders, |def| {
+			shader::ShaderResource::from_source(core, def.shader_type, &def.src, &def.label)
+				.with_context(|| format!("Compiling shader '{}' from source", def.label))
 		})?;
 
 		// TODO(pat.m): this will never be reached if the above fails, but if the above fails
@@ -87,39 +96,58 @@ impl ResourceManager {
 		vertex_shader: shader::ShaderHandle, fragment_shader: impl Into<Option<shader::ShaderHandle>>)
 		-> crate::core::ShaderPipelineName
 	{
-		// TODO(pat.m): avoid repeated work
+		let fragment_shader = fragment_shader.into();
+		let key = (vertex_shader, fragment_shader);
 
-		if let Some(fragment_shader) = fragment_shader.into() {
-			let fragment_shader_name = self.shaders.get_name(fragment_shader).unwrap();
-			core.attach_shader_to_pipeline(self.global_pipeline, fragment_shader_name);
-		} else {
-			// Only clear if we're removing the fragment stage
-			core.clear_shader_pipeline(self.global_pipeline);
+		if let Some(&name) = self.draw_pipelines.get(&key) {
+			return name;
 		}
 
-		let vertex_shader_name = self.shaders.get_name(vertex_shader).unwrap();
-		core.attach_shader_to_pipeline(self.global_pipeline, vertex_shader_name);
+		let pipeline = core.create_shader_pipeline();
 
-		self.global_pipeline
+		let vertex_shader_name = self.shaders.get_name(vertex_shader).unwrap();
+		core.attach_shader_to_pipeline(pipeline, vertex_shader_name);
+
+		if let Some(fragment_shader) = fragment_shader {
+			let fragment_shader_name = self.shaders.get_name(fragment_shader).unwrap();
+			core.attach_shader_to_pipeline(pipeline, fragment_shader_name);
+		}
+
+		core.set_debug_label(pipeline, "draw pipeline");
+
+		self.draw_pipelines.insert(key, pipeline);
+
+		pipeline
 	}
 
 	pub fn resolve_compute_pipeline(&mut self, core: &mut core::Core, compute_shader: shader::ShaderHandle)
 		-> crate::core::ShaderPipelineName
 	{
-		// core.clear_shader_pipeline(self.global_pipeline);
+		if let Some(&name) = self.compute_pipelines.get(&compute_shader) {
+			return name;
+		}
 
+		let pipeline = core.create_shader_pipeline();
 		let compute_shader_name = self.shaders.get_name(compute_shader).unwrap();
-		core.attach_shader_to_pipeline(self.global_pipeline, compute_shader_name);
+		core.attach_shader_to_pipeline(pipeline, compute_shader_name);
+		core.set_debug_label(pipeline, "compute pipeline");
 
-		self.global_pipeline
+		self.compute_pipelines.insert(compute_shader, pipeline);
+
+		pipeline
 	}
 }
 
 
 /// Request api
 impl ResourceManager {
-	pub fn create_shader(&mut self, def: shader::ShaderDef) -> shader::ShaderHandle {
-		self.shaders.get_or_request_handle(def)
+	// TODO(pat.m): these could literally just be replaced with a single request(Request)
+	pub fn create_shader(&mut self, def: LoadShaderRequest) -> shader::ShaderHandle {
+		self.load_shader_requests.request_handle(&mut self.shaders, def)
+	}
+
+	pub fn compile_shader(&mut self, def: CompileShaderRequest) -> shader::ShaderHandle {
+		self.compile_shader_requests.request_handle(&mut self.shaders, def)
 	}
 }
 
@@ -132,7 +160,6 @@ pub trait ResourceHandle : Copy + Clone + Eq + PartialEq + Debug + Hash {
 pub trait Resource : Debug {
 	type Handle : ResourceHandle;
 	type Name : core::ResourceName;
-	type Def : PartialEq + Eq + Hash;
 
 	// TODO(pat.m): ref counting?
 	fn get_name(&self) -> Self::Name;
@@ -141,26 +168,17 @@ pub trait Resource : Debug {
 
 #[derive(Debug)]
 pub struct ResourceStorage<R: Resource> {
-	handle_counter: u32,
 	resources: HashMap<R::Handle, R>,
-	def_to_handle: HashMap<R::Def, R::Handle>,
-	requests: HashMap<R::Def, R::Handle>,
+	handle_counter: u32,
 }
 
 impl<R: Resource> ResourceStorage<R> {
 	fn new() -> Self {
 		ResourceStorage {
-			handle_counter: 0,
 			resources: HashMap::new(),
-			def_to_handle: HashMap::new(),
-			requests: HashMap::new(),
+			handle_counter: 0,
 		}
 	}
-
-	pub fn get_handle(&self, def: &R::Def) -> Option<R::Handle> {
-		self.def_to_handle.get(def).cloned()
-	}
-
 	pub fn get_name(&self, handle: R::Handle) -> Option<R::Name> {
 		self.resources.get(&handle)
 			.map(R::get_name)
@@ -170,26 +188,56 @@ impl<R: Resource> ResourceStorage<R> {
 		self.resources.get(&handle)
 	}
 
-	pub fn get_or_request_handle(&mut self, def: R::Def) -> R::Handle {
-		if let Some(handle) = self.get_handle(&def) {
+	fn insert(&mut self, handle: R::Handle, resource: R) {
+		self.resources.insert(handle, resource);
+	}
+
+	fn new_handle(&mut self) -> R::Handle {
+		let value = self.handle_counter;
+		self.handle_counter += 1;
+		R::Handle::from_raw(value)
+	}
+}
+
+
+#[derive(Debug)]
+pub struct ResourceRequestMap<Request, R: Resource>
+	where Request: PartialEq + Eq + Hash
+{
+	request_to_handle: HashMap<Request, R::Handle>,
+	requests: HashMap<Request, R::Handle>,
+}
+
+impl<Request, R: Resource> ResourceRequestMap<Request, R>
+	where Request: PartialEq + Eq + Hash
+{
+	fn new() -> Self {
+		ResourceRequestMap {
+			request_to_handle: HashMap::new(),
+			requests: HashMap::new(),
+		}
+	}
+
+	pub fn get_handle(&self, request: &Request) -> Option<R::Handle> {
+		self.request_to_handle.get(request).cloned()
+	}
+
+	pub fn request_handle(&mut self, storage: &mut ResourceStorage<R>, request: Request) -> R::Handle {
+		if let Some(handle) = self.get_handle(&request) {
 			return handle
 		}
 
-		*self.requests.entry(def)
-			.or_insert_with(|| {
-				let value = self.handle_counter;
-				self.handle_counter += 1;
-				R::Handle::from_raw(value)
-			})
+		*self.requests.entry(request)
+			.or_insert_with(|| storage.new_handle())
 	}
 
-	fn process_requests<F>(&mut self, mut f: F) -> anyhow::Result<()>
-		where F: FnMut(&R::Def) -> anyhow::Result<R>
+	fn process_requests<F>(&mut self, storage: &mut ResourceStorage<R>, mut f: F) -> anyhow::Result<()>
+		where F: FnMut(&Request) -> anyhow::Result<R>
 	{
-		for (def, handle) in self.requests.drain() {
-			let resource = f(&def)?;
-			self.resources.insert(handle, resource);
-			self.def_to_handle.insert(def, handle);
+		for (request, handle) in self.requests.drain() {
+			let resource = f(&request)?;
+			storage.insert(handle, resource);
+			self.request_to_handle.insert(request, handle);
 		}
 
 		Ok(())

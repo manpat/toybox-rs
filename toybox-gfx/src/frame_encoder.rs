@@ -45,10 +45,16 @@ impl FrameEncoder {
 		self.backbuffer_clear_color = color.into();
 	}
 
-	pub fn upload<T>(&mut self, data: &impl crate::AsSlice<Target=T>) -> StagedUploadId
-		where T: Copy + 'static
-	{
+	pub fn upload(&mut self, data: &impl crate::AsStageableSlice) -> StagedUploadId {
 		self.upload_stage.stage_data(data.as_slice())
+	}
+
+	pub fn upload_iter<T, I>(&mut self, iter: I) -> StagedUploadId
+		where I: IntoIterator<Item=T>
+			, I::IntoIter: ExactSizeIterator
+			, T: Copy + 'static
+	{
+		self.upload_stage.stage_data_iter(iter)
 	}
 
 	pub fn command_group<'g>(&'g mut self, id: &str) -> CommandGroupEncoder<'g> {

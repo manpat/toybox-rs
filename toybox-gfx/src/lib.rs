@@ -85,6 +85,10 @@ impl System {
 
 		self.core.set_viewport(self.backbuffer_size);
 
+		// TODO(pat.m): doing this first may mean duplicate bindings per bind target after name resolution.
+		// moving from binding merging to a hierarchical lookup, or to a just-in-time lookup might improve this
+		self.merge_bindings();
+
 		self.resolve_named_bind_targets();
 
 		// Resolve alignment for staged uploads
@@ -95,8 +99,6 @@ impl System {
 
 		// Resolve all staged bind sources to concrete names and ranges
 		self.resolve_staged_bind_sources();
-
-		self.merge_bindings();
 
 		// Dispatch commands to GPU
 		self.dispatch_commands();
@@ -110,14 +112,10 @@ impl System {
 	}
 
 	fn resolve_named_bind_targets(&mut self) {
-		self.frame_encoder.global_bindings.resolve_named_bind_targets();
-
 		for command_group in self.frame_encoder.command_groups.iter_mut() {
-			command_group.shared_bindings.resolve_named_bind_targets();
-
 			for command in command_group.commands.iter_mut() {
 				if let Some(bindings) = command.bindings_mut() {
-					bindings.resolve_named_bind_targets();
+					bindings.resolve_named_bind_targets(/*shaders, resource manager*/);
 				}
 			}
 		}
@@ -127,10 +125,10 @@ impl System {
 		let upload_stage = &mut self.frame_encoder.upload_stage;
 		let capabilities = self.core.capabilities();
 
-		self.frame_encoder.global_bindings.imbue_staged_buffer_alignments(upload_stage, capabilities);
+		// self.frame_encoder.global_bindings.imbue_staged_buffer_alignments(upload_stage, capabilities);
 
 		for command_group in self.frame_encoder.command_groups.iter() {
-			command_group.shared_bindings.imbue_staged_buffer_alignments(upload_stage, capabilities);
+			// command_group.shared_bindings.imbue_staged_buffer_alignments(upload_stage, capabilities);
 
 			for command in command_group.commands.iter() {
 				command.resolve_staged_buffer_alignments(upload_stage, capabilities);
@@ -141,10 +139,10 @@ impl System {
 	fn resolve_staged_bind_sources(&mut self) {
 		let upload_heap = &mut self.resource_manager.upload_heap;
 
-		self.frame_encoder.global_bindings.resolve_staged_bind_sources(upload_heap);
+		// self.frame_encoder.global_bindings.resolve_staged_bind_sources(upload_heap);
 
 		for command_group in self.frame_encoder.command_groups.iter_mut() {
-			command_group.shared_bindings.resolve_staged_bind_sources(upload_heap);
+			// command_group.shared_bindings.resolve_staged_bind_sources(upload_heap);
 
 			for command in command_group.commands.iter_mut() {
 				command.resolve_staged_bind_sources(upload_heap);
@@ -202,23 +200,35 @@ impl System {
 
 
 
-// TODO(pat.m): move to common
-pub trait AsSlice {
-	type Target;
+pub trait AsStageableSlice {
+	type Target : Copy + Sized + 'static;
 	fn as_slice(&self) -> &[Self::Target];
 }
 
-impl<T> AsSlice for [T] {
+impl<T> AsStageableSlice for [T]
+	where T: Copy + Sized + 'static
+{
 	type Target = T;
 	fn as_slice(&self) -> &[T] {
 		self
 	}
 }
 
-impl<T> AsSlice for T {
+impl<T, const N: usize> AsStageableSlice for [T; N]
+	where T: Copy + Sized + 'static
+{
 	type Target = T;
 	fn as_slice(&self) -> &[T] {
-		std::slice::from_ref(self)
+		self
+	}
+}
+
+impl<T> AsStageableSlice for Vec<T>
+	where T: Copy + Sized + 'static
+{
+	type Target = T;
+	fn as_slice(&self) -> &[T] {
+		self
 	}
 }
 

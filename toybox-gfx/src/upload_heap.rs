@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use crate::core::{Core, BufferName, buffer::BufferRange};
 
-pub const UPLOAD_BUFFER_SIZE: usize = 1<<15;
+pub const UPLOAD_BUFFER_SIZE: usize = 8<<20;
 
 pub struct UploadHeap {
 	buffer_name: BufferName,
@@ -48,7 +48,7 @@ impl UploadHeap {
 
 	pub fn reset(&mut self) {
 		if self.buffer_usage_counter > UPLOAD_BUFFER_SIZE {
-			dbg!(self.buffer_usage_counter);
+			dbg!(self.buffer_usage_counter, UPLOAD_BUFFER_SIZE);
 			dbg!(self.data_pushed_counter);
 			panic!("upload buffer overrun");
 		}
@@ -214,9 +214,8 @@ impl UploadStage {
 		self.staged_uploads.clear();
 	}
 
-	pub fn stage_data<T, U>(&mut self, data: &U) -> StagedUploadId
-		where T: Copy + Sized + 'static
-			, U: crate::AsSlice<Target=T> + ?Sized
+	pub fn stage_data<U>(&mut self, data: &U) -> StagedUploadId
+		where U: crate::AsStageableSlice + ?Sized
 	{
 		let index = self.staged_uploads.len();
 
@@ -226,11 +225,8 @@ impl UploadStage {
 		// This is technically a no-no, but is safe so long as references into staging_allocator
 		// are banished before it is reset or dropped, and we don't call anything on staging_allocator 
 		// that can view these allocations
-		let bytes_static: &'static [u8] = unsafe {
-			let ptr = data_copied.as_ptr();
-			let byte_size = data_copied.len() * std::mem::size_of::<T>();
-
-			std::slice::from_raw_parts(ptr.cast(), byte_size)
+		let bytes_static = unsafe {
+			as_static_bytes(data_copied)
 		};
 
 		self.staged_uploads.push(StagedUpload {
@@ -241,6 +237,32 @@ impl UploadStage {
 
 		StagedUploadId(index)
 	}
+
+	pub fn stage_data_iter<I, T>(&mut self, iter: I) -> StagedUploadId
+	    where I: IntoIterator<Item = T>
+		    , I::IntoIter: ExactSizeIterator
+		    , T: Copy + Sized + 'static
+    {
+		let index = self.staged_uploads.len();
+
+		let data_copied = self.staging_allocator.alloc_slice_fill_iter(iter);
+
+		// SAFETY: We are making a non-'static allocation 'static here.
+		// This is technically a no-no, but is safe so long as references into staging_allocator
+		// are banished before it is reset or dropped, and we don't call anything on staging_allocator 
+		// that can view these allocations
+		let bytes_static = unsafe {
+			as_static_bytes(data_copied)
+		};
+
+		self.staged_uploads.push(StagedUpload {
+			data: bytes_static,
+			alignment: 1,
+			index,
+		});
+
+		StagedUploadId(index)
+    }
 
 	pub fn update_staged_upload_alignment(&mut self, upload_id: StagedUploadId, new_aligment: usize) {
 		let Some(upload) = self.staged_uploads.get_mut(upload_id.0) else {
@@ -264,5 +286,16 @@ impl UploadStage {
 		}
 
 		core.pop_debug_group();
+	}
+}
+
+
+unsafe fn as_static_bytes<T>(slice: &[T]) -> &'static [u8]
+	where T: Copy + Sized + 'static
+{
+	unsafe {
+		let ptr = slice.as_ptr();
+		let byte_size = slice.len() * std::mem::size_of::<T>();
+		std::slice::from_raw_parts(ptr.cast(), byte_size)
 	}
 }

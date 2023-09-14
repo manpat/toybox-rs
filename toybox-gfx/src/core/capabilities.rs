@@ -11,6 +11,9 @@ pub struct Capabilities {
 
 	/// Guaranteed to be at least 16
 	pub max_image_units: usize,
+
+	/// Guaranteed to be at least 1024
+	pub max_texture_size: usize,
 }
 
 impl Capabilities {
@@ -18,6 +21,7 @@ impl Capabilities {
 		let mut ubo_bind_alignment = 0;
 		let mut ssbo_bind_alignment = 0;
 		let mut max_user_clip_planes = 0;
+		let mut max_texture_size = 0;
 		let max_image_units;
 		
 		unsafe {
@@ -40,6 +44,8 @@ impl Capabilities {
 			// but still neat to see whats available.
 			max_image_units = max_vertex_image_units.min(max_fragment_image_units).min(max_compute_image_units)
 				.min(max_combined_image_units/2);
+
+			gl.GetIntegerv(gl::MAX_TEXTURE_SIZE, &mut max_texture_size);
 		}
 
 		Capabilities {
@@ -47,6 +53,7 @@ impl Capabilities {
 			ssbo_bind_alignment: ssbo_bind_alignment as usize,
 			max_user_clip_planes: max_user_clip_planes as usize,
 			max_image_units: max_image_units as usize,
+			max_texture_size: max_texture_size as usize,
 		}
 	}
 }

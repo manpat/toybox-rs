@@ -3,18 +3,30 @@ use crate::prelude::*;
 pub struct Context {
 	pub gfx: gfx::System,
 	pub audio: audio::System,
+	pub egui: egui::Context,
+
+	pub(super) egui_integration: egui_backend::Integration,
 }
 
 impl Context {
-	pub(crate) fn start_frame(&mut self) {
+	// Called at the very beginning of the frame, before any events are processed.
+	pub(crate) fn prepare_frame(&mut self) {
 		self.audio.update();
+	}
+
+	// Called after events are processed, immediately before control is passed to the app.
+	pub(crate) fn start_frame(&mut self) {
+		self.egui = self.egui_integration.start_frame();
 	}
 
 	pub(crate) fn notify_resized(&mut self, new_size: Vec2i) {
 		self.gfx.resize(new_size);
 	}
 
+	// Called after app returns control, before the frame ends.
 	pub(crate) fn finalize_frame(&mut self) {
+		self.egui_integration.end_frame(&mut self.gfx);
+
 		self.gfx.execute_frame();
 	}
 

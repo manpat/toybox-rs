@@ -1,3 +1,6 @@
 [workspace]
-members = ["toybox", "toybox-host", "toybox-gfx", "toybox-audio", "toybox-input", "gl"]
+members = [
+	"toybox", "toybox-host", "toybox-gfx",
+	"toybox-audio", "toybox-input", "toybox-egui", "gl"
+]
 resolver = "2"

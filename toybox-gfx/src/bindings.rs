@@ -91,6 +91,7 @@ pub struct ImageBindDesc {
 
 #[derive(Debug, Default)]
 pub struct BindingDescription {
+	// TODO(pat.m): store unresolved named targets separately to resolved/explicit targets to simplify usage 
 	pub buffer_bindings: Vec<BufferBindDesc>,
 	pub image_bindings: Vec<ImageBindDesc>,
 }
@@ -248,9 +249,8 @@ impl IntoBufferBindSourceOrStageable for crate::core::BufferName {
 }
 
 // Accept anything that can be turned into a slice of sized, copyable items - including regular references
-impl<'t, T, U> IntoBufferBindSourceOrStageable for &'t T
-	where T: crate::AsSlice<Target=U>
-		, U: Copy + Sized + 'static
+impl<'t, T> IntoBufferBindSourceOrStageable for &'t T
+	where T: crate::AsStageableSlice
 {
 	fn into_bind_source(self, stage: &mut UploadStage) -> BufferBindSource {
 		stage.stage_data(self.as_slice()).into()

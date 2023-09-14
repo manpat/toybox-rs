@@ -1,4 +1,5 @@
 #![doc = include_str!("../README.md")]
+#![feature(let_chains)]
 
 pub mod prelude;
 pub use crate::prelude::*;
@@ -30,18 +31,26 @@ impl Engine {
 		where A: App + 'static
 			, F: FnOnce(&mut Context) -> anyhow::Result<A>
 	{
-		let Host{ event_loop, gl_state: gl, surface, gl_context, .. } = self.host;
+		let Host{ event_loop, gl_state: gl, surface, gl_context, window, .. } = self.host;
 
-		let gfx = {
+		let window = std::rc::Rc::new(window);
+
+		let mut gfx = {
 			let core = gfx::Core::new(surface, gl_context, gl);
 			gfx::System::new(core)?
 		};
 
 		let audio = audio::init()?;
 
+		let egui = egui::Context::default();
+		let egui_integration = egui_backend::Integration::new(egui.clone(), window.clone(), &mut gfx)?;
+
 		let mut context = Context {
 			gfx,
 			audio,
+			egui,
+
+			egui_integration,
 		};
 
 		let mut app = start_app(&mut context)?;
@@ -51,9 +60,15 @@ impl Engine {
 
 			control_flow.set_poll();
 
+			if let Event::WindowEvent { event, .. } = &event
+				&& context.egui_integration.on_event(event)
+			{
+				return
+			}
+
 			match event {
 				Event::NewEvents(_) => {
-					context.start_frame();
+					context.prepare_frame();
 				}
 
 				Event::WindowEvent { event: WindowEvent::CloseRequested, .. }
@@ -69,6 +84,7 @@ impl Engine {
 				}
 
 				Event::MainEventsCleared => {
+					context.start_frame();
 					app.present(&mut context);
 					context.finalize_frame();
 				}
