@@ -59,7 +59,7 @@ impl Renderer {
 			return
 		}
 
-		// println!("Paint {} primitives", primitives.len());
+		let backbuffer_size = gfx.backbuffer_size();
 
 		let mut group = gfx.frame_encoder.command_group("Paint Egui");
 
@@ -82,6 +82,10 @@ impl Renderer {
 			}
 		});
 
+		// TODO(pat.m): are egui coords in logical or physical coordinates?
+		// this might be incorrect with scaling
+		let transforms = group.upload(&[backbuffer_size]);
+
 		for ClippedPrimitive{clip_rect, primitive} in primitives {
 			let Primitive::Mesh(mesh) = primitive else { unimplemented!() };
 
@@ -95,7 +99,7 @@ impl Renderer {
 
 			let vertices = group.upload_iter(mesh.vertices.iter()
 				.map(|v| Vertex {
-					pos: Vec2::new(v.pos.x, v.pos.y) * 0.001 - Vec2::splat(1.0),
+					pos: Vec2::new(v.pos.x, v.pos.y),
 					uv: [(v.uv.x * 65535.0) as u16, (v.uv.y * 65535.0) as u16],
 					color: v.color.to_array(),
 				}));
@@ -103,7 +107,8 @@ impl Renderer {
 			group.draw(self.vertex_shader, self.fragment_shader)
 				.elements(mesh.indices.len() as u32)
 				.indexed(&mesh.indices)
-				.ssbo(0, vertices);
+				.ssbo(0, vertices)
+				.ubo(0, transforms);
 		}
 		
 		group.execute(|core, _| {
