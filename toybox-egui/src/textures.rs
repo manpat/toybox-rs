@@ -18,6 +18,7 @@ pub struct TextureManager {
 	managed_images: HashMap<TextureId, Option<ManagedImage>>,
 }
 
+#[derive(Debug)]
 struct ManagedImage {
 	name: ImageName,
 	allocated_size: Vec2i,
@@ -79,6 +80,8 @@ impl TextureManager {
 			if let Some(image) = managed_image
 				&& !is_managed_image_compatible(image, delta)
 			{
+				println!("=== INVALIDATED {image:?} ===");
+
 				gfx.core.destroy_image(image.name);
 				*managed_image = None;
 			}
@@ -139,7 +142,7 @@ fn is_managed_image_compatible(managed_image: &ManagedImage, delta: &ImageDelta)
 	let is_size_compatible = !(is_full_image_update && is_different_size);
 
 	let is_delta_font = matches!(&delta.image, ImageData::Font(_));
-	let is_same_type = managed_image.holds_font != is_delta_font;
+	let is_same_type = managed_image.holds_font == is_delta_font;
 
 	is_size_compatible && is_same_type
 }
