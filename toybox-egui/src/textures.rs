@@ -13,14 +13,17 @@ use std::collections::HashMap;
 
 pub struct TextureManager {
 	sampler: SamplerName,
-	image: ImageName,
+	default_image: ImageName,
 
-	managed_images: HashMap<TextureId, ManagedImage>,
+	managed_images: HashMap<TextureId, Option<ManagedImage>>,
 }
 
 struct ManagedImage {
 	name: ImageName,
-	allocated_size: Option<Vec2i>,
+	allocated_size: Vec2i,
+
+	// If true, texture will be in gl::R16 format
+	holds_font: bool,
 }
 
 
@@ -32,12 +35,12 @@ impl TextureManager {
 		gfx.core.set_sampler_addressing_mode(sampler, AddressingMode::Clamp);
 		gfx.core.set_debug_label(sampler, "egui sampler");
 
-		let image = gfx.core.create_image_2d();
-		gfx.core.allocate_and_upload_rgba8_image(image, Vec2i::splat(1), &[255; 4]);
+		let default_image = gfx.core.create_image_2d();
+		gfx.core.allocate_and_upload_rgba8_image(default_image, Vec2i::splat(1), &[255, 0, 255, 255]);
 
 		TextureManager {
 			sampler,
-			image,
+			default_image,
 
 			managed_images: HashMap::new(),
 		}
@@ -48,10 +51,18 @@ impl TextureManager {
 	}
 
 	pub fn image_from_texture_id(&self, id: TextureId) -> ImageName {
-		if let Some(managed_image) = self.managed_images.get(&id) {
+		if let Some(Some(managed_image)) = self.managed_images.get(&id) {
 			managed_image.name
 		} else {
-			self.image
+			self.default_image
+		}
+	}
+
+	pub fn is_font_image(&self, id: TextureId) -> bool {
+		if let Some(Some(managed_image)) = self.managed_images.get(&id) {
+			managed_image.holds_font
+		} else {
+			false
 		}
 	}
 
@@ -62,18 +73,36 @@ impl TextureManager {
 
 		for (id, delta) in deltas {
 			let managed_image = self.managed_images.entry(*id)
-				.or_insert_with(|| create_managed_image(&gfx.core));
+				.or_insert_with(|| None);
+
+			// If delta is incompatible with existing image then we need to reallocate
+			if let Some(image) = managed_image
+				&& !is_managed_image_compatible(image, delta)
+			{
+				gfx.core.destroy_image(image.name);
+				*managed_image = None;
+			}
+
+			// If we're yet to allocate storage or our storage has been invalidated, create it now
+			if managed_image.is_none() {
+				let is_full_image_update = delta.pos.is_none();
+				assert!(is_full_image_update);
+
+				*managed_image = Some(create_managed_image(&gfx.core, delta));
+			}
+
+			let Some(managed_image) = managed_image else { unreachable!() };
 
 			update_managed_image(&gfx.core, managed_image, delta);
 		}
 	}
 
-	pub fn free_textures(&mut self, _gfx: &mut gfx::System, to_free: &[TextureId]) {
-		if to_free.is_empty() {
-			return
+	pub fn free_textures(&mut self, gfx: &mut gfx::System, to_free: &[TextureId]) {
+		for id in to_free {
+			if let Some(Some(managed_image)) = self.managed_images.remove(id) {
+				gfx.core.destroy_image(managed_image.name);
+			}
 		}
-
-		println!("Free {} texture deltas", to_free.len());
 	}
 }
 
@@ -81,45 +110,64 @@ impl TextureManager {
 
 
 
-fn create_managed_image(core: &gfx::Core) -> ManagedImage {
-	ManagedImage {
-		name: core.create_image_2d(),
-		allocated_size: None,
+fn create_managed_image(core: &gfx::Core, delta: &ImageDelta) -> ManagedImage {
+	let size = Vec2i::new(delta.image.width() as i32, delta.image.height() as i32);
+	let holds_font = matches!(&delta.image, ImageData::Font(_));
+
+	let name = core.create_image_2d();
+	let format = match holds_font {
+		true => gl::R16,
+		false => gl::SRGB8_ALPHA8,
+	};
+
+	unsafe {
+		core.gl.TextureStorage2D(name.as_raw(), 1, format, size.x, size.y);
 	}
+
+	ManagedImage {
+		name,
+		allocated_size: size,
+		holds_font,
+	}
+}
+
+fn is_managed_image_compatible(managed_image: &ManagedImage, delta: &ImageDelta) -> bool {
+	let delta_size = Vec2i::new(delta.image.width() as i32, delta.image.height() as i32);
+	let is_full_image_update = delta.pos.is_none();
+	let is_different_size = managed_image.allocated_size != delta_size;
+
+	let is_size_compatible = !(is_full_image_update && is_different_size);
+
+	let is_delta_font = matches!(&delta.image, ImageData::Font(_));
+	let is_same_type = managed_image.holds_font != is_delta_font;
+
+	is_size_compatible && is_same_type
 }
 
 fn update_managed_image(core: &gfx::Core, managed_image: &mut ManagedImage, delta: &ImageDelta) {
-	let delta_size = Vec2i::new(delta.image.width() as i32, delta.image.height() as i32);
-	let is_full_image_update = delta.pos.is_none();
+	let [width, height] = delta.image.size();
+	let [offset_x, offset_y] = delta.pos.unwrap_or([0, 0]);
 
-	// Full texture update with new size requires new image
-	if is_full_image_update && managed_image.allocated_size.is_some() && managed_image.allocated_size != Some(delta_size) {
-		core.destroy_image(managed_image.name);
-		managed_image.name = core.create_image_2d();
-		managed_image.allocated_size = None;
-	}
-
-	if managed_image.allocated_size.is_none() {
-		assert!(is_full_image_update, "Updating subimage of unallocated ManagedImage");
-
-		unsafe {
-			core.gl.TextureStorage2D(managed_image.name.as_raw(), 1, gl::SRGB8_ALPHA8, delta_size.x, delta_size.y);
+	match &delta.image {
+		ImageData::Font(font_image) => {
+			unsafe {
+				core.gl.TextureSubImage2D(managed_image.name.as_raw(),
+					0, offset_x as i32, offset_y as i32,
+					width as i32, height as i32,
+					gl::RED, gl::FLOAT,
+					font_image.pixels.as_ptr() as *const _);
+			}
 		}
 
-		managed_image.allocated_size = Some(delta_size);
+		ImageData::Color(color_image) => {
+			unsafe {
+				core.gl.TextureSubImage2D(managed_image.name.as_raw(),
+					0, offset_x as i32, offset_y as i32,
+					width as i32, height as i32,
+					gl::RGBA, gl::UNSIGNED_BYTE,
+					color_image.pixels.as_ptr() as *const _);
+			}
+		}
 	}
 
-	let [offset_x, offset_y] = delta.pos.unwrap_or([0, 0]);
-	let ImageData::Font(font_image) = &delta.image else { unimplemented!() };
-
-	// TODO(pat.m): would be better to just use the coverage data directly
-	let data: Vec<_> = font_image.srgba_pixels(None).collect();
-
-	unsafe {
-		core.gl.TextureSubImage2D(managed_image.name.as_raw(),
-			0, offset_x as i32, offset_y as i32,
-			delta_size.x, delta_size.y,
-			gl::RGBA, gl::UNSIGNED_BYTE,
-			data.as_ptr() as *const _);
-	}
 }

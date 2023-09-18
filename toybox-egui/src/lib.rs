@@ -1,3 +1,5 @@
+#![feature(let_chains)]
+
 use toybox_gfx as gfx;
 
 use egui_winit::winit::{event::WindowEvent, window::Window};
