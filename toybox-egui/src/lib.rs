@@ -1,10 +1,11 @@
 use toybox_gfx as gfx;
 
 use egui_winit::winit::{event::WindowEvent, window::Window};
-use egui_winit::egui::{self, output::FullOutput, text::Fonts};
+use egui_winit::egui::{self, output::FullOutput};
 use std::rc::Rc;
 
 mod renderer;
+mod textures;
 
 pub mod prelude {
     pub use egui_winit::egui;
@@ -19,6 +20,7 @@ pub struct Integration {
     window: Rc<Window>,
 
     renderer: renderer::Renderer,
+    texture_manager: textures::TextureManager,
 }
 
 impl Integration {
@@ -27,8 +29,14 @@ impl Integration {
         state.set_max_texture_side(gfx.core.capabilities().max_texture_size);
         state.set_pixels_per_point(window.scale_factor() as f32);
 
-        let renderer = renderer::Renderer::new(gfx)?;
-        Ok(Integration { ctx, state, window, renderer })
+        // ctx.tessellation_options_mut(|opts| {
+        //     // opts.feathering = false;
+        //     dbg!(opts);
+        // });
+
+        let renderer = renderer::Renderer::new(gfx);
+        let texture_manager = textures::TextureManager::new(gfx);
+        Ok(Integration { ctx, state, window, renderer, texture_manager })
     }
 
     // Returns whether or not egui wants to consume the event
@@ -48,8 +56,8 @@ impl Integration {
 
         let primitives = self.ctx.tessellate(shapes);
 
-        self.renderer.apply_textures(gfx, &textures_delta.set);
-        self.renderer.paint_triangles(gfx, &primitives);
-        self.renderer.free_textures(gfx, &textures_delta.free);
+        self.texture_manager.apply_textures(gfx, &textures_delta.set);
+        self.renderer.paint_triangles(gfx, &primitives, &self.texture_manager);
+        self.texture_manager.free_textures(gfx, &textures_delta.free);
     }
 }

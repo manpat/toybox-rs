@@ -2,12 +2,12 @@ use toybox_gfx as gfx;
 use crate::prelude::*;
 use gfx::prelude::*;
 
-use egui::{TextureId, ClippedPrimitive};
+use egui::ClippedPrimitive;
 use epaint::Primitive;
-use epaint::image::ImageDelta;
 
-use gfx::core::*;
 use gfx::resource_manager::*;
+
+use crate::textures::TextureManager;
 
 
 const VERTEX_SOURCE: &str = include_str!("egui.vs.glsl");
@@ -15,46 +15,19 @@ const FRAGMENT_SOURCE: &str = include_str!("egui.fs.glsl");
 
 
 pub struct Renderer {
-	sampler: SamplerName,
-
 	vertex_shader: ShaderHandle,
 	fragment_shader: ShaderHandle,
 }
 
 impl Renderer {
-	pub fn new(gfx: &mut gfx::System) -> anyhow::Result<Renderer> {
-		let sampler = gfx.core.create_sampler();
-		gfx.core.set_sampler_minify_filter(sampler, FilterMode::Nearest, None);
-		gfx.core.set_sampler_magnify_filter(sampler, FilterMode::Nearest);
-		gfx.core.set_sampler_addressing_mode(sampler, AddressingMode::Clamp);
-		gfx.core.set_debug_label(sampler, "egui sampler");
-
-		Ok(Renderer {
-			sampler,
-
+	pub fn new(gfx: &mut gfx::System) -> Renderer {
+		Renderer {
 			vertex_shader: gfx.resource_manager.compile_shader(CompileShaderRequest::vertex("egui vs", VERTEX_SOURCE)),
 			fragment_shader: gfx.resource_manager.compile_shader(CompileShaderRequest::fragment("egui fs", FRAGMENT_SOURCE)),
-		})
-	}
-
-	pub fn apply_textures(&mut self, _gfx: &mut gfx::System, deltas: &[(TextureId, ImageDelta)]) {
-		if deltas.is_empty() {
-			return
 		}
-
-		println!("Apply {} texture deltas", deltas.len());
 	}
 
-	pub fn free_textures(&mut self, _gfx: &mut gfx::System, to_free: &[TextureId]) {
-		if to_free.is_empty() {
-			return
-		}
-
-		println!("Free {} texture deltas", to_free.len());
-		
-	}
-
-	pub fn paint_triangles(&mut self, gfx: &mut gfx::System, primitives: &[ClippedPrimitive]) {
+	pub fn paint_triangles(&mut self, gfx: &mut gfx::System, primitives: &[ClippedPrimitive], texture_manager: &TextureManager) {
 		if primitives.is_empty() {
 			return
 		}
@@ -89,26 +62,41 @@ impl Renderer {
 		for ClippedPrimitive{clip_rect, primitive} in primitives {
 			let Primitive::Mesh(mesh) = primitive else { unimplemented!() };
 
+			if !clip_rect.is_positive() {
+				continue;
+			}
+
+			// NOTE: egui is Y-down
+			let clip_rect = [
+				clip_rect.left() as i16,
+				clip_rect.right() as i16,
+				clip_rect.top() as i16,
+				clip_rect.bottom() as i16,
+			];
+
 			#[repr(C)]
 			#[derive(Copy, Clone)]
 			struct Vertex {
 				pos: Vec2,
 				uv: [u16; 2],
 				color: [u8; 4],
+				clip_rect: [i16; 4],
 			}
 
 			let vertices = group.upload_iter(mesh.vertices.iter()
-				.map(|v| Vertex {
+				.map(move |v| Vertex {
 					pos: Vec2::new(v.pos.x, v.pos.y),
 					uv: [(v.uv.x * 65535.0) as u16, (v.uv.y * 65535.0) as u16],
 					color: v.color.to_array(),
+					clip_rect,
 				}));
 
 			group.draw(self.vertex_shader, self.fragment_shader)
 				.elements(mesh.indices.len() as u32)
 				.indexed(&mesh.indices)
 				.ssbo(0, vertices)
-				.ubo(0, transforms);
+				.ubo(0, transforms)
+				.sampled_image(0, texture_manager.image(), texture_manager.sampler());
 		}
 		
 		group.execute(|core, _| {

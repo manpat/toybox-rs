@@ -37,6 +37,10 @@ impl super::Core {
 		}
 	}
 
+	pub fn create_image_2d(&self) -> ImageName {
+		self.create_image(ImageType::Image2D)
+	}
+
 	pub fn bind_sampled_image(&self, unit: u32, name: ImageName) {
 		assert!(unit < self.capabilities.max_image_units as u32);
 
