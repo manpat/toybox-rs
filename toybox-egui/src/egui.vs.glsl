@@ -23,24 +23,39 @@ out vec4 v_color;
 out vec2 v_uv;
 
 
+// Because egui vertex colours are sRGB
+vec4 srgb_to_linear(vec4 srgb_color) {
+	// Calcuation as documented by OpenGL
+	vec3 srgb = srgb_color.rgb;
+	vec3 selector = ceil(srgb - 0.04045);
+	vec3 less_than_branch = srgb / 12.92;
+	vec3 greater_than_branch = pow((srgb + 0.055) / 1.055, vec3(2.4));
+	return vec4(
+		mix(less_than_branch, greater_than_branch, selector),
+		srgb_color.a
+	);
+}
+
+
 void main() {
 	Vertex vertex = s_vertices[gl_VertexID];
 
 	vec2 pos = vertex.pos / vec2(u_screen_size) * 2.0 - 1.0;
 	gl_Position = vec4(pos.x, -pos.y, 0.0, 1.0);
 
-	v_color = vec4(
+	vec4 srgb_color = vec4(
 		float(bitfieldExtract(vertex.color, 0, 8)) / 255.0,
 		float(bitfieldExtract(vertex.color, 8, 8)) / 255.0,
 		float(bitfieldExtract(vertex.color, 16, 8)) / 255.0,
 		float(bitfieldExtract(vertex.color, 24, 8)) / 255.0
 	);
 
+	v_color = srgb_to_linear(srgb_color);
+
 	v_uv = vec2(
 		float(bitfieldExtract(vertex.uv, 0, 16)) / 65535.0,
 		float(bitfieldExtract(vertex.uv, 16, 16)) / 65535.0
 	);
-
 
 	float clip_left = float(bitfieldExtract(vertex.clip_lr, 0, 16));
 	float clip_right = float(bitfieldExtract(vertex.clip_lr, 16, 16));

@@ -91,9 +91,9 @@ impl TextureManager {
 				*managed_image = Some(create_managed_image(&gfx.core, delta));
 			}
 
+			// By this point we must have a ready managed image, so unconditionally upload the data
 			let Some(managed_image) = managed_image else { unreachable!() };
-
-			update_managed_image(&gfx.core, managed_image, delta);
+			upload_managed_image_data(&gfx.core, managed_image, delta);
 		}
 	}
 
@@ -144,7 +144,7 @@ fn is_managed_image_compatible(managed_image: &ManagedImage, delta: &ImageDelta)
 	is_size_compatible && is_same_type
 }
 
-fn update_managed_image(core: &gfx::Core, managed_image: &mut ManagedImage, delta: &ImageDelta) {
+fn upload_managed_image_data(core: &gfx::Core, managed_image: &mut ManagedImage, delta: &ImageDelta) {
 	let [width, height] = delta.image.size();
 	let [offset_x, offset_y] = delta.pos.unwrap_or([0, 0]);
 
