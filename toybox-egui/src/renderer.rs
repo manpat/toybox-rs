@@ -91,12 +91,14 @@ impl Renderer {
 					clip_rect,
 				}));
 
+			let image_name = texture_manager.image_from_texture_id(mesh.texture_id);
+
 			group.draw(self.vertex_shader, self.fragment_shader)
 				.elements(mesh.indices.len() as u32)
 				.indexed(&mesh.indices)
 				.ssbo(0, vertices)
 				.ubo(0, transforms)
-				.sampled_image(0, texture_manager.image(), texture_manager.sampler());
+				.sampled_image(0, image_name, texture_manager.sampler());
 		}
 		
 		group.execute(|core, _| {
