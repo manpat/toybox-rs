@@ -183,7 +183,7 @@ impl Host {
 
 
 extern "system" fn default_gl_error_handler(source: u32, ty: u32, _id: u32, severity: u32,
-	_length: i32, msg: *const i8, _ud: *mut std::ffi::c_void)
+	length: i32, msg: *const i8, _ud: *mut std::ffi::c_void)
 {
 	let severity_str = match severity {
 		gl::DEBUG_SEVERITY_HIGH => "high",
@@ -219,8 +219,9 @@ extern "system" fn default_gl_error_handler(source: u32, ty: u32, _id: u32, seve
 	eprintln!("Type:     {}", ty_str);
 
 	unsafe {
-		let msg = std::ffi::CStr::from_ptr(msg as _).to_str().unwrap();
-		eprintln!("Message: {}", msg);
+		let msg_slice = std::slice::from_raw_parts(msg.cast(), length as usize);
+		let msg_utf8 = String::from_utf8_lossy(msg_slice);
+		eprintln!("Message: {}", msg_utf8);
 	}
 
 	match (severity, ty) {
