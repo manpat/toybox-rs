@@ -11,6 +11,7 @@ use host::Host;
 
 
 pub trait App {
+	fn customise_debug_menu(&mut self, _: &mut egui::Ui) {}
 	fn present(&mut self, _: &mut Context);
 }
 
@@ -51,7 +52,12 @@ impl Engine {
 			egui,
 
 			egui_integration,
+
+			show_debug_menu: false,
+			wants_quit: false,
 		};
+
+		let mut debug_menu_state = DebugMenuState::default();
 
 		let mut app = start_app(&mut context)?;
 
@@ -74,7 +80,15 @@ impl Engine {
 				Event::WindowEvent { event: WindowEvent::CloseRequested, .. }
 				| Event::DeviceEvent {
 					event: DeviceEvent::Key(KeyboardInput{ virtual_keycode: Some(VirtualKeyCode::Escape), .. }), .. } => {
-					control_flow.set_exit();
+					context.wants_quit = true;
+				}
+
+				Event::DeviceEvent { event: DeviceEvent::Key(KeyboardInput{
+					virtual_keycode: Some(VirtualKeyCode::F10),
+					state: ElementState::Pressed,
+					..
+				}), .. } => {
+					context.show_debug_menu = !context.show_debug_menu;
 				}
 
 				Event::WindowEvent { event: WindowEvent::Resized(physical_size), .. } => {
@@ -85,8 +99,13 @@ impl Engine {
 
 				Event::MainEventsCleared => {
 					context.start_frame();
+					show_debug_menu(&mut context, &mut app, &mut debug_menu_state);
 					app.present(&mut context);
 					context.finalize_frame();
+
+					if context.wants_quit {
+						control_flow.set_exit();
+					}
 				}
 
 				Event::LoopDestroyed => {
@@ -108,4 +127,77 @@ pub fn run<F, A>(title: &str, start_app: F) -> anyhow::Result<()>
 {
 	Engine::create(title)?
 		.run(start_app)
+}
+
+
+// https://www.egui.rs/#demo
+
+#[derive(Default, Copy, Clone)]
+struct DebugMenuState {
+	egui_settings: bool,
+	egui_style: bool,
+
+	egui_memory: bool,
+	egui_textures: bool,
+	egui_inspection: bool,
+}
+
+fn show_debug_menu(ctx: &mut Context, app: &mut impl App, state: &mut DebugMenuState) {
+	use egui::menu;
+
+	egui::TopBottomPanel::top("main_debug_menu")
+		.show_animated(&ctx.egui, ctx.show_debug_menu, |ui| {
+			menu::bar(ui, |ui| {
+				ui.menu_button("Toybox", |ui| {
+					show_egui_debug_menu(ui, state);
+
+					if ui.button("Quit").clicked() {
+						ctx.wants_quit = true;
+					}
+				});
+
+				app.customise_debug_menu(ui);
+			})
+		});
+
+	egui::Window::new("Egui Settings")
+		.open(&mut state.egui_settings)
+		.show(&ctx.egui, |ui| {
+			ctx.egui.settings_ui(ui);
+		});
+
+	egui::Window::new("Egui Style")
+		.open(&mut state.egui_style)
+		.show(&ctx.egui, |ui| {
+			ctx.egui.style_ui(ui);
+		});
+
+	egui::Window::new("Egui Memory")
+		.open(&mut state.egui_memory)
+		.show(&ctx.egui, |ui| {
+			ctx.egui.memory_ui(ui);
+		});
+
+	egui::Window::new("Egui Textures")
+		.open(&mut state.egui_textures)
+		.show(&ctx.egui, |ui| {
+			ctx.egui.texture_ui(ui);
+		});
+
+	egui::Window::new("Egui Inspection")
+		.open(&mut state.egui_inspection)
+		.show(&ctx.egui, |ui| {
+			ctx.egui.inspection_ui(ui);
+		});
+}
+
+fn show_egui_debug_menu(ui: &mut egui::Ui, state: &mut DebugMenuState) {
+	ui.menu_button("Egui", |ui| {
+		ui.toggle_value(&mut state.egui_settings, "Settings");
+		ui.toggle_value(&mut state.egui_style, "Style");
+
+		ui.toggle_value(&mut state.egui_memory, "Memory");
+		ui.toggle_value(&mut state.egui_textures, "Textures");
+		ui.toggle_value(&mut state.egui_inspection, "Inspection");
+	});
 }

@@ -6,6 +6,12 @@ pub struct Context {
 	pub egui: egui::Context,
 
 	pub(super) egui_integration: egui_backend::Integration,
+
+	// TODO(pat.m): might want to be able to disable this.
+	/// Whether or not to show the built in debug menu.
+	/// Can be toggled by F10.
+	pub show_debug_menu: bool,
+	pub wants_quit: bool,
 }
 
 impl Context {
