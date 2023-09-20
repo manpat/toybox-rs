@@ -3,6 +3,7 @@ use crate::prelude::*;
 pub struct Context {
 	pub gfx: gfx::System,
 	pub audio: audio::System,
+	pub input: input::System,
 	pub egui: egui::Context,
 
 	pub(super) egui_integration: egui_backend::Integration,
@@ -18,10 +19,12 @@ impl Context {
 	// Called at the very beginning of the frame, before any events are processed.
 	pub(crate) fn prepare_frame(&mut self) {
 		self.audio.update();
+		self.input.reset_tracker();
 	}
 
 	// Called after events are processed, immediately before control is passed to the app.
 	pub(crate) fn start_frame(&mut self) {
+		self.input.process();
 		self.egui = self.egui_integration.start_frame();
 	}
 

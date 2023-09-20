@@ -2,7 +2,7 @@
 
 use toybox_gfx as gfx;
 
-use egui_winit::winit::{event::WindowEvent, window::Window};
+use egui_winit::winit::{self, event::WindowEvent, window::Window};
 use egui_winit::egui::{self, output::FullOutput};
 use std::rc::Rc;
 
@@ -43,6 +43,16 @@ impl Integration {
 
     // Returns whether or not egui wants to consume the event
     pub fn on_event(&mut self, event: &WindowEvent<'_>) -> bool {
+        use winit::event::{VirtualKeyCode, KeyboardInput};
+
+        // Only pass Tab to egui if it wants pointer or keyboard input because otherwise it consumes the key unconditionally.
+        if let WindowEvent::KeyboardInput{ input: KeyboardInput { virtual_keycode: Some(VirtualKeyCode::Tab), .. }, .. } = event
+            && !self.ctx.wants_keyboard_input()
+            && !self.ctx.wants_pointer_input()
+        {
+            return false
+        }
+
         self.state.on_event(&self.ctx, event).consumed
     }
 

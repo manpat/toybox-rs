@@ -7,6 +7,8 @@ pub use crate::prelude::*;
 pub mod context;
 pub use context::Context;
 
+mod debug;
+
 use host::Host;
 
 
@@ -16,6 +18,7 @@ pub trait App {
 }
 
 
+// TODO(pat.m): this object kinda doesn't really need to exist
 pub struct Engine {
 	host: Host,
 }
@@ -42,6 +45,7 @@ impl Engine {
 		};
 
 		let audio = audio::init()?;
+		let input = input::System::new();
 
 		let egui = egui::Context::default();
 		let egui_integration = egui_backend::Integration::new(egui.clone(), window.clone(), &mut gfx)?;
@@ -49,6 +53,7 @@ impl Engine {
 		let mut context = Context {
 			gfx,
 			audio,
+			input,
 			egui,
 
 			egui_integration,
@@ -57,7 +62,7 @@ impl Engine {
 			wants_quit: false,
 		};
 
-		let mut debug_menu_state = DebugMenuState::default();
+		let mut debug_menu_state = debug::MenuState::default();
 
 		let mut app = start_app(&mut context)?;
 
@@ -66,6 +71,7 @@ impl Engine {
 
 			control_flow.set_poll();
 
+			// TODO(pat.m): kinda want to pass through key/mouse up events unconditionally so tracker doesn't get stuck.
 			if let Event::WindowEvent { event, .. } = &event
 				&& context.egui_integration.on_event(event)
 			{
@@ -83,6 +89,7 @@ impl Engine {
 					context.wants_quit = true;
 				}
 
+				// TODO(pat.m): reimplement on top of input system instead of here
 				Event::DeviceEvent { event: DeviceEvent::Key(KeyboardInput{
 					virtual_keycode: Some(VirtualKeyCode::F10),
 					state: ElementState::Pressed,
@@ -97,9 +104,17 @@ impl Engine {
 					// app.resize(new_size);
 				}
 
+				Event::WindowEvent{ event, .. } => {
+					context.input.on_window_event(&event);
+				}
+
+				Event::DeviceEvent{ event, .. } => {
+					context.input.on_device_event(&event);
+				}
+
 				Event::MainEventsCleared => {
 					context.start_frame();
-					show_debug_menu(&mut context, &mut app, &mut debug_menu_state);
+					debug::show_menu(&mut context, &mut app, &mut debug_menu_state);
 					app.present(&mut context);
 					context.finalize_frame();
 
@@ -120,7 +135,6 @@ impl Engine {
 
 
 
-
 pub fn run<F, A>(title: &str, start_app: F) -> anyhow::Result<()>
 	where A: App + 'static
 		, F: FnOnce(&mut Context) -> anyhow::Result<A>
@@ -129,75 +143,3 @@ pub fn run<F, A>(title: &str, start_app: F) -> anyhow::Result<()>
 		.run(start_app)
 }
 
-
-// https://www.egui.rs/#demo
-
-#[derive(Default, Copy, Clone)]
-struct DebugMenuState {
-	egui_settings: bool,
-	egui_style: bool,
-
-	egui_memory: bool,
-	egui_textures: bool,
-	egui_inspection: bool,
-}
-
-fn show_debug_menu(ctx: &mut Context, app: &mut impl App, state: &mut DebugMenuState) {
-	use egui::menu;
-
-	egui::TopBottomPanel::top("main_debug_menu")
-		.show_animated(&ctx.egui, ctx.show_debug_menu, |ui| {
-			menu::bar(ui, |ui| {
-				ui.menu_button("Toybox", |ui| {
-					show_egui_debug_menu(ui, state);
-
-					if ui.button("Quit").clicked() {
-						ctx.wants_quit = true;
-					}
-				});
-
-				app.customise_debug_menu(ui);
-			})
-		});
-
-	egui::Window::new("Egui Settings")
-		.open(&mut state.egui_settings)
-		.show(&ctx.egui, |ui| {
-			ctx.egui.settings_ui(ui);
-		});
-
-	egui::Window::new("Egui Style")
-		.open(&mut state.egui_style)
-		.show(&ctx.egui, |ui| {
-			ctx.egui.style_ui(ui);
-		});
-
-	egui::Window::new("Egui Memory")
-		.open(&mut state.egui_memory)
-		.show(&ctx.egui, |ui| {
-			ctx.egui.memory_ui(ui);
-		});
-
-	egui::Window::new("Egui Textures")
-		.open(&mut state.egui_textures)
-		.show(&ctx.egui, |ui| {
-			ctx.egui.texture_ui(ui);
-		});
-
-	egui::Window::new("Egui Inspection")
-		.open(&mut state.egui_inspection)
-		.show(&ctx.egui, |ui| {
-			ctx.egui.inspection_ui(ui);
-		});
-}
-
-fn show_egui_debug_menu(ui: &mut egui::Ui, state: &mut DebugMenuState) {
-	ui.menu_button("Egui", |ui| {
-		ui.toggle_value(&mut state.egui_settings, "Settings");
-		ui.toggle_value(&mut state.egui_style, "Style");
-
-		ui.toggle_value(&mut state.egui_memory, "Memory");
-		ui.toggle_value(&mut state.egui_textures, "Textures");
-		ui.toggle_value(&mut state.egui_inspection, "Inspection");
-	});
-}
