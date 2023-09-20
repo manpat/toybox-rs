@@ -3,9 +3,7 @@ use winit::event::*;
 pub mod debug;
 pub mod tracker;
 
-pub mod prelude {
-	
-}
+pub mod prelude {}
 
 pub use tracker::*;
 pub use winit::event::{VirtualKeyCode as Key, MouseButton};
@@ -14,17 +12,30 @@ pub struct System {
 	pub tracker: Tracker,
 }
 
+/// Input tracker queries. Just convenience functions for the same calls on `self.tracker`
 impl System {
-	pub fn new() -> System {
-		System {
-			tracker: Tracker::default(),
-		}
+	pub fn button_down(&self, button: impl Into<Button>) -> bool {
+		self.tracker.button_down(button)
+	}
+
+	pub fn button_just_down(&self, button: impl Into<Button>) -> bool {
+		self.tracker.button_just_down(button)
+	}
+
+	pub fn button_just_up(&self, button: impl Into<Button>) -> bool {
+		self.tracker.button_just_up(button)
 	}
 }
 
 
 /// Internal. Will be called by core.
 impl System {
+	pub fn new() -> System {
+		System {
+			tracker: Tracker::default(),
+		}
+	}
+
 	// Clear any 'this frame' state in the tracker and prepare for recieving new inputs
 	pub fn reset_tracker(&mut self) {
 		self.tracker.reset();

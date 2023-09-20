@@ -9,6 +9,22 @@ pub struct Tracker {
 	pub up_buttons: Vec<Button>,
 }
 
+/// Input query API.
+impl Tracker {
+	pub fn button_down(&self, button: impl Into<Button>) -> bool {
+		self.active_buttons.contains(&button.into())
+	}
+
+	pub fn button_just_down(&self, button: impl Into<Button>) -> bool {
+		self.down_buttons.contains(&button.into())
+	}
+
+	pub fn button_just_up(&self, button: impl Into<Button>) -> bool {
+		self.up_buttons.contains(&button.into())
+	}
+}
+
+/// Input gathering API - called by core.
 impl Tracker {
 	pub fn reset(&mut self) {
 		self.down_buttons.clear();

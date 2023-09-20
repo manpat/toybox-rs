@@ -83,19 +83,8 @@ impl Engine {
 					context.prepare_frame();
 				}
 
-				Event::WindowEvent { event: WindowEvent::CloseRequested, .. }
-				| Event::DeviceEvent {
-					event: DeviceEvent::Key(KeyboardInput{ virtual_keycode: Some(VirtualKeyCode::Escape), .. }), .. } => {
+				Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
 					context.wants_quit = true;
-				}
-
-				// TODO(pat.m): reimplement on top of input system instead of here
-				Event::DeviceEvent { event: DeviceEvent::Key(KeyboardInput{
-					virtual_keycode: Some(VirtualKeyCode::F10),
-					state: ElementState::Pressed,
-					..
-				}), .. } => {
-					context.show_debug_menu = !context.show_debug_menu;
 				}
 
 				Event::WindowEvent { event: WindowEvent::Resized(physical_size), .. } => {
@@ -114,8 +103,18 @@ impl Engine {
 
 				Event::MainEventsCleared => {
 					context.start_frame();
+
+					if context.input.button_just_down(VirtualKeyCode::F10) {
+						context.show_debug_menu = !context.show_debug_menu;
+					}
+
+					if context.input.button_just_down(VirtualKeyCode::Escape) {
+						context.wants_quit = true;
+					}
+
 					debug::show_menu(&mut context, &mut app, &mut debug_menu_state);
 					app.present(&mut context);
+
 					context.finalize_frame();
 
 					if context.wants_quit {
