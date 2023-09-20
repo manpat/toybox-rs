@@ -1,5 +1,5 @@
 use winit::event::{VirtualKeyCode, MouseButton};
-
+use common::math::*;
 
 
 #[derive(Default)]
@@ -7,6 +7,9 @@ pub struct Tracker {
 	pub active_buttons: Vec<Button>,
 	pub down_buttons: Vec<Button>,
 	pub up_buttons: Vec<Button>,
+
+	pub pointer_position: Option<Vec2>,
+	pub mouse_delta: Option<Vec2>,
 }
 
 /// Input query API.
@@ -29,6 +32,8 @@ impl Tracker {
 	pub fn reset(&mut self) {
 		self.down_buttons.clear();
 		self.up_buttons.clear();
+
+		self.mouse_delta = None;
 	}
 
 	pub fn track_button(&mut self, button: impl Into<Button>, down: bool) {
@@ -43,6 +48,19 @@ impl Tracker {
 			self.up_buttons.push(button);
 			self.active_buttons.retain(|active_button| *active_button != button);
 		}
+	}
+
+	pub fn track_pointer_move(&mut self, pos: Vec2) {
+		self.pointer_position = Some(pos);
+	}
+
+	pub fn track_mouse_move(&mut self, delta: Vec2) {
+		*self.mouse_delta.get_or_insert_with(Vec2::zero) += delta;
+	}
+
+	pub fn track_pointer_left(&mut self) {
+		self.pointer_position = None;
+		self.mouse_delta = None;
 	}
 
 	pub fn track_focus_lost(&mut self) {

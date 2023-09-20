@@ -8,3 +8,5 @@ winit = "0.28"
 
 # TODO(pat.m): make this an optional feature, and conditionally opt in in toybox crate
 egui = { version = "0.22", default-features=true }
+
+common = { git = "https://github.com/manpat/common-rs.git", version = "0.3" }

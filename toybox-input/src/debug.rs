@@ -6,6 +6,7 @@ pub fn tracker_ui(ui: &mut egui::Ui, input: &mut System) {
 	struct State {
 		recently_down_buttons: Vec<(Button, u32)>,
 		recently_up_buttons: Vec<(Button, u32)>,
+		wants_capture: bool,
 	}
 
 	let state_id = ui.id().with("state");
@@ -44,6 +45,18 @@ pub fn tracker_ui(ui: &mut egui::Ui, input: &mut System) {
 			ui.label(format!("{button:?}"));
 		}
 	});
+
+	ui.label(format!("Pointer pos: {:?}", input.tracker.pointer_position));
+	ui.label(format!("Mouse delta: {:?}", input.tracker.mouse_delta));
+
+	ui.separator();
+
+	ui.label("Press F9 to toggle mouse capture");
+
+	if input.button_just_down(Key::F9) {
+		state.wants_capture = !state.wants_capture;
+		input.set_capture_mouse(state.wants_capture);
+	}
 
 	ui.data_mut(move |map| map.insert_temp(state_id, state));
 }

@@ -21,3 +21,72 @@ pub use tracing;
 pub use tracing::instrument;
 
 pub use std::error::Error;
+
+
+
+
+
+
+// TODO(pat.m): move into common
+#[derive(Clone, Debug, Default)]
+pub struct Gate {
+	state: GateState,
+}
+
+impl Gate {
+	pub fn new() -> Self {
+		Gate { state: GateState::Low }
+	}
+
+	pub fn state(&self) -> GateState {
+		self.state
+	}
+
+	pub fn reset(&mut self) {
+		self.state = GateState::Low;
+	}
+
+	pub fn update(&mut self, condition: bool) -> GateState {
+		use GateState::*;
+
+		self.state = match (condition, self.state) {
+			(false, Low | FallingEdge) => Low,
+			(true, Low | FallingEdge) => RisingEdge,
+			(true, High | RisingEdge) => High,
+			(false, High | RisingEdge) => FallingEdge,
+		};
+
+		self.state
+	}
+}
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub enum GateState {
+	#[default]
+	Low,
+	RisingEdge,
+	High,
+	FallingEdge,
+}
+
+impl GateState {
+	pub fn falling_edge(self) -> bool {
+		self == GateState::FallingEdge
+	}
+
+	pub fn rising_edge(self) -> bool {
+		self == GateState::RisingEdge
+	}
+
+	pub fn low(self) -> bool {
+		matches!(self, GateState::Low | GateState::FallingEdge)
+	}
+
+	pub fn high(self) -> bool {
+		matches!(self, GateState::High | GateState::RisingEdge)
+	}
+
+	pub fn changed(self) -> bool {
+		matches!(self, GateState::FallingEdge | GateState::RisingEdge)
+	}
+}

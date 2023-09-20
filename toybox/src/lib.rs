@@ -45,7 +45,7 @@ impl Engine {
 		};
 
 		let audio = audio::init()?;
-		let input = input::System::new();
+		let input = input::System::new(window.clone());
 
 		let egui = egui::Context::default();
 		let egui_integration = egui_backend::Integration::new(egui.clone(), window.clone(), &mut gfx)?;
@@ -57,6 +57,7 @@ impl Engine {
 			egui,
 
 			egui_integration,
+			egui_claiming_input_gate: Gate::new(),
 
 			show_debug_menu: false,
 			wants_quit: false,
@@ -103,14 +104,6 @@ impl Engine {
 
 				Event::MainEventsCleared => {
 					context.start_frame();
-
-					if context.input.button_just_down(VirtualKeyCode::F10) {
-						context.show_debug_menu = !context.show_debug_menu;
-					}
-
-					if context.input.button_just_down(VirtualKeyCode::Escape) {
-						context.wants_quit = true;
-					}
 
 					debug::show_menu(&mut context, &mut app, &mut debug_menu_state);
 					app.present(&mut context);
