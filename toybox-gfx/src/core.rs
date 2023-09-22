@@ -18,11 +18,12 @@ pub use capabilities::Capabilities;
 pub use fbo::{FboName};
 pub use buffer::{BufferName};
 pub use sampler::{SamplerName, AddressingMode, FilterMode};
-pub use image::{ImageName, ImageType};
+pub use image::*;
 pub use shader::{ShaderName, ShaderType};
 pub use shader_pipeline::{ShaderPipelineName};
 
 use std::cell::{Cell, RefCell, RefMut};
+use std::collections::HashMap;
 
 
 pub struct Core {
@@ -38,6 +39,8 @@ pub struct Core {
 	bound_shader_pipeline: Cell<ShaderPipelineName>,
 
 	global_vao_name: u32,
+
+	image_info: RefCell<HashMap<ImageName, ImageInfo>>,
 }
 
 impl Core {
@@ -60,6 +63,8 @@ impl Core {
 			bound_shader_pipeline: Cell::new(ShaderPipelineName(0)),
 
 			global_vao_name,
+
+			image_info: RefCell::new(HashMap::new()),
 		}
 	}
 

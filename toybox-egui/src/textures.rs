@@ -36,8 +36,9 @@ impl TextureManager {
 		gfx.core.set_sampler_addressing_mode(sampler, AddressingMode::Clamp);
 		gfx.core.set_debug_label(sampler, "egui sampler");
 
-		let default_image = gfx.core.create_image_2d();
-		gfx.core.allocate_and_upload_rgba8_image(default_image, Vec2i::splat(1), &[255, 0, 255, 255]);
+		let format = ImageFormat::Rgba(ComponentFormat::Unorm8);
+		let default_image = gfx.core.create_image_2d(format, Vec2i::splat(1));
+		gfx.core.upload_image(default_image, format, &[255, 0, 255, 255]);
 
 		TextureManager {
 			sampler,
@@ -117,18 +118,13 @@ fn create_managed_image(core: &gfx::Core, delta: &ImageDelta) -> ManagedImage {
 	let size = Vec2i::new(delta.image.width() as i32, delta.image.height() as i32);
 	let holds_font = matches!(&delta.image, ImageData::Font(_));
 
-	let name = core.create_image_2d();
 	let format = match holds_font {
-		true => gl::R16,
-		false => gl::SRGB8_ALPHA8,
+		true => ImageFormat::Red(ComponentFormat::Unorm16),
+		false => ImageFormat::Srgba8,
 	};
 
-	unsafe {
-		core.gl.TextureStorage2D(name.as_raw(), 1, format, size.x, size.y);
-	}
-
 	ManagedImage {
-		name,
+		name: core.create_image_2d(format, size),
 		allocated_size: size,
 		holds_font,
 	}

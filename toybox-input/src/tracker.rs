@@ -54,7 +54,8 @@ impl Tracker {
 		self.pointer_position = Some(pos);
 	}
 
-	pub fn track_mouse_move(&mut self, delta: Vec2) {
+	pub fn track_mouse_move(&mut self, mut delta: Vec2) {
+		delta.y = -delta.y;
 		*self.mouse_delta.get_or_insert_with(Vec2::zero) += delta;
 	}
 
