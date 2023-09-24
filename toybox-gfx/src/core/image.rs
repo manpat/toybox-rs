@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use super::buffer::*;
 
 mod format;
 pub use format::*;
@@ -113,35 +114,13 @@ impl super::Core {
 		self.image_info.borrow_mut().remove(&name);
 	}
 
-	// TODO(pat.m): this is just enough to get moving but is ultimately a v dumb api.
-	// allocation and creation can probably be tied together, since glCreateTextures requires immutable storage,
-	// but separate from data upload, since we may want to go through the upload heap
-	pub fn allocate_and_upload_rgba8_image(&self, name: ImageName, size: Vec2i, data: &[u8]) {
-		// assert!(name.image_type == ImageType::Image2D);
-		assert!(data.len() == (size.x * size.y * 4) as usize);
-
-		unsafe {
-			let levels = 1; // no mips
-			self.gl.TextureStorage2D(name.raw, levels, gl::RGBA8, size.x, size.y);
-
-			let (level, x, y) = (0, 0, 0);
-			self.gl.TextureSubImage2D(name.raw, level, x, y, size.x, size.y, gl::RGBA, gl::UNSIGNED_BYTE, data.as_ptr() as *const _);
-		}
-	}
-
-	pub fn upload_sub_image<T>(&self, name: ImageName, format: ImageFormat, offset: Vec3i, size: Vec3i, data: &[T])
-		where T: Copy
+	pub unsafe fn upload_subimage_raw(&self, name: ImageName, format: ImageFormat, offset: Vec3i, size: Vec3i, data_ptr: *const u8, data_size: usize)
 	{
-		// TODO(pat.m): SAFETY CHECKS!!!!
-		// How do we know T is the right size or is bitwise compatible?
-		// Can we check convertibility from T to component type?
-
 		let Some(info) = self.get_image_info(name)
 			else { panic!("Trying to upload data for invalid ImageName") };
 
-		let data_size = data.len() * std::mem::size_of::<T>();
 		let expected_size = format.texel_byte_size() * (size.x * size.y) as usize;
-		assert_eq!(data_size, expected_size, "Core::upload_sub_image not passed expected amount of data");
+		assert_eq!(data_size, expected_size, "Core::upload_subimage_raw not passed expected amount of data");
 
 		unsafe {
 			self.gl.PixelStorei(gl::UNPACK_ALIGNMENT, 1);
@@ -157,7 +136,7 @@ impl super::Core {
 					size.x, size.y,
 					format.to_raw_unsized(),
 					format.to_raw_component(),
-					data.as_ptr() as *const _);
+					data_ptr.cast());
 			}
 
 			ImageType::Image3D | ImageType::Image2DArray => unsafe {
@@ -166,8 +145,23 @@ impl super::Core {
 					size.x, size.y, size.z,
 					format.to_raw_unsized(),
 					format.to_raw_component(),
-					data.as_ptr() as *const _);
+					data_ptr.cast());
 			}
+		}
+	}
+
+	pub fn upload_subimage<T>(&self, name: ImageName, format: ImageFormat, offset: Vec3i, size: Vec3i, data: &[T])
+		where T: Copy
+	{
+		// TODO(pat.m): Make this conditional and actually track state properly
+		self.bind_image_upload_buffer(None);
+
+		// TODO(pat.m): SAFETY CHECKS!!!!
+		// How do we know T is the right size or is bitwise compatible?
+		// Can we check convertibility from T to component type?
+		unsafe {
+			let byte_size = data.len() * std::mem::size_of::<T>();
+			self.upload_subimage_raw(name, format, offset, size, data.as_ptr().cast(), byte_size);
 		}
 	}
 
@@ -177,6 +171,30 @@ impl super::Core {
 		let Some(info) = self.get_image_info(name)
 			else { panic!("Trying to upload data for invalid ImageName") };
 
-		self.upload_sub_image(name, format, Vec3i::zero(), info.size, data);
+		self.upload_subimage(name, format, Vec3i::zero(), info.size, data);
+	}
+
+	pub fn copy_subimage_from_buffer(&self, image_name: ImageName, 
+		dest_offset: Vec3i, dest_size: Vec3i,
+		buffer_format: ImageFormat, buffer_range: impl Into<Option<BufferRange>>,
+		buffer_name: BufferName)
+	{
+		self.bind_image_upload_buffer(buffer_name);
+
+		if let Some(BufferRange {offset, size}) = buffer_range.into() {
+			unsafe {
+				self.upload_subimage_raw(image_name, buffer_format, dest_offset, dest_size,
+					offset as *const u8, size);
+			}
+		} else {
+			let size = unimplemented!();
+
+			unsafe {
+				self.upload_subimage_raw(image_name, buffer_format, dest_offset, dest_size,
+					std::ptr::null(), size);
+			}
+		}
+
+		self.bind_image_upload_buffer(None);
 	}
 }

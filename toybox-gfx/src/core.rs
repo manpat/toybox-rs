@@ -16,7 +16,7 @@ pub mod global_state;
 
 pub use capabilities::Capabilities;
 pub use fbo::{FboName};
-pub use buffer::{BufferName};
+pub use buffer::*;
 pub use sampler::{SamplerName, AddressingMode, FilterMode};
 pub use image::*;
 pub use shader::{ShaderName, ShaderType};

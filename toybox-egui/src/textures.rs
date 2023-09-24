@@ -150,11 +150,11 @@ fn upload_managed_image_data(core: &gfx::Core, managed_image: &mut ManagedImage,
 
 	match &delta.image {
 		ImageData::Font(font_image) => {
-			core.upload_sub_image(managed_image.name, ImageFormat::Red(ComponentFormat::F32), offset, size, &font_image.pixels);
+			core.upload_subimage(managed_image.name, ImageFormat::Red(ComponentFormat::F32), offset, size, &font_image.pixels);
 		}
 
 		ImageData::Color(color_image) => {
-			core.upload_sub_image(managed_image.name, ImageFormat::Srgba8, offset, size, &color_image.pixels);
+			core.upload_subimage(managed_image.name, ImageFormat::Srgba8, offset, size, &color_image.pixels);
 		}
 	}
 

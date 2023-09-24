@@ -24,6 +24,8 @@ pub enum IndexedBufferTarget {
 pub enum BufferTarget {
 	DispatchIndirect = gl::DISPATCH_INDIRECT_BUFFER,
 	DrawIndirect = gl::DRAW_INDIRECT_BUFFER,
+	ImageUpload = gl::PIXEL_UNPACK_BUFFER,
+	ImageDownload = gl::PIXEL_PACK_BUFFER,
 }
 
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
@@ -73,6 +75,9 @@ impl super::Core {
 		}
 	}
 
+	// TODO(pat.m): track if ImageUpload or ImageDownload bind points are bound so affected
+	// calls can ensure they behave as expected. e.g., upload_sub_image won't work properly
+	// with ImageUpload bound
 	pub fn bind_buffer(&self, target: BufferTarget, name: impl Into<Option<BufferName>>) {
 		unsafe {
 			self.gl.BindBuffer(target as u32, name.into().as_raw());
@@ -100,6 +105,14 @@ impl super::Core {
 
 	pub fn bind_dispatch_indirect_buffer(&self, name: impl Into<Option<BufferName>>) {
 		self.bind_buffer(BufferTarget::DispatchIndirect, name);
+	}
+
+	pub fn bind_image_upload_buffer(&self, name: impl Into<Option<BufferName>>) {
+		self.bind_buffer(BufferTarget::ImageUpload, name);
+	}
+
+	pub fn bind_image_download_buffer(&self, name: impl Into<Option<BufferName>>) {
+		self.bind_buffer(BufferTarget::ImageDownload, name);
 	}
 
 	pub fn bind_index_buffer(&self, name: impl Into<Option<BufferName>>) {
