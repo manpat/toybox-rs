@@ -40,6 +40,7 @@ pub struct Core {
 
 	global_vao_name: u32,
 
+	buffer_info: RefCell<HashMap<BufferName, BufferInfo>>,
 	image_info: RefCell<HashMap<ImageName, ImageInfo>>,
 }
 
@@ -64,6 +65,7 @@ impl Core {
 
 			global_vao_name,
 
+			buffer_info: RefCell::new(HashMap::new()),
 			image_info: RefCell::new(HashMap::new()),
 		}
 	}

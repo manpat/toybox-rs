@@ -183,6 +183,8 @@ impl super::Core {
 					offset as *const u8, size);
 			}
 		} else {
+			// TODO(pat.m): what to do here. we could hack it and just calculate _a_ size here
+			// but it would probably be better to keep track of how big buffers are and use that instead.
 			let size = unimplemented!();
 
 			unsafe {

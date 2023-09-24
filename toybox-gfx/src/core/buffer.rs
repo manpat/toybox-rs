@@ -34,6 +34,13 @@ pub struct BufferRange {
 	pub size: usize,
 }
 
+#[derive(Debug, Clone)]
+pub struct BufferInfo {
+	pub size: usize,
+	pub usage: u32,
+}
+
+
 
 /// Buffers
 impl super::Core {
@@ -46,6 +53,8 @@ impl super::Core {
 	}
 
 	pub fn destroy_buffer(&self, name: BufferName) {
+		self.buffer_info.borrow_mut().remove(&name);
+
 		unsafe {
 			self.gl.DeleteBuffers(1, &name.as_raw());
 		}
@@ -53,12 +62,16 @@ impl super::Core {
 
 	// TODO(pat.m): make usage better
 	pub fn allocate_buffer_storage(&self, name: BufferName, size: usize, usage: u32) {
+		self.buffer_info.borrow_mut().insert(name, BufferInfo {size, usage});
+
 		unsafe {
 			self.gl.NamedBufferStorage(name.as_raw(), size as isize, std::ptr::null(), usage);
 		}
 	}
 
-	// TODO(pat.m): buffer mapping
+	pub fn get_buffer_info(&self, name: BufferName) -> Option<BufferInfo> {
+		self.buffer_info.borrow().get(&name).cloned()
+	}
 
 	pub fn bind_indexed_buffer(&self, target: IndexedBufferTarget, index: u32,
 		name: impl Into<Option<BufferName>>, range: impl Into<Option<BufferRange>>)
@@ -81,6 +94,37 @@ impl super::Core {
 	pub fn bind_buffer(&self, target: BufferTarget, name: impl Into<Option<BufferName>>) {
 		unsafe {
 			self.gl.BindBuffer(target as u32, name.into().as_raw());
+		}
+	}
+
+	/// SAFETY: May return null pointer if buffer fails to map.
+	/// Also valid usage of the returned pointer heavily depends on the usage
+	/// flags specified in allocate_buffer_storage. Using the mapped pointer
+	/// in a way that conflicts with those flags may be UB.
+	/// It is also up to the client to properly synchronise reads and writes with the device to avoid races.
+	pub unsafe fn map_buffer(&self, name: BufferName, range: impl Into<Option<BufferRange>>) -> *mut u8 {
+		let buffer_info = self.get_buffer_info(name)
+			.filter(|bi| bi.size > 0)
+			.expect("Trying to map buffer with no storage");
+
+		let BufferRange{offset, size} = range.into()
+			.unwrap_or(BufferRange{offset: 0, size: buffer_info.size});
+
+		assert!(size + offset <= buffer_info.size, "Trying to map buffer with out of bounds range");
+
+		// TODO(pat.m): will we ever want to map with a different usage
+		// than what was specified on creation?
+		let map_flags = buffer_info.usage;
+		unsafe {
+			self.gl.MapNamedBufferRange(name.as_raw(), offset as isize, size as isize, buffer_info.usage).cast()
+		}
+	}
+
+	/// SAFETY: Will invalidate the pointer returned from an earlier call to map_buffer.
+	/// Using that pointer after the mapped buffer is unmapped is undefined behaviour.
+	pub unsafe fn unmap_buffer(&self, name: BufferName) {
+		unsafe {
+			self.gl.UnmapNamedBuffer(name.as_raw());
 		}
 	}
 }

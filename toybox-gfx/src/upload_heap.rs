@@ -25,10 +25,7 @@ impl UploadHeap {
 		core.set_debug_label(buffer_name, "Upload Heap");
 		core.allocate_buffer_storage(buffer_name, UPLOAD_BUFFER_SIZE, create_flags);
 
-		let buffer_ptr = unsafe {
-			let map_flags = gl::MAP_PERSISTENT_BIT | gl::MAP_COHERENT_BIT | gl::MAP_WRITE_BIT;
-			core.gl.MapNamedBufferRange(buffer_name.as_raw(), 0, UPLOAD_BUFFER_SIZE as isize, map_flags) as *mut u8
-		};
+		let buffer_ptr = unsafe { core.map_buffer(buffer_name, None) };
 
 		assert!(!buffer_ptr.is_null(), "Failed to map upload heap");
 
@@ -91,24 +88,20 @@ impl UploadHeap {
 		while let Some(locked_range) = self.locked_ranges.first()
 			&& locked_range.contains_allocation(&allocation)
 		{
+			fn fence_ready(result: u32) -> bool { matches!(result, gl::ALREADY_SIGNALED | gl::CONDITION_SATISFIED) }
+
 			let range = self.locked_ranges.remove(0);
 
 			unsafe {
-				// Eager check to see if the fence has already been signaled
 				let result = core.gl.ClientWaitSync(range.fence, gl::SYNC_FLUSH_COMMANDS_BIT, 0);
-				if result != gl::ALREADY_SIGNALED && result != gl::CONDITION_SATISFIED {
-					print!("Upload heap sync");
+				if !fence_ready(result) {
+					println!("Waiting for upload heap!");
 
-					// wait in blocks of 0.1ms
-					let timeout_ns = 100_000;
+					// Wait for a maximum of 50ms.
+					let max_timeout_ns = 50_000_000;
+					let result = core.gl.ClientWaitSync(range.fence, gl::SYNC_FLUSH_COMMANDS_BIT, max_timeout_ns);
 
-					while let result = core.gl.ClientWaitSync(range.fence, gl::SYNC_FLUSH_COMMANDS_BIT, timeout_ns)
-						&& result != gl::ALREADY_SIGNALED && result != gl::CONDITION_SATISFIED
-					{
-						print!(".");
-					}
-
-					println!("!");
+					assert!(fence_ready(result), "Timed out while waiting for upload heap range to become ready");
 				}
 
 				core.gl.DeleteSync(range.fence);
