@@ -38,7 +38,7 @@ impl TextureManager {
 
 		let format = ImageFormat::Rgba(ComponentFormat::Unorm8);
 		let default_image = gfx.core.create_image_2d(format, Vec2i::splat(1));
-		gfx.core.upload_image(default_image, format, &[255, 0, 255, 255]);
+		gfx.core.upload_image(default_image, format, &[255u8, 0, 255, 255]);
 
 		TextureManager {
 			sampler,
@@ -81,8 +81,6 @@ impl TextureManager {
 			if let Some(image) = managed_image
 				&& !is_managed_image_compatible(image, delta)
 			{
-				println!("=== INVALIDATED {image:?} ===");
-
 				gfx.core.destroy_image(image.name);
 				*managed_image = None;
 			}
@@ -144,28 +142,19 @@ fn is_managed_image_compatible(managed_image: &ManagedImage, delta: &ImageDelta)
 }
 
 fn upload_managed_image_data(core: &gfx::Core, managed_image: &mut ManagedImage, delta: &ImageDelta) {
-	let [width, height] = delta.image.size();
+	let [size_x, size_y] = delta.image.size();
 	let [offset_x, offset_y] = delta.pos.unwrap_or([0, 0]);
+
+	let size = Vec3i::new(size_x as i32, size_y as i32, 1);
+	let offset = Vec3i::new(offset_x as i32, offset_y as i32, 0);
 
 	match &delta.image {
 		ImageData::Font(font_image) => {
-			unsafe {
-				core.gl.TextureSubImage2D(managed_image.name.as_raw(),
-					0, offset_x as i32, offset_y as i32,
-					width as i32, height as i32,
-					gl::RED, gl::FLOAT,
-					font_image.pixels.as_ptr() as *const _);
-			}
+			core.upload_sub_image(managed_image.name, ImageFormat::Red(ComponentFormat::F32), offset, size, &font_image.pixels);
 		}
 
 		ImageData::Color(color_image) => {
-			unsafe {
-				core.gl.TextureSubImage2D(managed_image.name.as_raw(),
-					0, offset_x as i32, offset_y as i32,
-					width as i32, height as i32,
-					gl::RGBA, gl::UNSIGNED_BYTE,
-					color_image.pixels.as_ptr() as *const _);
-			}
+			core.upload_sub_image(managed_image.name, ImageFormat::Srgba8, offset, size, &color_image.pixels);
 		}
 	}
 

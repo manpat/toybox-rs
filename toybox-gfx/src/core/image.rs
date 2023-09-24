@@ -134,9 +134,14 @@ impl super::Core {
 	{
 		// TODO(pat.m): SAFETY CHECKS!!!!
 		// How do we know T is the right size or is bitwise compatible?
+		// Can we check convertibility from T to component type?
 
 		let Some(info) = self.get_image_info(name)
 			else { panic!("Trying to upload data for invalid ImageName") };
+
+		let data_size = data.len() * std::mem::size_of::<T>();
+		let expected_size = format.texel_byte_size() * (size.x * size.y) as usize;
+		assert_eq!(data_size, expected_size, "Core::upload_sub_image not passed expected amount of data");
 
 		unsafe {
 			self.gl.PixelStorei(gl::UNPACK_ALIGNMENT, 1);
@@ -156,7 +161,12 @@ impl super::Core {
 			}
 
 			ImageType::Image3D | ImageType::Image2DArray => unsafe {
-				unimplemented!()
+				self.gl.TextureSubImage3D(name.as_raw(), level,
+					offset.x, offset.y, offset.z,
+					size.x, size.y, size.z,
+					format.to_raw_unsized(),
+					format.to_raw_component(),
+					data.as_ptr() as *const _);
 			}
 		}
 	}
@@ -164,8 +174,6 @@ impl super::Core {
 	pub fn upload_image<T>(&self, name: ImageName, format: ImageFormat, data: &[T])
 		where T: Copy
 	{
-		// TODO(pat.m): SAFETY CHECKS!!!!
-
 		let Some(info) = self.get_image_info(name)
 			else { panic!("Trying to upload data for invalid ImageName") };
 
