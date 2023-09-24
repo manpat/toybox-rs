@@ -38,7 +38,7 @@ impl TextureManager {
 
 		let format = ImageFormat::Rgba(ComponentFormat::Unorm8);
 		let default_image = gfx.core.create_image_2d(format, Vec2i::splat(1));
-		gfx.core.upload_image(default_image, format, &[255u8, 0, 255, 255]);
+		gfx.core.upload_image(default_image, None, format, &[255u8, 0, 255, 255]);
 
 		TextureManager {
 			sampler,
@@ -145,16 +145,18 @@ fn upload_managed_image_data(core: &gfx::Core, managed_image: &mut ManagedImage,
 	let [size_x, size_y] = delta.image.size();
 	let [offset_x, offset_y] = delta.pos.unwrap_or([0, 0]);
 
-	let size = Vec3i::new(size_x as i32, size_y as i32, 1);
-	let offset = Vec3i::new(offset_x as i32, offset_y as i32, 0);
+	let range = ImageRange {
+		size: Vec3i::new(size_x as i32, size_y as i32, 1),
+		offset: Vec3i::new(offset_x as i32, offset_y as i32, 0),
+	};
 
 	match &delta.image {
 		ImageData::Font(font_image) => {
-			core.upload_subimage(managed_image.name, ImageFormat::Red(ComponentFormat::F32), offset, size, &font_image.pixels);
+			core.upload_image(managed_image.name, range, ImageFormat::Red(ComponentFormat::F32), &font_image.pixels);
 		}
 
 		ImageData::Color(color_image) => {
-			core.upload_subimage(managed_image.name, ImageFormat::Srgba8, offset, size, &color_image.pixels);
+			core.upload_image(managed_image.name, range, ImageFormat::Srgba8, &color_image.pixels);
 		}
 	}
 

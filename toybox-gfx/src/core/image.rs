@@ -114,13 +114,18 @@ impl super::Core {
 		self.image_info.borrow_mut().remove(&name);
 	}
 
-	pub unsafe fn upload_subimage_raw(&self, name: ImageName, format: ImageFormat, offset: Vec3i, size: Vec3i, data_ptr: *const u8, data_size: usize)
+	pub unsafe fn upload_image_raw(&self, name: ImageName, range: impl Into<Option<ImageRange>>,
+		format: ImageFormat, data_ptr: *const u8, data_size: usize)
 	{
-		let Some(info) = self.get_image_info(name)
+		let Some(image_info) = self.get_image_info(name)
 			else { panic!("Trying to upload data for invalid ImageName") };
 
+		let ImageRange {offset, size} = range.into().unwrap_or(ImageRange::from_size(image_info.size));
+
 		let expected_size = format.texel_byte_size() * (size.x * size.y) as usize;
-		assert_eq!(data_size, expected_size, "Core::upload_subimage_raw not passed expected amount of data");
+		assert_eq!(data_size, expected_size, "Core::upload_image_raw not passed expected amount of data");
+
+		// TODO(pat.m): assert that size + offset < image_info.size
 
 		unsafe {
 			self.gl.PixelStorei(gl::UNPACK_ALIGNMENT, 1);
@@ -128,7 +133,7 @@ impl super::Core {
 
 		let level = 0;
 
-		match info.image_type {
+		match image_info.image_type {
 			ImageType::Image2D => unsafe {
 				assert!(offset.z == 0);
 				self.gl.TextureSubImage2D(name.as_raw(), level,
@@ -150,7 +155,8 @@ impl super::Core {
 		}
 	}
 
-	pub fn upload_subimage<T>(&self, name: ImageName, format: ImageFormat, offset: Vec3i, size: Vec3i, data: &[T])
+	pub fn upload_image<T>(&self, name: ImageName, range: impl Into<Option<ImageRange>>,
+		format: ImageFormat, data: &[T])
 		where T: Copy
 	{
 		// TODO(pat.m): Make this conditional and actually track state properly
@@ -161,36 +167,26 @@ impl super::Core {
 		// Can we check convertibility from T to component type?
 		unsafe {
 			let byte_size = data.len() * std::mem::size_of::<T>();
-			self.upload_subimage_raw(name, format, offset, size, data.as_ptr().cast(), byte_size);
+			self.upload_image_raw(name, range, format, data.as_ptr().cast(), byte_size);
 		}
 	}
 
-	pub fn upload_image<T>(&self, name: ImageName, format: ImageFormat, data: &[T])
-		where T: Copy
-	{
-		let Some(info) = self.get_image_info(name)
-			else { panic!("Trying to upload data for invalid ImageName") };
-
-		self.upload_subimage(name, format, Vec3i::zero(), info.size, data);
-	}
-
-	pub fn copy_subimage_from_buffer(&self, image_name: ImageName, 
-		dest_offset: Vec3i, dest_size: Vec3i,
-		buffer_format: ImageFormat, buffer_range: impl Into<Option<BufferRange>>,
-		buffer_name: BufferName)
+	pub fn copy_image_from_buffer(&self, image_name: ImageName, 
+		dest_range: impl Into<Option<ImageRange>>,
+		buffer_format: ImageFormat, buffer_name: BufferName, buffer_range: impl Into<Option<BufferRange>>)
 	{
 		self.bind_image_upload_buffer(buffer_name);
 
 		if let Some(BufferRange {offset, size}) = buffer_range.into() {
 			unsafe {
-				self.upload_subimage_raw(image_name, buffer_format, dest_offset, dest_size,
+				self.upload_image_raw(image_name, dest_range, buffer_format,
 					offset as *const u8, size);
 			}
 		} else {
 			let size = unimplemented!();
 
 			unsafe {
-				self.upload_subimage_raw(image_name, buffer_format, dest_offset, dest_size,
+				self.upload_image_raw(image_name, dest_range, buffer_format,
 					std::ptr::null(), size);
 			}
 		}
@@ -198,3 +194,30 @@ impl super::Core {
 		self.bind_image_upload_buffer(None);
 	}
 }
+
+
+
+#[derive(Copy, Clone, Debug)]
+pub struct ImageRange {
+	pub offset: Vec3i,
+	pub size: Vec3i,
+}
+
+impl ImageRange {
+	pub fn from_size(size: Vec3i) -> ImageRange {
+		ImageRange {
+			offset: Vec3i::zero(),
+			size,
+		}
+	}
+
+	pub fn from_2d_range(offset: Vec2i, size: Vec2i) -> ImageRange {
+		ImageRange {
+			offset: offset.extend(0),
+			size: size.extend(1),
+		}		
+	}
+}
+
+// TODO(pat.m): when Aabb3i exists
+// impl From<Aabb3i> for ImageRange {}
