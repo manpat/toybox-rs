@@ -38,6 +38,9 @@ pub struct BufferRange {
 pub struct BufferInfo {
 	pub size: usize,
 	pub usage: u32,
+
+	// TODO(pat.m): do we want to track whether or not a buffer is mapped so we can ensure
+	// its storage is not discarded while it is mapped?
 }
 
 

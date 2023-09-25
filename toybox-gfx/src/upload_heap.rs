@@ -95,6 +95,7 @@ impl UploadHeap {
 			unsafe {
 				let result = core.gl.ClientWaitSync(range.fence, gl::SYNC_FLUSH_COMMANDS_BIT, 0);
 				if !fence_ready(result) {
+					// TODO(pat.m): would be better to log, or emit a profiler event
 					println!("Waiting for upload heap!");
 
 					// Wait for a maximum of 50ms.
