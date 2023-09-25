@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use crate::bindings::{BindingDescription, BufferBindTarget, BufferBindSource, IntoBufferBindSourceOrStageable, ImageBindSource, ImageBindTarget};
-use crate::resource_manager::shader::ShaderHandle;
+use crate::resource_manager::ShaderHandle;
 use crate::upload_heap::UploadStage;
 use crate::core::SamplerName;
 

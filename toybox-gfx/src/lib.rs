@@ -14,9 +14,9 @@ pub mod frame_encoder;
 pub mod resource_manager;
 pub mod upload_heap;
 
-pub use crate::core::Core;
-pub use resource_manager::ResourceManager;
-pub use frame_encoder::FrameEncoder;
+pub use crate::core::*;
+pub use resource_manager::*;
+pub use frame_encoder::*;
 
 pub mod prelude {
 	pub use crate::host::gl;
@@ -90,6 +90,7 @@ impl System {
 		self.merge_bindings();
 
 		self.resolve_named_bind_targets();
+		self.resolve_image_bind_sources();
 
 		// Resolve alignment for staged uploads
 		self.resolve_staged_buffer_alignments();
@@ -146,6 +147,16 @@ impl System {
 
 			for command in command_group.commands.iter_mut() {
 				command.resolve_staged_bind_sources(upload_heap);
+			}
+		}
+	}
+
+	fn resolve_image_bind_sources(&mut self) {
+		for command_group in self.frame_encoder.command_groups.iter_mut() {
+			for command in command_group.commands.iter_mut() {
+				if let Some(bindings) = command.bindings_mut() {
+					bindings.resolve_image_bind_sources(&mut self.resource_manager);
+				}
 			}
 		}
 	}

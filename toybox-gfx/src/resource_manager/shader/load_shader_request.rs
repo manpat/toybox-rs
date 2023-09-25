@@ -1,4 +1,5 @@
 use crate::core::ShaderType;
+use crate::resource_manager::*;
 use std::path::PathBuf;
 
 
@@ -54,5 +55,14 @@ impl LoadShaderRequest {
 			path: path.into(),
 			shader_type: ShaderType::Compute,
 		}
+	}
+}
+
+
+impl ResourceRequest for LoadShaderRequest {
+	type Resource = ShaderResource;
+
+	fn register(self, rm: &mut ResourceManager) -> ShaderHandle {
+		rm.load_shader_requests.request_handle(&mut rm.shaders, self)
 	}
 }

@@ -24,9 +24,9 @@ pub struct Renderer {
 impl Renderer {
 	pub fn new(gfx: &mut gfx::System) -> Renderer {
 		Renderer {
-			vertex_shader: gfx.resource_manager.compile_shader(CompileShaderRequest::vertex("egui vs", VERTEX_SOURCE)),
-			fragment_shader: gfx.resource_manager.compile_shader(CompileShaderRequest::fragment("egui fs", FRAGMENT_SOURCE)),
-			text_fragment_shader: gfx.resource_manager.compile_shader(CompileShaderRequest::fragment("egui text fs", TEXT_FRAGMENT_SOURCE)),
+			vertex_shader: gfx.resource_manager.request(CompileShaderRequest::vertex("egui vs", VERTEX_SOURCE)),
+			fragment_shader: gfx.resource_manager.request(CompileShaderRequest::fragment("egui fs", FRAGMENT_SOURCE)),
+			text_fragment_shader: gfx.resource_manager.request(CompileShaderRequest::fragment("egui text fs", TEXT_FRAGMENT_SOURCE)),
 		}
 	}
 

@@ -1,6 +1,6 @@
 use crate::prelude::*;
-use crate::core::{self, Core, BufferName, ImageName, SamplerName, Capabilities};
-use crate::core::buffer::{IndexedBufferTarget, BufferRange};
+use crate::core::*;
+use crate::resource_manager::{ResourceManager, ImageHandle};
 use crate::upload_heap::{UploadStage, UploadHeap, StagedUploadId};
 
 
@@ -64,12 +64,18 @@ impl From<BufferName> for BufferBindSource {
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub enum ImageBindSource {
 	Name(ImageName),
-	// Handle
+	Handle(ImageHandle),
 }
 
 impl From<ImageName> for ImageBindSource {
 	fn from(name: ImageName) -> Self {
 		Self::Name(name)
+	}
+}
+
+impl From<ImageHandle> for ImageBindSource {
+	fn from(handle: ImageHandle) -> Self {
+		Self::Handle(handle)
 	}
 }
 
@@ -146,6 +152,17 @@ impl BindingDescription {
 	pub fn resolve_staged_bind_sources(&mut self, upload_heap: &UploadHeap) {
 		for bind_desc in self.buffer_bindings.iter_mut() {
 			resolve_staged_bind_source(&mut bind_desc.source, upload_heap);
+		}
+	}
+
+	pub fn resolve_image_bind_sources(&mut self, rm: &mut ResourceManager) {
+		for ImageBindDesc{source, ..} in self.image_bindings.iter_mut() {
+			if let ImageBindSource::Handle(handle) = *source {
+				let name = rm.images.get_name(handle)
+					.expect("Failed to resolve image handle");
+
+				*source = ImageBindSource::Name(name);
+			}
 		}
 	}
 

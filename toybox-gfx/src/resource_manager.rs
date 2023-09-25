@@ -8,9 +8,14 @@ use anyhow::Context;
 
 use crate::upload_heap::UploadHeap;
 
-pub mod shader;
+mod request;
+pub use request::*;
 
+mod shader;
 pub use shader::*;
+
+mod image;
+pub use self::image::*;
 
 // Create/Destroy api for gpu resources
 // Load/Cache resources from disk
@@ -22,9 +27,12 @@ pub use shader::*;
 pub struct ResourceManager {
 	resource_root_path: PathBuf,
 
-	load_shader_requests: ResourceRequestMap<LoadShaderRequest, shader::ShaderResource>,
-	compile_shader_requests: ResourceRequestMap<CompileShaderRequest, shader::ShaderResource>,
-	pub shaders: ResourceStorage<shader::ShaderResource>,
+	load_shader_requests: ResourceRequestMap<LoadShaderRequest>,
+	compile_shader_requests: ResourceRequestMap<CompileShaderRequest>,
+	pub shaders: ResourceStorage<ShaderResource>,
+
+	load_image_requests: ResourceRequestMap<LoadImageRequest>,
+	pub images: ResourceStorage<ImageResource>,
 
 	draw_pipelines: HashMap<(ShaderHandle, Option<ShaderHandle>), core::ShaderPipelineName>,
 	compute_pipelines: HashMap<ShaderHandle, core::ShaderPipelineName>,
@@ -47,6 +55,9 @@ impl ResourceManager {
 			load_shader_requests: ResourceRequestMap::new(),
 			compile_shader_requests: ResourceRequestMap::new(),
 			shaders: ResourceStorage::new(),
+
+			load_image_requests: ResourceRequestMap::new(),
+			images: ResourceStorage::new(),
 
 			draw_pipelines: HashMap::new(),
 			compute_pipelines: HashMap::new(),
@@ -73,13 +84,19 @@ impl ResourceManager {
 		self.load_shader_requests.process_requests(&mut self.shaders, |def| {
 			let full_path = self.resource_root_path.join(&def.path);
 
-			shader::ShaderResource::from_disk(core, def.shader_type, &full_path)
+			ShaderResource::from_disk(core, def.shader_type, &full_path)
 				.with_context(|| format!("Compiling shader '{}'", full_path.display()))
 		})?;
 
 		self.compile_shader_requests.process_requests(&mut self.shaders, |def| {
-			shader::ShaderResource::from_source(core, def.shader_type, &def.src, &def.label)
+			ShaderResource::from_source(core, def.shader_type, &def.src, &def.label)
 				.with_context(|| format!("Compiling shader '{}' from source", def.label))
+		})?;
+
+		self.load_image_requests.process_requests(&mut self.images, |def| {
+			let full_path = self.resource_root_path.join(&def.path);
+			ImageResource::from_disk(core, &full_path)
+				.with_context(|| format!("Loading image '{}'", full_path.display()))
 		})?;
 
 		// TODO(pat.m): this will never be reached if the above fails, but if the above fails
@@ -141,13 +158,8 @@ impl ResourceManager {
 
 /// Request api
 impl ResourceManager {
-	// TODO(pat.m): these could literally just be replaced with a single request(Request)
-	pub fn create_shader(&mut self, def: LoadShaderRequest) -> shader::ShaderHandle {
-		self.load_shader_requests.request_handle(&mut self.shaders, def)
-	}
-
-	pub fn compile_shader(&mut self, def: CompileShaderRequest) -> shader::ShaderHandle {
-		self.compile_shader_requests.request_handle(&mut self.shaders, def)
+	pub fn request<R: ResourceRequest>(&mut self, request: R) -> <R::Resource as Resource>::Handle {
+		request.register(self)
 	}
 }
 
@@ -196,50 +208,5 @@ impl<R: Resource> ResourceStorage<R> {
 		let value = self.handle_counter;
 		self.handle_counter += 1;
 		R::Handle::from_raw(value)
-	}
-}
-
-
-#[derive(Debug)]
-pub struct ResourceRequestMap<Request, R: Resource>
-	where Request: PartialEq + Eq + Hash
-{
-	request_to_handle: HashMap<Request, R::Handle>,
-	requests: HashMap<Request, R::Handle>,
-}
-
-impl<Request, R: Resource> ResourceRequestMap<Request, R>
-	where Request: PartialEq + Eq + Hash
-{
-	fn new() -> Self {
-		ResourceRequestMap {
-			request_to_handle: HashMap::new(),
-			requests: HashMap::new(),
-		}
-	}
-
-	pub fn get_handle(&self, request: &Request) -> Option<R::Handle> {
-		self.request_to_handle.get(request).cloned()
-	}
-
-	pub fn request_handle(&mut self, storage: &mut ResourceStorage<R>, request: Request) -> R::Handle {
-		if let Some(handle) = self.get_handle(&request) {
-			return handle
-		}
-
-		*self.requests.entry(request)
-			.or_insert_with(|| storage.new_handle())
-	}
-
-	fn process_requests<F>(&mut self, storage: &mut ResourceStorage<R>, mut f: F) -> anyhow::Result<()>
-		where F: FnMut(&Request) -> anyhow::Result<R>
-	{
-		for (request, handle) in self.requests.drain() {
-			let resource = f(&request)?;
-			storage.insert(handle, resource);
-			self.request_to_handle.insert(request, handle);
-		}
-
-		Ok(())
 	}
 }

@@ -1,4 +1,5 @@
 use crate::core::ShaderType;
+use crate::resource_manager::*;
 
 #[derive(Hash, Clone, Debug, Eq, PartialEq)]
 pub struct CompileShaderRequest {
@@ -31,5 +32,14 @@ impl CompileShaderRequest {
 			src: src.into(),
 			shader_type: ShaderType::Compute,
 		}
+	}
+}
+
+
+impl ResourceRequest for CompileShaderRequest {
+	type Resource = ShaderResource;
+
+	fn register(self, rm: &mut ResourceManager) -> ShaderHandle {
+		rm.compile_shader_requests.request_handle(&mut rm.shaders, self)
 	}
 }

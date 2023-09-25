@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::core::{Core, BufferName, buffer::BufferRange};
+use crate::core::{Core, BufferName, BufferRange};
 
 pub const UPLOAD_BUFFER_SIZE: usize = 8<<20;
 

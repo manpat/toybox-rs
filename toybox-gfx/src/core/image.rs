@@ -217,7 +217,7 @@ impl ImageRange {
 		ImageRange {
 			offset: offset.extend(0),
 			size: size.extend(1),
-		}		
+		}
 	}
 }
 
