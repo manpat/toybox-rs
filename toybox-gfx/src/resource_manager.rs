@@ -78,7 +78,6 @@ impl ResourceManager {
 
 		if let Some(_size) = self.resize_request.take() {
 			// TODO(pat.m): Resize textures, recreate framebuffers etc
-			println!("RESIZE {_size:?}");
 		}
 
 		self.load_shader_requests.process_requests(&mut self.shaders, |def| {

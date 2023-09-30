@@ -1,7 +1,7 @@
 use winit::window::{Window, CursorGrabMode};
 use winit::event::*;
 use winit::dpi::PhysicalPosition;
-use common::math::Vec2;
+use common::math::{Vec2, Vec2i};
 
 use std::rc::Rc;
 
@@ -18,6 +18,8 @@ pub struct System {
 
 	window: Rc<Window>,
 	wants_capture: bool,
+
+	window_size: Vec2i,
 }
 
 /// Input tracker queries. Just convenience functions for the same calls on `self.tracker`
@@ -32,6 +34,14 @@ impl System {
 
 	pub fn button_just_up(&self, button: impl Into<Button>) -> bool {
 		self.tracker.button_just_up(button)
+	}
+
+	pub fn mouse_delta(&self) -> Option<Vec2> {
+		self.tracker.mouse_delta.map(|screen| screen_delta_to_ndc(self.window_size, screen))
+	}
+
+	pub fn pointer_position(&self) -> Option<Vec2> {
+		self.tracker.pointer_position.map(|screen| screen_pos_to_ndc(self.window_size, screen))
 	}
 }
 
@@ -63,6 +73,8 @@ impl System {
 			tracker: Tracker::default(),
 			window,
 			wants_capture: false,
+
+			window_size: Vec2i::splat(1),
 		}
 	}
 
@@ -77,6 +89,10 @@ impl System {
 		if !occluded {
 			self.set_capture_mouse(self.wants_capture);
 		}
+	}
+
+	pub fn on_resize(&mut self, new_size: Vec2i) {
+		self.window_size = new_size;
 	}
 
 	pub fn on_window_event(&mut self, event: &WindowEvent<'_>) {
@@ -118,4 +134,15 @@ impl System {
 
 	}
 
+}
+
+
+fn screen_pos_to_ndc(window_size: Vec2i, screen_space: Vec2) -> Vec2 {
+	let flipped_ndc = screen_space / window_size.to_vec2() - Vec2::splat(0.5);
+	flipped_ndc * Vec2::new(2.0, -2.0)
+}
+
+fn screen_delta_to_ndc(window_size: Vec2i, screen_space: Vec2) -> Vec2 {
+	let flipped_ndc = screen_space / window_size.to_vec2();
+	flipped_ndc * Vec2::new(2.0, -2.0)
 }

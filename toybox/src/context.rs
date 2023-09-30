@@ -40,6 +40,7 @@ impl Context {
 
 	pub(crate) fn notify_resized(&mut self, new_size: Vec2i) {
 		self.gfx.resize(new_size);
+		self.input.on_resize(new_size);
 	}
 
 	// Called after app returns control, before the frame ends.

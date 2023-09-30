@@ -17,6 +17,7 @@ pub mod upload_heap;
 pub use crate::core::*;
 pub use resource_manager::*;
 pub use frame_encoder::*;
+pub use command::PrimitiveType;
 
 pub mod prelude {
 	pub use crate::host::gl;

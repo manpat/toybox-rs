@@ -8,6 +8,7 @@ pub struct Tracker {
 	pub down_buttons: Vec<Button>,
 	pub up_buttons: Vec<Button>,
 
+	// These are in pixels! in Y-down screen space
 	pub pointer_position: Option<Vec2>,
 	pub mouse_delta: Option<Vec2>,
 }
@@ -55,7 +56,6 @@ impl Tracker {
 	}
 
 	pub fn track_mouse_move(&mut self, mut delta: Vec2) {
-		delta.y = -delta.y;
 		*self.mouse_delta.get_or_insert_with(Vec2::zero) += delta;
 	}
 

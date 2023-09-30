@@ -20,6 +20,7 @@ impl super::ResourceHandle for ImageHandle {
 #[derive(Debug)]
 pub struct ImageResource {
 	pub name: ImageName,
+	// TODO(pat.m): resize policy, for auto-resize of backbuffer textures
 }
 
 impl super::Resource for ImageResource {
@@ -36,7 +37,7 @@ impl ImageResource {
 		let size = Vec2i::new(width as i32, height as i32);
 		let data = image.into_vec();
 		
-		// TODO(pat.m): diff texel formats
+		// TODO(pat.m): allow diff texel formats
 		let name = core.create_image_2d(ImageFormat::Srgba8, size);
 		core.upload_image(name, None, ImageFormat::Srgba8, &data);
 
