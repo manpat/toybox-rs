@@ -43,14 +43,10 @@ pub struct ResourceManager {
 }
 
 impl ResourceManager {
-	pub fn new(core: &mut core::Core) -> ResourceManager {
-		let resource_root_path = PathBuf::from("resource");
-		if !resource_root_path.exists() {
-			panic!("Can't find resource directory - make sure to run from correct working directory!");
-		}
-
-		ResourceManager {
-			resource_root_path,
+	pub fn new(core: &mut core::Core) -> anyhow::Result<ResourceManager> {
+		Ok(ResourceManager {
+			resource_root_path: find_resource_folder()
+				.context("Can't find resource directory")?,
 
 			load_shader_requests: ResourceRequestMap::new(),
 			compile_shader_requests: ResourceRequestMap::new(),
@@ -65,7 +61,7 @@ impl ResourceManager {
 			upload_heap: UploadHeap::new(core),
 
 			resize_request: None,
-		}
+		})
 	}
 
 	pub fn request_resize(&mut self, new_size: common::Vec2i) {
@@ -208,4 +204,38 @@ impl<R: Resource> ResourceStorage<R> {
 		self.handle_counter += 1;
 		R::Handle::from_raw(value)
 	}
+}
+
+
+
+fn find_resource_folder() -> anyhow::Result<PathBuf> {
+	// Scan from executable path
+	let exe_path = std::env::current_exe()?;
+
+	let search_dir = exe_path.parent()
+		.ok_or_else(|| anyhow::format_err!("Executable path invalid '{}'", exe_path.display()))?;
+
+	for search_dir in search_dir.ancestors() {
+		let path = search_dir.join("resource");
+		if path.try_exists()? {
+			return Ok(path)
+		}
+
+		println!("Couldn't find resource dir in '{}'", search_dir.display());
+	}
+
+
+	// Scan from working directory
+	let search_dir = std::env::current_dir()?;
+
+	for search_dir in search_dir.ancestors() {
+		let path = search_dir.join("resource");
+		if path.try_exists()? {
+			return Ok(path)
+		}
+
+		println!("Couldn't find resource dir in '{}'", search_dir.display());
+	}
+
+	anyhow::bail!("Couldn't find 'resource' folder in any directory above the executable path or working directory")
 }

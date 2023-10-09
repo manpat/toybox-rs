@@ -49,7 +49,7 @@ impl System {
 
 impl System {
 	pub fn new(mut core: core::Core) -> anyhow::Result<System> {
-		let resource_manager = resource_manager::ResourceManager::new(&mut core);
+		let resource_manager = resource_manager::ResourceManager::new(&mut core)?;
 		let frame_encoder = frame_encoder::FrameEncoder::new(&mut core);
 		
 		unsafe {
