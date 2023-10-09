@@ -18,9 +18,19 @@ impl super::ResourceHandle for ImageHandle {
 
 
 #[derive(Debug)]
+pub enum ImageResizePolicy {
+	/// Image is never resized for duration of its lifetime.
+	Fixed,
+
+	/// Automatically resize to match the backbuffer size.
+	MatchBackbuffer,
+}
+
+
+#[derive(Debug)]
 pub struct ImageResource {
 	pub name: ImageName,
-	// TODO(pat.m): resize policy, for auto-resize of backbuffer textures
+	pub resize_policy: ImageResizePolicy,
 }
 
 impl super::Resource for ImageResource {
@@ -41,7 +51,10 @@ impl ImageResource {
 		let name = core.create_image_2d(ImageFormat::Srgba8, size);
 		core.upload_image(name, None, ImageFormat::Srgba8, &data);
 
-		Ok(ImageResource { name })
+		Ok(ImageResource {
+			name,
+			resize_policy: ImageResizePolicy::Fixed,
+		})
 	}
 }
 
