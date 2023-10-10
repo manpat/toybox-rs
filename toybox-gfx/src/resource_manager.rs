@@ -100,6 +100,10 @@ impl ResourceManager {
 
 		Ok(())
 	}
+
+	pub fn resource_path(&self) -> &Path {
+		&self.resource_root_path
+	}
 }
 
 /// Execution api

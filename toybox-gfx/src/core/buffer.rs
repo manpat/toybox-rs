@@ -72,6 +72,20 @@ impl super::Core {
 		}
 	}
 
+	// TODO(pat.m): replace with copy from upload heap?
+	pub fn upload_immutable_buffer_immediate<T>(&self, name: BufferName, data: &[T])
+		where T: Copy + 'static
+	{
+		let usage = 0;
+		let size = data.len() * std::mem::size_of::<T>();
+
+		self.buffer_info.borrow_mut().insert(name, BufferInfo {size, usage});
+
+		unsafe {
+			self.gl.NamedBufferStorage(name.as_raw(), size as isize, data.as_ptr().cast(), usage);
+		}
+	}
+
 	pub fn get_buffer_info(&self, name: BufferName) -> Option<BufferInfo> {
 		self.buffer_info.borrow().get(&name).cloned()
 	}
