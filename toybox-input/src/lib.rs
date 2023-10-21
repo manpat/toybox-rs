@@ -15,6 +15,7 @@ pub use winit::event::{VirtualKeyCode as Key, MouseButton};
 
 pub struct System {
 	pub tracker: Tracker,
+	pub gil: gilrs::Gilrs,
 
 	window: Rc<Window>,
 	wants_capture: bool,
@@ -71,6 +72,7 @@ impl System {
 	pub fn new(window: Rc<Window>) -> System {
 		System {
 			tracker: Tracker::default(),
+			gil: gilrs::Gilrs::new().unwrap(),
 			window,
 			wants_capture: false,
 

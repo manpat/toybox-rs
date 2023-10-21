@@ -60,3 +60,35 @@ pub fn tracker_ui(ui: &mut egui::Ui, input: &mut System) {
 
 	ui.data_mut(move |map| map.insert_temp(state_id, state));
 }
+
+pub fn gamepad_ui(ui: &mut egui::Ui, input: &mut System) {
+	#[derive(Clone, Default)]
+	struct State {
+		events: Vec<(String, u32)>,
+	}
+
+	let state_id = ui.id().with("state");
+	let mut state: State = ui.data_mut(|map| std::mem::take(map.get_temp_mut_or_default(state_id)));
+
+	for (_, timer) in state.events.iter_mut() {
+		*timer = timer.saturating_sub(1);
+	}
+
+	state.events.retain(|(_, timer)| *timer > 0);
+
+	while let Some(gilrs::Event{id, event, time}) = input.gil.next_event() {
+		state.events.push((format!("{:?} New event from {}: {:?}", time, id, event), 20));
+	}
+
+
+
+	for (_id, gamepad) in input.gil.gamepads() {
+		ui.label(format!("{} is {:?}", gamepad.name(), gamepad.power_info()));
+	}
+	for (msg, _) in state.events.iter() {
+		ui.label(msg);
+	}
+
+
+	ui.data_mut(move |map| map.insert_temp(state_id, state));
+}
