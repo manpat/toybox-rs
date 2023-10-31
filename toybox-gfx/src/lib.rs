@@ -18,6 +18,7 @@ pub use crate::core::*;
 pub use resource_manager::*;
 pub use frame_encoder::*;
 pub use command::PrimitiveType;
+pub use command_group::*;
 
 pub mod prelude {
 	pub use crate::host::gl;
