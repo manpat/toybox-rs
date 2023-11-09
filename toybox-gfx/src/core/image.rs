@@ -10,6 +10,12 @@ pub struct ImageName {
 	raw: u32,
 }
 
+impl ImageName {
+	pub unsafe fn from_raw(raw: u32) -> ImageName {
+		ImageName{raw}
+	}
+}
+
 impl super::ResourceName for ImageName {
 	const GL_IDENTIFIER: u32 = gl::TEXTURE;
 	fn as_raw(&self) -> u32 { self.raw }

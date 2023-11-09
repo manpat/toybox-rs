@@ -15,7 +15,7 @@ pub mod shader_pipeline;
 pub mod global_state;
 
 pub use capabilities::Capabilities;
-pub use fbo::{FboName};
+pub use fbo::*;
 pub use buffer::*;
 pub use sampler::{SamplerName, AddressingMode, FilterMode};
 pub use self::image::*;

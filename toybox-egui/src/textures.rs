@@ -53,6 +53,12 @@ impl TextureManager {
 	}
 
 	pub fn image_from_texture_id(&self, id: TextureId) -> ImageName {
+		if let TextureId::User(id) = id {
+			return unsafe {
+				ImageName::from_raw(id as u32)
+			}
+		}
+
 		if let Some(Some(managed_image)) = self.managed_images.get(&id) {
 			managed_image.name
 		} else {
