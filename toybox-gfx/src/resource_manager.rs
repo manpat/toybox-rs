@@ -32,6 +32,7 @@ pub struct ResourceManager {
 	pub shaders: ResourceStorage<ShaderResource>,
 
 	load_image_requests: ResourceRequestMap<LoadImageRequest>,
+	create_image_requests: ResourceRequestMap<CreateImageRequest>,
 	pub images: ResourceStorage<ImageResource>,
 
 	draw_pipelines: HashMap<(ShaderHandle, Option<ShaderHandle>), core::ShaderPipelineName>,
@@ -53,6 +54,7 @@ impl ResourceManager {
 			shaders: ResourceStorage::new(),
 
 			load_image_requests: ResourceRequestMap::new(),
+			create_image_requests: ResourceRequestMap::new(),
 			images: ResourceStorage::new(),
 
 			draw_pipelines: HashMap::new(),
@@ -73,13 +75,17 @@ impl ResourceManager {
 		core.push_debug_group("Process Resource Requests");
 
 		if let Some(_size) = self.resize_request.take() {
-			// TODO(pat.m): Resize textures, recreate framebuffers etc
+			// TODO(pat.m): recreate framebuffers etc
+			for image in self.images.iter_mut() {
+				image.on_resize(core);
+			}
 		}
 
 		self.load_shader_requests.process_requests(&mut self.shaders, |def| {
+			let label = def.path.display().to_string();
 			let full_path = self.resource_root_path.join(&def.path);
 
-			ShaderResource::from_disk(core, def.shader_type, &full_path)
+			ShaderResource::from_disk(core, def.shader_type, &full_path, &label)
 				.with_context(|| format!("Compiling shader '{}'", full_path.display()))
 		})?;
 
@@ -89,9 +95,14 @@ impl ResourceManager {
 		})?;
 
 		self.load_image_requests.process_requests(&mut self.images, |def| {
+			let label = def.path.display().to_string();
 			let full_path = self.resource_root_path.join(&def.path);
-			ImageResource::from_disk(core, &full_path)
+			ImageResource::from_disk(core, &full_path, label)
 				.with_context(|| format!("Loading image '{}'", full_path.display()))
+		})?;
+
+		self.create_image_requests.process_requests(&mut self.images, |def| {
+			Ok(ImageResource::from_create_request(core, def))
 		})?;
 
 		// TODO(pat.m): this will never be reached if the above fails, but if the above fails
@@ -197,6 +208,14 @@ impl<R: Resource> ResourceStorage<R> {
 
 	pub fn get_resource(&self, handle: R::Handle) -> Option<&'_ R> {
 		self.resources.get(&handle)
+	}
+
+	pub fn iter(&self) -> impl Iterator<Item=&R> {
+		self.resources.values()
+	}
+
+	pub fn iter_mut(&mut self) -> impl Iterator<Item=&mut R> {
+		self.resources.values_mut()
 	}
 
 	fn insert(&mut self, handle: R::Handle, resource: R) {

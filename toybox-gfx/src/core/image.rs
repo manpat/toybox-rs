@@ -24,7 +24,7 @@ pub enum ImageType {
 	Image2DArray = gl::TEXTURE_2D_ARRAY,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ImageInfo {
 	pub image_type: ImageType,
 	pub format: ImageFormat,
@@ -34,14 +34,17 @@ pub struct ImageInfo {
 
 /// Images
 impl super::Core {
-	pub fn create_typed_image(&self, image_type: ImageType, format: ImageFormat, size: Vec3i) -> ImageName {
+	pub fn create_image_from_info(&self, image_info: ImageInfo) -> ImageName {
 		let mut name = 0;
 		let levels = 1;
 
-		unsafe {
-			self.gl.CreateTextures(image_type as u32, 1, &mut name);
+		let size = image_info.size;
+		let format = image_info.format;
 
-			match image_type {
+		unsafe {
+			self.gl.CreateTextures(image_info.image_type as u32, 1, &mut name);
+
+			match image_info.image_type {
 				ImageType::Image2D => {
 					self.gl.TextureStorage2D(name, levels, format.to_raw(), size.x, size.y)
 				}
@@ -53,8 +56,12 @@ impl super::Core {
 		};
 
 		let name = ImageName {raw: name};
-		self.image_info.borrow_mut().insert(name, ImageInfo{image_type, format, size});
+		self.image_info.borrow_mut().insert(name, image_info);
 		name
+	}
+
+	pub fn create_typed_image(&self, image_type: ImageType, format: ImageFormat, size: Vec3i) -> ImageName {
+		self.create_image_from_info(ImageInfo{image_type, format, size})
 	}
 
 	pub fn create_image_2d(&self, format: ImageFormat, size: Vec2i) -> ImageName {

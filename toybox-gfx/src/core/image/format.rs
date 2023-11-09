@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum ImageFormat {
 	Rgba(ComponentFormat),
 	RedGreen(ComponentFormat),
@@ -136,7 +136,7 @@ impl ImageFormat {
 
 
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum ComponentFormat {
 	Unorm8, Unorm16,
 	I8, I16, I32,

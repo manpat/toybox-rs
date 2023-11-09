@@ -42,6 +42,8 @@ pub struct Core {
 
 	buffer_info: RefCell<HashMap<BufferName, BufferInfo>>,
 	image_info: RefCell<HashMap<ImageName, ImageInfo>>,
+
+	backbuffer_size: Vec2i,
 }
 
 impl Core {
@@ -67,6 +69,8 @@ impl Core {
 
 			buffer_info: RefCell::new(HashMap::new()),
 			image_info: RefCell::new(HashMap::new()),
+
+			backbuffer_size: Vec2i::zero(),
 		}
 	}
 
@@ -80,6 +84,14 @@ impl Core {
 
 	pub fn swap(&mut self) {
 		self.surface.swap_buffers(&self.gl_context).unwrap();
+	}
+
+	pub fn backbuffer_size(&self) -> Vec2i {
+		self.backbuffer_size
+	}
+
+	pub(crate) fn set_backbuffer_size(&mut self, new_size: Vec2i) {
+		self.backbuffer_size = new_size;
 	}
 }
 

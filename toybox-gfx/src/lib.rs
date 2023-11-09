@@ -34,17 +34,15 @@ pub struct System {
 	pub core: core::Core,
 	pub resource_manager: resource_manager::ResourceManager,
 	pub frame_encoder: frame_encoder::FrameEncoder,
-
-	backbuffer_size: Vec2i,
 }
 
 impl System {
 	pub fn backbuffer_size(&self) -> Vec2i {
-		self.backbuffer_size
+		self.core.backbuffer_size()
 	}
 
 	pub fn backbuffer_aspect(&self) -> f32 {
-		self.backbuffer_size.x as f32 / self.backbuffer_size.y as f32
+		self.core.backbuffer_size().x as f32 / self.core.backbuffer_size().y as f32
 	}
 }
 
@@ -62,14 +60,14 @@ impl System {
 			core,
 			resource_manager,
 			frame_encoder,
-
-			backbuffer_size: Vec2i::zero(),
 		})
 	}
 
 	pub fn resize(&mut self, new_size: common::Vec2i) {
-		self.resource_manager.request_resize(new_size);
-		self.backbuffer_size = new_size;
+		if self.core.backbuffer_size() != new_size {
+			self.core.set_backbuffer_size(new_size);
+			self.resource_manager.request_resize(new_size);
+		}
 	}
 
 	pub fn execute_frame(&mut self) {
@@ -85,7 +83,8 @@ impl System {
 		self.core.clear_framebuffer_color_buffer(backbuffer_handle, 0, clear_color);
 		self.core.clear_framebuffer_depth_stencil(backbuffer_handle, clear_depth, clear_stencil);
 
-		self.core.set_viewport(self.backbuffer_size);
+		let backbuffer_size = self.core.backbuffer_size();
+		self.core.set_viewport(backbuffer_size);
 
 		// TODO(pat.m): doing this first may mean duplicate bindings per bind target after name resolution.
 		// moving from binding merging to a hierarchical lookup, or to a just-in-time lookup might improve this

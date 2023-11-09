@@ -71,9 +71,8 @@ impl ShaderResource {
 		})
 	}
 
-	pub fn from_disk(core: &mut core::Core, shader_type: ShaderType, full_path: &Path) -> anyhow::Result<ShaderResource> {
-		let label = format!("shader:{}", full_path.display());
+	pub fn from_disk(core: &mut core::Core, shader_type: ShaderType, full_path: &Path, label: &str) -> anyhow::Result<ShaderResource> {
 		let data = std::fs::read_to_string(full_path)?;
-		Self::from_source(core, shader_type, &data, &label)
+		Self::from_source(core, shader_type, &data, label)
 	}
 }
