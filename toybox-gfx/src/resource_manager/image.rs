@@ -30,6 +30,8 @@ pub enum ImageResizePolicy {
 #[derive(Debug)]
 pub struct ImageResource {
 	pub name: ImageName,
+
+	// TODO(pat.m): use
 	pub resize_policy: ImageResizePolicy,
 }
 
