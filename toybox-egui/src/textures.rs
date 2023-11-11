@@ -52,10 +52,22 @@ impl TextureManager {
 		self.sampler
 	}
 
-	pub fn image_from_texture_id(&self, id: TextureId) -> ImageName {
+	pub fn image_from_texture_id(&self, resource_manager: &gfx::ResourceManager, id: TextureId) -> ImageName {
 		if let TextureId::User(id) = id {
-			return unsafe {
-				ImageName::from_raw(id as u32)
+			let value = (id & 0xffff_ffff) as u32;
+			let is_image_handle = (id & IMAGE_HANDLE_BIT) != 0;
+
+			// Map to either an ImageName directly or to an ImageHandle that is immediately resolved.
+			return match is_image_handle {
+				false => unsafe {
+					ImageName::from_raw(value)
+				}
+
+				true => {
+					let handle = gfx::ImageHandle::from_raw(value);
+					resource_manager.images.get_name(handle)
+						.unwrap_or(self.default_image)
+				}
 			}
 		}
 
@@ -166,4 +178,15 @@ fn upload_managed_image_data(core: &gfx::Core, managed_image: &mut ManagedImage,
 		}
 	}
 
+}
+
+
+const IMAGE_HANDLE_BIT: u64 = 1<<32;
+
+pub fn image_name_to_egui(name: gfx::ImageName) -> egui::TextureId {
+	egui::TextureId::User(name.as_raw() as u64)
+}
+
+pub fn image_handle_to_egui(handle: gfx::ImageHandle) -> egui::TextureId {
+	egui::TextureId::User(handle.0 as u64 | IMAGE_HANDLE_BIT)
 }

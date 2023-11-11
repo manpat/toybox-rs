@@ -94,7 +94,7 @@ impl Renderer {
 					clip_rect,
 				}));
 
-			let image_name = texture_manager.image_from_texture_id(mesh.texture_id);
+			let image_name = texture_manager.image_from_texture_id(&gfx.resource_manager, mesh.texture_id);
 
 			let fragment_shader = match texture_manager.is_font_image(mesh.texture_id) {
 				true => self.text_fragment_shader,

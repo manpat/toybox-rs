@@ -70,6 +70,10 @@ impl System {
 		}
 	}
 
+	pub fn start_frame(&mut self) {
+		self.resource_manager.handle_resize(&mut self.core);
+	}
+
 	pub fn execute_frame(&mut self) {
 		self.resource_manager.process_requests(&mut self.core)
 			.context("Error while processing resource requests")

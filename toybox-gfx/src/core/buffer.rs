@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use super::shader::{ShaderType, ShaderName};
 use super::ResourceName;
 
 

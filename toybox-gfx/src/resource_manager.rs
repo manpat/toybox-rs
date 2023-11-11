@@ -70,16 +70,20 @@ impl ResourceManager {
 		self.resize_request = Some(new_size);
 	}
 
-	/// Attempt to turn requested resources into committed GPU resources.
-	pub fn process_requests(&mut self, core: &mut core::Core) -> anyhow::Result<()> {
-		core.push_debug_group("Process Resource Requests");
-
+	/// Make sure all image names that will be invalidated on resize are
+	/// gone before client code has a chance to ask for them.
+	pub fn handle_resize(&mut self, core: &mut core::Core) {
 		if let Some(_size) = self.resize_request.take() {
 			// TODO(pat.m): recreate framebuffers etc
 			for image in self.images.iter_mut() {
 				image.on_resize(core);
 			}
 		}
+	}
+
+	/// Attempt to turn requested resources into committed GPU resources.
+	pub fn process_requests(&mut self, core: &mut core::Core) -> anyhow::Result<()> {
+		core.push_debug_group("Process Resource Requests");
 
 		self.load_shader_requests.process_requests(&mut self.shaders, |def| {
 			let label = def.path.display().to_string();

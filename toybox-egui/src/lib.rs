@@ -15,6 +15,8 @@ pub mod prelude {
 	pub use egui::emath;
 }
 
+pub use textures::{image_name_to_egui, image_handle_to_egui};
+
 
 pub struct Integration {
 	state: egui_winit::State,
@@ -80,13 +82,17 @@ impl Integration {
 
 
 
-pub fn image_name_to_egui(name: gfx::ImageName) -> egui::TextureId {
-	use gfx::ResourceName;
-	egui::TextureId::User(name.as_raw() as u64)
-}
-
 pub fn show_image_name(ui: &mut egui::Ui, name: gfx::ImageName) {
 	let id = image_name_to_egui(name);
+
+	let widget = egui::Image::new(id, [128.0; 2])
+		.uv([egui::pos2(0.0, 1.0), egui::pos2(1.0, 0.0)]);
+
+	ui.add(widget);
+}
+
+pub fn show_image_handle(ui: &mut egui::Ui, handle: gfx::ImageHandle) {
+	let id = image_handle_to_egui(handle);
 
 	let widget = egui::Image::new(id, [128.0; 2])
 		.uv([egui::pos2(0.0, 1.0), egui::pos2(1.0, 0.0)]);

@@ -26,6 +26,7 @@ impl Context {
 
 	// Called after events are processed, immediately before control is passed to the app.
 	pub(crate) fn start_frame(&mut self) {
+		self.gfx.start_frame();
 		self.input.process();
 		self.egui = self.egui_integration.start_frame();
 
