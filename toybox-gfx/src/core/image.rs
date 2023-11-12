@@ -212,25 +212,62 @@ impl super::Core {
 	// TODO(pat.m): clear_image with other formats
 	pub fn clear_image_to_default(&self, image_name: ImageName) {
 		let Some(info) = self.get_image_info(image_name) else { return };
-		let level = 0;
 
 		if info.format.is_depth() {
-			unsafe {
-				self.gl.ClearTexImage(image_name.as_raw(), level, gl::DEPTH_COMPONENT, gl::FLOAT, (&1.0f32 as *const f32).cast());
-			}
+			self.clear_image_with_raw(image_name, gl::DEPTH_COMPONENT, gl::FLOAT, 1.0f32);
+
 		} else if info.format.is_stencil() {
-			unsafe {
-				self.gl.ClearTexImage(image_name.as_raw(), level, gl::STENCIL_INDEX, gl::UNSIGNED_BYTE, (&0u8 as *const u8).cast());
-			}
+			self.clear_image_with_raw(image_name, gl::STENCIL_INDEX, gl::UNSIGNED_BYTE, 0u8);
+
 		} else if info.format.is_depth_stencil() {
-			unsafe {
-				self.gl.ClearTexImage(image_name.as_raw(), level, gl::DEPTH_STENCIL, gl::DEPTH24_STENCIL8, [255u8, 255, 255, 0].as_ptr().cast());
-			}
+			self.clear_image_with_depth_stencil(image_name, 1.0, 0);
+
+		} else if info.format.is_normalized() {
+			self.clear_image_with_raw(image_name, gl::RGBA, gl::UNSIGNED_BYTE, [0u8, 0, 0, 0]);
 
 		} else {
-			unsafe {
-				self.gl.ClearTexImage(image_name.as_raw(), level, gl::RGBA, gl::UNSIGNED_BYTE, [0u8, 0, 0, 0].as_ptr().cast());
-			}
+			self.clear_image_with_raw(image_name, gl::RGBA_INTEGER, gl::UNSIGNED_BYTE, [0u8, 0, 0, 0]);
+		}
+	}
+
+	pub fn clear_image_with_f32(&self, image_name: ImageName, value: f32) {
+		let Some(info) = self.get_image_info(image_name) else { return };
+
+		let format = match info.format.is_depth() {
+			true => gl::DEPTH_COMPONENT,
+			false => gl::RED,
+		};
+
+		self.clear_image_with_raw(image_name, format, gl::FLOAT, value);
+	}
+
+	pub fn clear_image_with_color(&self, image_name: ImageName, value: Color) {
+		let Some(info) = self.get_image_info(image_name) else { return };
+
+		self.clear_image_with_raw(image_name, gl::RGBA, gl::FLOAT, value);
+	}
+
+	pub fn clear_image_with_depth_stencil(&self, image_name: ImageName, depth: f32, stencil: u8) {
+		#[repr(C)]
+		#[derive(Copy, Clone)]
+		struct D32_S8 {
+			depth: f32,
+			_empty: [u8; 3],
+			stencil: u8
+		}
+
+		let clear_value = D32_S8 { depth, stencil, _empty: [0; 3] };
+
+		self.clear_image_with_raw(image_name, gl::DEPTH_STENCIL, gl::FLOAT_32_UNSIGNED_INT_24_8_REV, clear_value);
+	}
+
+	pub fn clear_image_with_raw<T>(&self, image_name: ImageName, format: u32, data_type: u32, data: T)
+		where T: Copy
+	{
+		let level = 0;
+
+		unsafe {
+			self.gl.ClearTexImage(image_name.as_raw(), level, format, data_type, (&data as *const T).cast());
 		}
 	}
 }

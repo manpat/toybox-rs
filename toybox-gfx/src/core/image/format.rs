@@ -137,6 +137,25 @@ impl ImageFormat {
 		}
 	}
 
+	pub fn is_normalized(&self) -> bool {
+		match self {
+			ImageFormat::Rgba(comp) => comp.is_normalized(),
+			ImageFormat::RedGreen(comp) => comp.is_normalized(),
+			ImageFormat::Red(comp) => comp.is_normalized(),
+
+			ImageFormat::Rgb10A2Ui => false,
+			ImageFormat::Rgb10A2 => true,
+			ImageFormat::R11G11B10F => true,
+			ImageFormat::Srgb8 => true,
+			ImageFormat::Srgba8 => true,
+
+			// TODO(pat.m): these don't really make sense but whatever
+			ImageFormat::Depth | ImageFormat::Depth16 | ImageFormat::Depth32 => true,
+			ImageFormat::Stencil => false,
+			ImageFormat::DepthStencil => false,
+		}
+	}
+
 	pub fn is_depth(&self) -> bool {
 		use ImageFormat::*;
 		matches!(self, Depth | Depth16 | Depth32)
