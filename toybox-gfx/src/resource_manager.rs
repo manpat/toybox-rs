@@ -17,6 +17,9 @@ pub use shader::*;
 mod image;
 pub use self::image::*;
 
+mod framebuffer;
+pub use framebuffer::*;
+
 // Create/Destroy api for gpu resources
 // Load/Cache resources from disk
 // Render target/FBO/temporary image cache
@@ -37,6 +40,8 @@ pub struct ResourceManager {
 
 	draw_pipelines: HashMap<(ShaderHandle, Option<ShaderHandle>), core::ShaderPipelineName>,
 	compute_pipelines: HashMap<ShaderHandle, core::ShaderPipelineName>,
+
+	framebuffer_cache: FramebufferCache,
 
 	pub upload_heap: UploadHeap,
 
@@ -59,6 +64,8 @@ impl ResourceManager {
 			draw_pipelines: HashMap::new(),
 			compute_pipelines: HashMap::new(),
 
+			framebuffer_cache: FramebufferCache::new(),
+
 			upload_heap: UploadHeap::new(core),
 
 			resize_request: None,
@@ -77,6 +84,8 @@ impl ResourceManager {
 			for image in self.images.iter_mut() {
 				image.on_resize(core);
 			}
+
+			self.framebuffer_cache.refresh_attachments(core, &self.images);
 		}
 	}
 
@@ -166,6 +175,12 @@ impl ResourceManager {
 
 		pipeline
 	}
+
+	pub fn resolve_framebuffer(&mut self, core: &mut core::Core, desc: impl Into<FramebufferDescription>)
+		-> core::FramebufferName
+	{
+		self.framebuffer_cache.resolve(core, &self.images, desc.into())
+	}
 }
 
 
@@ -182,6 +197,7 @@ pub trait ResourceHandle : Copy + Clone + Eq + PartialEq + Debug + Hash {
 }
 
 
+// TODO(pat.m): this could be split into a generic Resource and a gfx-specific Resource with names
 pub trait Resource : Debug {
 	type Handle : ResourceHandle;
 	type Name : core::ResourceName;
@@ -204,6 +220,8 @@ impl<R: Resource> ResourceStorage<R> {
 			handle_counter: 0,
 		}
 	}
+
+	// TODO(pat.m): make ResourceStorage generic and make this a gfx-only extension
 	pub fn get_name(&self, handle: R::Handle) -> Option<R::Name> {
 		self.resources.get(&handle)
 			.map(R::get_name)

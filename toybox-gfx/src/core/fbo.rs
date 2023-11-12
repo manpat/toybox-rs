@@ -15,6 +15,7 @@ impl super::ResourceName for FramebufferName {
 }
 
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum FramebufferAttachment {
 	Color(u32),
 	Depth,
