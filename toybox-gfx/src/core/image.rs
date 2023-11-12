@@ -208,6 +208,31 @@ impl super::Core {
 
 		self.bind_image_upload_buffer(None);
 	}
+
+	// TODO(pat.m): clear_image with other formats
+	pub fn clear_image_to_default(&self, image_name: ImageName) {
+		let Some(info) = self.get_image_info(image_name) else { return };
+		let level = 0;
+
+		if info.format.is_depth() {
+			unsafe {
+				self.gl.ClearTexImage(image_name.as_raw(), level, gl::DEPTH_COMPONENT, gl::FLOAT, (&1.0f32 as *const f32).cast());
+			}
+		} else if info.format.is_stencil() {
+			unsafe {
+				self.gl.ClearTexImage(image_name.as_raw(), level, gl::STENCIL_INDEX, gl::UNSIGNED_BYTE, (&0u8 as *const u8).cast());
+			}
+		} else if info.format.is_depth_stencil() {
+			unsafe {
+				self.gl.ClearTexImage(image_name.as_raw(), level, gl::DEPTH_STENCIL, gl::DEPTH24_STENCIL8, [255u8, 255, 255, 0].as_ptr().cast());
+			}
+
+		} else {
+			unsafe {
+				self.gl.ClearTexImage(image_name.as_raw(), level, gl::RGBA, gl::UNSIGNED_BYTE, [0u8, 0, 0, 0].as_ptr().cast());
+			}
+		}
+	}
 }
 
 

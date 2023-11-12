@@ -37,7 +37,7 @@ impl ComputeCmd {
 		let pipeline = rm.resolve_compute_pipeline(core, self.compute_shader);
 		core.bind_shader_pipeline(pipeline);
 
-		self.bindings.bind(core);
+		self.bindings.bind(core, rm);
 
 		let mut barrier_tracker = core.barrier_tracker();
 

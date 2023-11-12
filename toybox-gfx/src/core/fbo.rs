@@ -46,7 +46,7 @@ impl super::Core {
 		})
 	}
 
-	pub fn destroy_framebuffer(&mut self, name: FramebufferName) {
+	pub fn destroy_framebuffer(&self, name: FramebufferName) {
 		unsafe {
 			self.gl.DeleteFramebuffers(1, &name.as_raw())
 		}

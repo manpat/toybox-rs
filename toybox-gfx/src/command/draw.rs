@@ -1,6 +1,6 @@
 use crate::prelude::*;
-use crate::bindings::{BindingDescription, BufferBindTarget, BufferBindSource, IntoBufferBindSourceOrStageable, ImageBindSource, ImageBindTarget};
-use crate::resource_manager::ShaderHandle;
+use crate::bindings::*;
+use crate::resource_manager::{ShaderHandle};
 use crate::upload_heap::UploadStage;
 use crate::core::SamplerName;
 
@@ -61,7 +61,7 @@ impl DrawCmd {
 		let pipeline = rm.resolve_draw_pipeline(core, self.vertex_shader, self.fragment_shader);
 		core.bind_shader_pipeline(pipeline);
 
-		self.bindings.bind(core);
+		self.bindings.bind(core, rm);
 
 		let primitive_type = self.primitive_type as u32;
 		let num_elements = self.num_elements as i32;
@@ -151,6 +151,11 @@ impl<'cg> DrawCmdBuilder<'cg> {
 	// TODO(pat.m): do I want RW to be explicit?
 	pub fn image_rw(&mut self, unit: u32, image: impl Into<ImageBindSource>) -> &mut Self {
 		self.cmd.bindings.bind_image(ImageBindTarget::ReadWriteImage(unit), image, None);
+		self
+	}
+
+	pub fn rendertargets(&mut self, rts: impl Into<FramebufferDescriptionOrName>) -> &mut Self {
+		self.cmd.bindings.bind_framebuffer(rts);
 		self
 	}
 }

@@ -176,8 +176,8 @@ impl ResourceManager {
 		pipeline
 	}
 
-	pub fn resolve_framebuffer(&mut self, core: &mut core::Core, desc: impl Into<FramebufferDescription>)
-		-> core::FramebufferName
+	pub fn resolve_framebuffer(&mut self, core: &core::Core, desc: impl Into<FramebufferDescription>)
+		-> Option<core::FramebufferName>
 	{
 		self.framebuffer_cache.resolve(core, &self.images, desc.into())
 	}

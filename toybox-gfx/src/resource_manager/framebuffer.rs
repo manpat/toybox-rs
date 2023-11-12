@@ -7,9 +7,15 @@ use std::collections::HashMap;
 
 const MAX_ATTACHMENTS: usize = 5;
 
-#[derive(Debug, Hash, Eq, PartialEq, Clone)]
+#[derive(Debug, Default, Hash, Eq, PartialEq, Clone)]
 pub struct FramebufferDescription {
 	pub attachments: [Option<ImageHandle>; MAX_ATTACHMENTS],
+}
+
+impl FramebufferDescription {
+	pub fn is_default(&self) -> bool {
+		self.attachments.iter().all(Option::is_none)
+	}
 }
 
 
@@ -25,10 +31,16 @@ impl FramebufferCache {
 		}
 	}
 
-	pub fn resolve(&mut self, core: &mut Core, images: &ResourceStorage<ImageResource>, desc: FramebufferDescription) -> FramebufferName {
-		self.entries.entry(desc)
+	pub fn resolve(&mut self, core: &Core, images: &ResourceStorage<ImageResource>, desc: FramebufferDescription) -> Option<FramebufferName> {
+		if desc.is_default() {
+			return None
+		}
+
+		let name = self.entries.entry(desc)
 			.or_insert_with_key(|key| create_entry(core, images, key))
-			.name
+			.name;
+
+		Some(name)
 	}
 
 	pub fn refresh_attachments(&mut self, core: &mut Core, images: &ResourceStorage<ImageResource>) {
@@ -50,13 +62,13 @@ struct Entry {
 
 
 
-fn create_entry(core: &mut Core, images: &ResourceStorage<ImageResource>, desc: &FramebufferDescription) -> Entry {
+fn create_entry(core: &Core, images: &ResourceStorage<ImageResource>, desc: &FramebufferDescription) -> Entry {
 	let name = core.create_framebuffer();
 	attach_attachments(name, core, images, desc);
 	Entry { name }
 }
 
-fn attach_attachments(framebuffer_name: FramebufferName, core: &mut Core,
+fn attach_attachments(framebuffer_name: FramebufferName, core: &Core,
 	images: &ResourceStorage<ImageResource>, desc: &FramebufferDescription)
 {
 	let mut color_attachment_idx = 0;

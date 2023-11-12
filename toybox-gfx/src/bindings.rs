@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use crate::core::*;
-use crate::resource_manager::{ResourceManager, ImageHandle};
+use crate::resource_manager::{ResourceManager, ImageHandle, FramebufferDescription};
 use crate::upload_heap::{UploadStage, UploadHeap, StagedUploadId};
 
 
@@ -80,7 +80,6 @@ impl From<ImageHandle> for ImageBindSource {
 }
 
 
-
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct BufferBindDesc {
 	pub target: BufferBindTarget,
@@ -95,11 +94,21 @@ pub struct ImageBindDesc {
 }
 
 
+#[derive(Debug)]
+pub enum FramebufferDescriptionOrName {
+	Default,
+	Name(FramebufferName),
+	Description(FramebufferDescription),
+}
+
+
 #[derive(Debug, Default)]
 pub struct BindingDescription {
 	// TODO(pat.m): store unresolved named targets separately to resolved/explicit targets to simplify usage 
 	pub buffer_bindings: Vec<BufferBindDesc>,
 	pub image_bindings: Vec<ImageBindDesc>,
+
+	pub framebuffer: Option<FramebufferDescriptionOrName>,
 }
 
 
@@ -126,6 +135,12 @@ impl BindingDescription {
 			source: source.into(),
 			sampler: sampler.into(),
 		});
+	}
+
+	/// Bind for the duration of the binding scope, either a FramebufferName, a framebuffer described by a FramebufferDescription, or
+	/// the default framebuffer (None).
+	pub fn bind_framebuffer(&mut self, framebuffer: impl Into<FramebufferDescriptionOrName>) {
+		self.framebuffer = Some(framebuffer.into());
 	}
 
 	pub fn resolve_named_bind_targets(&mut self) {
@@ -188,7 +203,7 @@ impl BindingDescription {
 	// TODO(pat.m): not sure if I want to do this here.
 	// It does limit things a bit if I want to look things up in a per-pass BindingDescription.
 	// Also binding should probably be done through a bindings tracker.
-	pub fn bind(&self, core: &mut Core) {
+	pub fn bind(&self, core: &mut Core, resource_manager: &mut ResourceManager) {
 		let mut barrier_tracker = core.barrier_tracker();
 
 		for BufferBindDesc{target, source} in self.buffer_bindings.iter() {
@@ -234,6 +249,13 @@ impl BindingDescription {
 				_ => panic!("Unresolved image bind target"),
 			}
 		}
+
+		// TODO(pat.m): framebuffer should _ALWAYS_ be defined by this point.
+		// The global BindingDescription should specify Default
+		let framebuffer = self.framebuffer.as_ref().unwrap_or(&FramebufferDescriptionOrName::Default)
+			.resolve_name(core, resource_manager);
+
+		core.bind_framebuffer(framebuffer);
 	}
 }
 
@@ -271,5 +293,33 @@ impl<'t, T> IntoBufferBindSourceOrStageable for &'t T
 {
 	fn into_bind_source(self, stage: &mut UploadStage) -> BufferBindSource {
 		stage.stage_data(self.as_slice()).into()
+	}
+}
+
+
+
+
+impl<T> From<T> for FramebufferDescriptionOrName
+	where T: Into<FramebufferDescription>
+{
+	fn from(o: T) -> Self {
+		FramebufferDescriptionOrName::Description(o.into())
+	}
+}
+
+
+impl From<FramebufferName> for FramebufferDescriptionOrName {
+	fn from(o: FramebufferName) -> Self {
+		FramebufferDescriptionOrName::Name(o)
+	}
+}
+
+impl FramebufferDescriptionOrName {
+	pub fn resolve_name(&self, core: &Core, resource_manager: &mut ResourceManager) -> Option<FramebufferName> {
+		match self {
+			FramebufferDescriptionOrName::Default => None,
+			FramebufferDescriptionOrName::Name(name) => Some(*name),
+			FramebufferDescriptionOrName::Description(desc) => resource_manager.resolve_framebuffer(core, desc.clone()),
+		}
 	}
 }

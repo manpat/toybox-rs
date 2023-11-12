@@ -100,11 +100,16 @@ impl ImageFormat {
 
 	pub fn to_raw_unsized(&self) -> u32 {
 		match self {
-			ImageFormat::Rgba(_) => gl::RGBA,
-			ImageFormat::RedGreen(_) => gl::RG,
-			ImageFormat::Red(_) => gl::RED,
+			ImageFormat::Rgba(comp) if comp.is_normalized() => gl::RGBA,
+			ImageFormat::RedGreen(comp) if comp.is_normalized() => gl::RG,
+			ImageFormat::Red(comp) if comp.is_normalized() => gl::RED,
 
-			ImageFormat::Rgb10A2 | ImageFormat::Rgb10A2Ui => gl::RGBA,
+			ImageFormat::Rgba(_) => gl::RGBA_INTEGER,
+			ImageFormat::RedGreen(_) => gl::RG_INTEGER,
+			ImageFormat::Red(_) => gl::RED_INTEGER,
+
+			ImageFormat::Rgb10A2 => gl::RGBA,
+			ImageFormat::Rgb10A2Ui => gl::RGBA_INTEGER,
 			ImageFormat::R11G11B10F => gl::RGB,
 			ImageFormat::Srgb8 => gl::RGB,
 			ImageFormat::Srgba8 => gl::RGBA,
@@ -131,6 +136,21 @@ impl ImageFormat {
 			Depth32 | DepthStencil => 4,
 		}
 	}
+
+	pub fn is_depth(&self) -> bool {
+		use ImageFormat::*;
+		matches!(self, Depth | Depth16 | Depth32)
+	}
+
+	pub fn is_depth_stencil(&self) -> bool {
+		use ImageFormat::*;
+		matches!(self, DepthStencil)
+	}
+
+	pub fn is_stencil(&self) -> bool {
+		use ImageFormat::*;
+		matches!(self, Stencil)
+	}
 }
 
 
@@ -145,6 +165,15 @@ pub enum ComponentFormat {
 }
 
 impl ComponentFormat {
+	pub fn is_normalized(&self) -> bool {
+		use ComponentFormat::*;
+
+		match self {
+			Unorm8 | Unorm16 | F16 | F32 => true,
+			I8 | I16 | I32 | U8 | U16 | U32 => false,
+		}
+	}
+
 	pub fn to_raw(&self) -> u32 {
 		use ComponentFormat::*;
 
