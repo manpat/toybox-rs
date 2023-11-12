@@ -3,7 +3,7 @@ use crate::command::Command;
 use crate::core;
 use crate::upload_heap::{UploadStage, StagedUploadId};
 
-use crate::bindings::{BindingDescription, BufferBindTarget, IntoBufferBindSourceOrStageable, ImageBindTarget, ImageBindSource};
+use crate::bindings::*;
 use crate::core::SamplerName;
 
 
@@ -29,7 +29,12 @@ impl FrameEncoder {
 		}
 	}
 
-	pub fn end_frame(&mut self, _core: &mut core::Core) {
+	pub fn start_frame(&mut self) {
+		// Any command or command group not specifying a framebuffer should use the default
+		self.global_bindings.bind_framebuffer(FramebufferDescriptionOrName::Default);
+	}
+
+	pub fn end_frame(&mut self) {
 		for group in self.command_groups.iter_mut() {
 			group.reset();
 		}

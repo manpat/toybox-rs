@@ -73,6 +73,7 @@ impl System {
 
 	pub fn start_frame(&mut self) {
 		self.resource_manager.handle_resize(&mut self.core);
+		self.frame_encoder.start_frame();
 	}
 
 	pub fn execute_frame(&mut self) {
@@ -113,7 +114,7 @@ impl System {
         self.resource_manager.upload_heap.create_end_frame_fence(&mut self.core);
 
 		self.core.swap();
-		self.frame_encoder.end_frame(&mut self.core);
+		self.frame_encoder.end_frame();
 
         self.resource_manager.upload_heap.reset();
 	}

@@ -94,7 +94,7 @@ pub struct ImageBindDesc {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum FramebufferDescriptionOrName {
 	Default,
 	Name(FramebufferName),
@@ -198,6 +198,10 @@ impl BindingDescription {
 				self.image_bindings.push(needle.clone());
 			}
 		}
+
+		if self.framebuffer.is_none() {
+			self.framebuffer = other.framebuffer.clone();
+		}
 	}
 
 	// TODO(pat.m): not sure if I want to do this here.
@@ -250,9 +254,10 @@ impl BindingDescription {
 			}
 		}
 
-		// TODO(pat.m): framebuffer should _ALWAYS_ be defined by this point.
+		// Framebuffer should _ALWAYS_ be defined by this point.
 		// The global BindingDescription should specify Default
-		let framebuffer = self.framebuffer.as_ref().unwrap_or(&FramebufferDescriptionOrName::Default)
+		let framebuffer = self.framebuffer.as_ref()
+			.expect("Unresolved framebuffer")
 			.resolve_name(core, resource_manager);
 
 		core.bind_framebuffer(framebuffer);

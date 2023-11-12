@@ -1,4 +1,4 @@
-use crate::bindings::{BindingDescription, BufferBindTarget, IntoBufferBindSourceOrStageable, ImageBindTarget, ImageBindSource};
+use crate::bindings::*;
 use crate::command::{Command, compute, draw};
 use crate::resource_manager::ShaderHandle;
 use crate::upload_heap::{UploadStage, StagedUploadId};
@@ -90,6 +90,10 @@ impl<'g> CommandGroupEncoder<'g> {
 	// TODO(pat.m): do I want RW to be explicit?
 	pub fn bind_shared_image_rw(&mut self, unit: u32, image: impl Into<ImageBindSource>) {
 		self.group.shared_bindings.bind_image(ImageBindTarget::ReadWriteImage(unit), image, None);
+	}
+
+	pub fn bind_rendertargets(&mut self, rts: impl Into<FramebufferDescriptionOrName>)  {
+		self.group.shared_bindings.bind_framebuffer(rts);
 	}
 }
 
