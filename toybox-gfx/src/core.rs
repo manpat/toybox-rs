@@ -37,6 +37,8 @@ pub struct Core {
 	num_active_clip_planes: Cell<u32>,
 	bound_index_buffer: Cell<Option<BufferName>>,
 	bound_shader_pipeline: Cell<ShaderPipelineName>,
+	bound_framebuffer: Cell<Option<FramebufferName>>,
+	// TODO(pat.m): bound samplers and texture units
 
 	global_vao_name: u32,
 
@@ -63,6 +65,7 @@ impl Core {
 
 			num_active_clip_planes: Cell::new(0),
 			bound_index_buffer: Cell::new(None),
+			bound_framebuffer: Cell::new(None),
 			bound_shader_pipeline: Cell::new(ShaderPipelineName(0)),
 
 			global_vao_name,

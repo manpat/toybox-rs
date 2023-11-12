@@ -242,8 +242,6 @@ impl super::Core {
 	}
 
 	pub fn clear_image_with_color(&self, image_name: ImageName, value: Color) {
-		let Some(info) = self.get_image_info(image_name) else { return };
-
 		self.clear_image_with_raw(image_name, gl::RGBA, gl::FLOAT, value);
 	}
 

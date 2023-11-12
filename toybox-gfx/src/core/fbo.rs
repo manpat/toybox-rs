@@ -52,10 +52,15 @@ impl super::Core {
 		}
 	}
 
-	pub fn bind_framebuffer(&self, fbo: impl Into<Option<FramebufferName>>) {
-		let fbo = fbo.into().unwrap_or(FramebufferName::backbuffer());
-		unsafe {
-			self.gl.BindFramebuffer(gl::FRAMEBUFFER, fbo.as_raw());
+	pub fn bind_framebuffer(&self, name: impl Into<Option<FramebufferName>>) {
+		let name = name.into();
+
+		if self.bound_framebuffer.get() != name {
+			unsafe {
+				self.gl.BindFramebuffer(gl::FRAMEBUFFER, name.unwrap_or(FramebufferName(0)).as_raw());
+			}
+
+			self.bound_framebuffer.set(name);
 		}
 	}
 
