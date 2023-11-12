@@ -8,6 +8,7 @@ pub mod context;
 pub use context::Context;
 
 mod debug;
+mod resources;
 
 use host::Host;
 
@@ -33,15 +34,19 @@ impl Engine {
 
 	pub fn run<F, A>(self, start_app: F) -> anyhow::Result<()>
 		where A: App + 'static
-			, F: FnOnce(&mut Context) -> anyhow::Result<A>
+			, F: FnOnce(&mut context::Context) -> anyhow::Result<A>
 	{
 		let Host{ event_loop, gl_state: gl, surface, gl_context, window, .. } = self.host;
 
 		let window = std::rc::Rc::new(window);
 
+		use anyhow::Context;
+		let resource_root_path = resources::find_resource_folder()
+			.context("Can't find resource directory")?;
+
 		let mut gfx = {
 			let core = gfx::Core::new(surface, gl_context, gl);
-			gfx::System::new(core)?
+			gfx::System::new(core, &resource_root_path)?
 		};
 
 		let audio = audio::init()?;
@@ -50,7 +55,7 @@ impl Engine {
 		let egui = egui::Context::default();
 		let egui_integration = egui_backend::Integration::new(egui.clone(), window.clone(), &mut gfx)?;
 
-		let mut context = Context {
+		let mut context = context::Context {
 			gfx,
 			audio,
 			input,
@@ -58,6 +63,8 @@ impl Engine {
 
 			egui_integration,
 			egui_claiming_input_gate: Gate::new(),
+
+			resource_root_path,
 
 			show_debug_menu: false,
 			wants_quit: false,

@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use std::path::{Path, PathBuf};
 
 pub struct Context {
 	pub gfx: gfx::System,
@@ -10,11 +11,21 @@ pub struct Context {
 
 	pub(super) egui_claiming_input_gate: Gate,
 
+	pub(super) resource_root_path: PathBuf,
+
 	// TODO(pat.m): might want to be able to disable this.
 	/// Whether or not to show the built in debug menu.
 	/// Can be toggled by F10.
 	pub show_debug_menu: bool,
 	pub wants_quit: bool,
+}
+
+impl Context {
+	// TODO(pat.m): should be moved to some kind of resource system.
+	// This is currently an awkward api
+	pub fn resource_root_path(&self) -> &Path {
+		&self.resource_root_path
+	}
 }
 
 impl Context {
