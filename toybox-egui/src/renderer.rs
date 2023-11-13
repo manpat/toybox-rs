@@ -41,22 +41,21 @@ impl Renderer {
 
 		group.execute(|core, _| {
 			unsafe {
-				core.gl.Disable(gl::DEPTH_TEST);
 				core.gl.Disable(gl::CULL_FACE);
-				core.gl.Enable(gl::BLEND);
-				
-				core.gl.BlendEquationSeparate(gl::FUNC_ADD, gl::FUNC_ADD);
-				core.gl.BlendFuncSeparate(
-					// egui outputs colors with premultiplied alpha:
-					gl::ONE,
-					gl::ONE_MINUS_SRC_ALPHA,
-					// Less important, but this is technically the correct alpha blend function
-					// when you want to make use of the framebuffer alpha (for screenshots, compositing, etc).
-					gl::ONE_MINUS_DST_ALPHA,
-					gl::ONE,
-				);
 			}
 		});
+
+		let blend_mode = gfx::BlendMode {
+			source_color: gfx::BlendFactor::One,
+			destination_color: gfx::BlendFactor::OneMinusSourceAlpha,
+
+			source_alpha: gfx::BlendFactor::OneMinusDestinationAlpha,
+			destination_alpha: gfx::BlendFactor::One,
+
+			color_function: gfx::BlendFunction::Add,
+			alpha_function: gfx::BlendFunction::Add,
+		};
+
 
 		// TODO(pat.m): are egui coords in logical or physical coordinates?
 		// this might be incorrect with scaling
@@ -106,15 +105,15 @@ impl Renderer {
 				.indexed(&mesh.indices)
 				.ssbo(0, vertices)
 				.ubo(0, transforms)
-				.sampled_image(0, image_name, texture_manager.sampler());
+				.sampled_image(0, image_name, texture_manager.sampler())
+				.blend_mode(blend_mode)
+				.depth_test(false);
 		}
 		
-		group.execute(|core, _| {
-			unsafe {
-				core.gl.Enable(gl::DEPTH_TEST);
-				// core.gl.Enable(gl::CULL_FACE);
-				core.gl.Disable(gl::BLEND);
-			}
-		});
+		// group.execute(|core, _| {
+		// 	// unsafe {
+		// 	// 	// core.gl.Enable(gl::CULL_FACE);
+		// 	// }
+		// });
 	}
 }

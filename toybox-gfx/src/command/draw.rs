@@ -2,7 +2,7 @@ use crate::prelude::*;
 use crate::bindings::*;
 use crate::resource_manager::{ShaderHandle};
 use crate::upload_heap::UploadStage;
-use crate::core::SamplerName;
+use crate::core::*;
 
 
 #[derive(Debug, Copy, Clone)]
@@ -27,6 +27,10 @@ pub struct DrawCmd {
 	pub num_instances: u32,
 
 	pub index_buffer: Option<BufferBindSource>,
+
+	pub blend_mode: Option<BlendMode>,
+	pub depth_test: bool,
+	pub depth_write: bool,
 }
 
 impl From<DrawCmd> for super::Command {
@@ -40,6 +44,8 @@ impl DrawCmd {
 		let fragment_shader = fragment_shader.into();
 
 		DrawCmd {
+			bindings: Default::default(),
+
 			vertex_shader,
 			fragment_shader,
 			primitive_type: PrimitiveType::Triangles,
@@ -49,7 +55,9 @@ impl DrawCmd {
 
 			index_buffer: None,
 
-			bindings: Default::default(),
+			blend_mode: None,
+			depth_test: true,
+			depth_write: true,
 		}
 	}
 
@@ -60,6 +68,10 @@ impl DrawCmd {
 
 		let pipeline = rm.resolve_draw_pipeline(core, self.vertex_shader, self.fragment_shader);
 		core.bind_shader_pipeline(pipeline);
+
+		core.set_blend_mode(self.blend_mode);
+		core.set_depth_test(self.depth_test);
+		core.set_depth_write(self.depth_write);
 
 		self.bindings.bind(core, rm);
 
@@ -156,6 +168,21 @@ impl<'cg> DrawCmdBuilder<'cg> {
 
 	pub fn rendertargets(&mut self, rts: impl Into<FramebufferDescriptionOrName>) -> &mut Self {
 		self.cmd.bindings.bind_framebuffer(rts);
+		self
+	}
+
+	pub fn blend_mode(&mut self, blend_mode: impl Into<Option<BlendMode>>) -> &mut Self {
+		self.cmd.blend_mode = blend_mode.into();
+		self
+	}
+
+	pub fn depth_test(&mut self, depth_test: bool) -> &mut Self {
+		self.cmd.depth_test = depth_test;
+		self
+	}
+
+	pub fn depth_write(&mut self, depth_write: bool) -> &mut Self {
+		self.cmd.depth_write = depth_write;
 		self
 	}
 }

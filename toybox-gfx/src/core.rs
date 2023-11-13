@@ -21,6 +21,7 @@ pub use sampler::{SamplerName, AddressingMode, FilterMode};
 pub use self::image::*;
 pub use shader::{ShaderName, ShaderType};
 pub use shader_pipeline::{ShaderPipelineName};
+pub use global_state::*;
 
 use std::cell::{Cell, RefCell, RefMut};
 use std::collections::HashMap;
@@ -39,6 +40,10 @@ pub struct Core {
 	bound_shader_pipeline: Cell<ShaderPipelineName>,
 	bound_framebuffer: Cell<Option<FramebufferName>>,
 	// TODO(pat.m): bound samplers and texture units
+
+	current_blend_mode: Cell<Option<BlendMode>>,
+	depth_test_enabled: Cell<bool>,
+	depth_write_enabled: Cell<bool>,
 
 	global_vao_name: u32,
 
@@ -68,6 +73,10 @@ impl Core {
 			bound_index_buffer: Cell::new(None),
 			bound_framebuffer: Cell::new(None),
 			bound_shader_pipeline: Cell::new(ShaderPipelineName(0)),
+
+			current_blend_mode: Cell::new(None),
+			depth_test_enabled: Cell::new(true),
+			depth_write_enabled: Cell::new(true),
 
 			global_vao_name,
 
