@@ -254,11 +254,23 @@ impl BindingDescription {
 			}
 		}
 
+		// TODO(pat.m): the following should only be done for the Draw command really.
+		// it doesn't make sense to bind or emit barriers for e.g., Compute.
+
 		// Framebuffer should _ALWAYS_ be defined by this point.
 		// The global BindingDescription should specify Default
 		let framebuffer = self.framebuffer.as_ref()
 			.expect("Unresolved framebuffer")
 			.resolve_name(core, resource_manager);
+
+		if let Some(framebuffer_name) = framebuffer {
+			let framebuffer_info = core.get_framebuffer_info(framebuffer_name);
+			for attachment_image in framebuffer_info.attachments.values() {
+				// NOTE: only a read barrier since framebuffer writes are implicitly synchronised with later draw calls.
+				// We only need to make sure that if an image is _modified_ that a barrier is inserted before rendering to it.
+				barrier_tracker.read_image(*attachment_image, gl::FRAMEBUFFER_BARRIER_BIT);
+			}
+		}
 
 		core.bind_framebuffer(framebuffer);
 	}

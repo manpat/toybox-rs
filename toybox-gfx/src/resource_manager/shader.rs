@@ -24,6 +24,7 @@ impl super::ResourceHandle for ShaderHandle {
 #[derive(Debug)]
 pub struct ShaderResource {
 	pub name: ShaderName,
+	pub workgroup_size: Option<Vec3i>,
 	pub num_user_clip_planes: u32,
 }
 
@@ -67,6 +68,7 @@ impl ShaderResource {
 
 		Ok(ShaderResource {
 			name,
+			workgroup_size: reflect_workgroup_size(core, name),
 			num_user_clip_planes: if uses_user_clipping { 4 } else { 0 },
 		})
 	}
@@ -75,4 +77,20 @@ impl ShaderResource {
 		let data = std::fs::read_to_string(full_path)?;
 		Self::from_source(core, shader_type, &data, label)
 	}
+}
+
+
+// TODO(pat.m): Could this be in core?
+fn reflect_workgroup_size(core: &mut core::Core, shader_name: ShaderName) -> Option<Vec3i> {
+	if shader_name.shader_type != ShaderType::Compute {
+		return None
+	}
+
+	let mut workgroup_size = [0i32; 3];
+
+	unsafe {
+		core.gl.GetProgramiv(shader_name.as_raw(), gl::COMPUTE_WORK_GROUP_SIZE, workgroup_size.as_mut_ptr() as *mut i32);
+	}
+
+	Some(Vec3i::from(workgroup_size))
 }

@@ -99,10 +99,13 @@ impl super::Core {
 	pub fn bind_image(&self, unit: u32, name: ImageName) {
 		assert!(unit < self.capabilities.max_image_units as u32);
 
+		// TODO(pat.m): make sure name is compatible with image binding - e.g., srgb formats are NOT SUPPORTED!
+		let info = self.get_image_info(name).expect("Invalid ImageName");
+		let format = info.format.to_raw();
+
 		// TODO(pat.m): state tracking
 		unsafe {
 			let (level, layered, layer) = (0, gl::FALSE, 0);
-			let format = gl::RGBA8; // HACK
 			self.gl.BindImageTexture(unit, name.raw, level, layered, layer, gl::READ_ONLY, format);
 		}
 	}
@@ -111,10 +114,13 @@ impl super::Core {
 	pub fn bind_image_rw(&self, unit: u32, name: ImageName) {
 		assert!(unit < self.capabilities.max_image_units as u32);
 
+		// TODO(pat.m): make sure name is compatible with image binding - e.g., srgb formats are NOT SUPPORTED!
+		let info = self.get_image_info(name).expect("Invalid ImageName");
+		let format = info.format.to_raw();
+
 		// TODO(pat.m): state tracking
 		unsafe {
 			let (level, layered, layer) = (0, gl::FALSE, 0);
-			let format = gl::RGBA8; // HACK
 			self.gl.BindImageTexture(unit, name.raw, level, layered, layer, gl::READ_WRITE, format);
 		}
 	}

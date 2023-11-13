@@ -44,6 +44,7 @@ pub struct Core {
 
 	buffer_info: RefCell<HashMap<BufferName, BufferInfo>>,
 	image_info: RefCell<HashMap<ImageName, ImageInfo>>,
+	framebuffer_info: RefCell<HashMap<FramebufferName, FramebufferInfo>>,
 
 	backbuffer_size: Vec2i,
 }
@@ -72,6 +73,7 @@ impl Core {
 
 			buffer_info: RefCell::new(HashMap::new()),
 			image_info: RefCell::new(HashMap::new()),
+			framebuffer_info: RefCell::new(HashMap::new()),
 
 			backbuffer_size: Vec2i::zero(),
 		}

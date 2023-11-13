@@ -8,6 +8,7 @@ use crate::core::SamplerName;
 pub enum DispatchSize {
 	Explicit(Vec3i),
 	Indirect(BufferBindSource),
+	DeriveFromImage(ImageBindSource),
 }
 
 
@@ -62,6 +63,33 @@ impl ComputeCmd {
 					core.gl.DispatchComputeIndirect(offset as isize);
 				}
 			}
+
+			DispatchSize::DeriveFromImage(bind_source) => {
+				let image_name = match bind_source {
+					ImageBindSource::Name(name) => name,
+					ImageBindSource::Handle(handle) => rm.images.get_name(handle).expect("Failed to resolve image handle"),
+				};
+
+				let workgroup_size = rm.shaders.get_resource(self.compute_shader)
+					.unwrap()
+					.workgroup_size
+					.expect("Compute shader resource missing workgroup size");
+
+				let info = core.get_image_info(image_name).expect("Couldn't get image info for Compute group size");
+				let image_size = info.size;
+
+				// Round up to next multiple of workgroup_size
+				let num_workgroups = (image_size + workgroup_size - Vec3i::splat(1)) / workgroup_size;
+
+				barrier_tracker.emit_barriers(&core.gl);
+				unsafe {
+					core.gl.DispatchCompute(
+						num_workgroups.x as u32,
+						num_workgroups.y as u32,
+						num_workgroups.z as u32
+					);
+				}
+			}
 		}
 	}
 }
@@ -79,6 +107,11 @@ impl<'cg> ComputeCmdBuilder<'cg> {
 
 	pub fn indirect(&mut self, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
 		self.cmd.dispatch_size = DispatchSize::Indirect(buffer.into_bind_source(self.upload_stage));
+		self
+	}
+
+	pub fn groups_from_image_size(&mut self, image: impl Into<ImageBindSource>) -> &mut Self {
+		self.cmd.dispatch_size = DispatchSize::DeriveFromImage(image.into());
 		self
 	}
 
