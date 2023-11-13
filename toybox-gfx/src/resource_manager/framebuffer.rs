@@ -37,6 +37,7 @@ impl FramebufferCache {
 		}
 
 		let name = self.entries.entry(desc)
+			.and_modify(|entry| entry.age = 0)
 			.or_insert_with_key(|key| create_entry(core, images, key))
 			.name;
 
@@ -44,7 +45,7 @@ impl FramebufferCache {
 	}
 
 	pub fn refresh_attachments(&mut self, core: &mut Core, images: &ResourceStorage<ImageResource>) {
-		for (desc, Entry{ name }) in self.entries.iter() {
+		for (desc, Entry{ name, .. }) in self.entries.iter() {
 			attach_attachments(*name, core, images, desc);
 		}
 	}
@@ -57,7 +58,7 @@ impl FramebufferCache {
 struct Entry {
 	name: FramebufferName,
 	// TODO(pat.m): garbage collect fbos not resolved in a while
-	// age: u32,
+	age: u32,
 }
 
 
@@ -65,7 +66,7 @@ struct Entry {
 fn create_entry(core: &Core, images: &ResourceStorage<ImageResource>, desc: &FramebufferDescription) -> Entry {
 	let name = core.create_framebuffer();
 	attach_attachments(name, core, images, desc);
-	Entry { name }
+	Entry { name, age: 0 }
 }
 
 fn attach_attachments(framebuffer_name: FramebufferName, core: &Core,

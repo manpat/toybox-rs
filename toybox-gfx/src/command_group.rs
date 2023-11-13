@@ -120,4 +120,17 @@ impl<'g> CommandGroupEncoder<'g> {
 		let Some(Command::Compute(cmd)) = self.group.commands.last_mut() else { unreachable!() };
 		compute::ComputeCmdBuilder {cmd, upload_stage: self.upload_stage}
 	}
+
+	pub fn clear_image_to_default(&mut self, image: impl Into<ImageBindSource>) {
+		let image = image.into();
+
+		self.execute(move |core, rm| {
+			let name = match image {
+				ImageBindSource::Name(name) => name,
+				ImageBindSource::Handle(handle) => rm.images.get_name(handle).expect("Failed to resolve image handle"),
+			};
+
+			core.clear_image_to_default(name);
+		});
+	}
 }

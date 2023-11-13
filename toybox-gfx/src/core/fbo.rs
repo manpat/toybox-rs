@@ -26,6 +26,7 @@ pub enum FramebufferAttachment {
 
 /// Framebuffer
 impl super::Core {
+	// TODO(pat.m): these are real awkward to use and not really useful outside of clearing the default framebuffer
 	pub fn clear_framebuffer_color_buffer(&self, fbo: FramebufferName, draw_buffer: i32, color: impl Into<common::Color>) {
 		unsafe {
 			self.gl.ClearNamedFramebufferfv(fbo.as_raw(), gl::COLOR, draw_buffer, color.into().to_array().as_ptr());
