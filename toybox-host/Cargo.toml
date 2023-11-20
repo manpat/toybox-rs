@@ -12,5 +12,5 @@ glutin = "0.30"
 glutin-winit = "0.3"
 raw-window-handle = "0.5.0"
 
-common = { git = "https://github.com/manpat/common-rs.git", version = "0.3" }
+common = { git = "https://github.com/manpat/common-rs.git", version = ">=0.3" }
 gl = { path = "../gl" }

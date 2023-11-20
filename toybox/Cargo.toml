@@ -12,7 +12,7 @@ toybox-input = { path = "../toybox-input" }
 toybox-egui = { path = "../toybox-egui" }
 
 
-common = { git = "https://github.com/manpat/common-rs.git", version = "0.3" }
+common = { git = "https://github.com/manpat/common-rs.git", version = ">=0.3" }
 toy = { git = "https://github.com/manpat/toy-rs.git" }
 
 anyhow = "1.0"

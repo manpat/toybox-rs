@@ -7,7 +7,7 @@ edition = "2021"
 anyhow = "1.0"
 bumpalo = "3.12.1"
 
-common = { git = "https://github.com/manpat/common-rs.git", version = "0.3" }
+common = { git = "https://github.com/manpat/common-rs.git", version = ">=0.3" }
 toybox-host = { path = "../toybox-host" }
 
 [dependencies.image]
