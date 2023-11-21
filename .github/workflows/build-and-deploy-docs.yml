@@ -46,16 +46,17 @@ jobs:
         profile: minimal
         override: true
 
+      # TODO: can I find some way to avoid needing these??
     - uses: awalsh128/cache-apt-pkgs-action@latest
       with:
-        packages: libasound2-dev
+        packages: libasound2-dev libudev-dev
         version: 1.0
 
     - name: Generate Docs
       uses: actions-rs/cargo@v1
       with:
         command: doc
-        args: --verbose --no-deps --all-features -ptoybox -ptoy -pcommon -ptoybox-gfx -ptoybox-audio -ptoybox-host -ptoybox-input
+        args: --verbose --no-deps --keep-going --all-features --workspace -ptoy -pcommon 
         
     - name: Finalize documentation
       run: |
