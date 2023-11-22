@@ -48,7 +48,7 @@ pub struct Host {
 
 
 impl Host {
-	pub fn create(title: &str) -> anyhow::Result<Host> {
+	pub fn create(settings: Settings<'_>) -> anyhow::Result<Host> {
 		let event_loop = EventLoop::new();
 		
 		let config_template = ConfigTemplateBuilder::new()
@@ -56,7 +56,9 @@ impl Host {
 			.with_stencil_size(8);
 
 		let window_builder = WindowBuilder::new()
-			.with_title(title);
+			.with_title(settings.initial_title)
+			.with_transparent(settings.transparent)
+			.with_decorations(!settings.no_decorations);
 
 		let context_builder = ContextAttributesBuilder::new()
 			.with_debug(true)
@@ -228,5 +230,34 @@ extern "system" fn default_gl_error_handler(source: u32, ty: u32, _id: u32, seve
 		(_, gl::DEBUG_TYPE_PORTABILITY | gl::DEBUG_TYPE_PERFORMANCE | gl::DEBUG_TYPE_OTHER) => {}
 		(gl::DEBUG_SEVERITY_HIGH | gl::DEBUG_SEVERITY_MEDIUM, _) => panic!("GL ERROR!"),
 		_ => {}
+	}
+}
+
+
+
+
+pub struct Settings<'title> {
+	pub initial_title: &'title str,
+	pub transparent: bool,
+	pub no_decorations: bool,
+}
+
+impl<'title> Settings<'title> {
+	pub fn new(initial_title: &'title str) -> Self {
+		Settings {
+			initial_title,
+			transparent: false,
+			no_decorations: false,
+		}
+	}
+
+	pub fn transparent(mut self) -> Self {
+		self.transparent = true;
+		self
+	}
+
+	pub fn no_decorations(mut self) -> Self {
+		self.no_decorations = true;
+		self
 	}
 }
