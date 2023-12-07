@@ -4,10 +4,33 @@ use crate::resource_manager::ShaderHandle;
 use crate::upload_heap::{UploadStage, StagedUploadId};
 use crate::core::SamplerName;
 
+use std::ops::{Deref, DerefMut};
+
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+pub enum FrameStage {
+	Start,
+
+	BeforeMain(u8),
+	Main,
+	AfterMain(u8),
+
+	BeforeMainTransparent(u8),
+	MainTransparent,
+	AfterMainTransparent(u8),
+
+	Postprocess,
+	AfterPostprocess(u8),
+
+	DebugUi,
+	Final,
+}
+
+
 
 // 
 pub struct CommandGroup {
-	pub label: String,
+	pub stage: FrameStage,
 
 	pub commands: Vec<Command>,
 
@@ -15,9 +38,9 @@ pub struct CommandGroup {
 }
 
 impl CommandGroup {
-	pub(crate) fn new(label: String) -> CommandGroup {
+	pub(crate) fn new(stage: FrameStage) -> CommandGroup {
 		CommandGroup {
-			label,
+			stage,
 			commands: Vec::new(),
 			shared_bindings: BindingDescription::new(),
 		}
@@ -26,12 +49,6 @@ impl CommandGroup {
 	pub(crate) fn reset(&mut self) {
 		self.commands.clear();
 		self.shared_bindings.clear();
-	}
-}
-
-impl CommandGroup {
-	pub fn label(&self) -> &str {
-		&self.label
 	}
 }
 
@@ -62,6 +79,13 @@ impl<'g> CommandGroupEncoder<'g> {
 			, T: Copy + 'static
 	{
 		self.upload_stage.stage_data_iter(iter)
+	}
+}
+
+/// Annotation
+impl<'g> CommandGroupEncoder<'g> {
+	pub fn annotate(self, label: impl Into<String>) -> AnnotatedCommandGroupEncoder<'g> {
+		AnnotatedCommandGroupEncoder::annotate(self, label.into())
 	}
 }
 
@@ -132,5 +156,31 @@ impl<'g> CommandGroupEncoder<'g> {
 
 			core.clear_image_to_default(name);
 		});
+	}
+}
+
+pub struct AnnotatedCommandGroupEncoder<'g> {
+	enc: CommandGroupEncoder<'g>,
+}
+
+impl<'g> AnnotatedCommandGroupEncoder<'g> {
+	fn annotate(mut enc: CommandGroupEncoder<'g>, label: String) -> Self {
+		enc.add(Command::PushDebugGroup{label});
+		AnnotatedCommandGroupEncoder{enc}
+	}
+}
+
+impl<'g> Deref for AnnotatedCommandGroupEncoder<'g> {
+	type Target = CommandGroupEncoder<'g>;
+	fn deref(&self) -> &Self::Target { &self.enc }
+}
+
+impl<'g> DerefMut for AnnotatedCommandGroupEncoder<'g> {
+	fn deref_mut(&mut self) -> &mut Self::Target { &mut self.enc }
+}
+
+impl Drop for AnnotatedCommandGroupEncoder<'_> {
+	fn drop(&mut self) {
+		self.enc.add(Command::PopDebugGroup);
 	}
 }

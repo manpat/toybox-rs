@@ -81,6 +81,8 @@ impl System {
 			.context("Error while processing resource requests")
 			.unwrap();
 
+		self.frame_encoder.command_groups.sort_by_key(|cg| cg.stage);
+
 		let clear_color = self.frame_encoder.backbuffer_clear_color;
 		let clear_depth = 1.0; // 1.0 is the default clear depth for opengl
 		let clear_stencil = 0;
@@ -194,12 +196,20 @@ impl System {
 				continue
 			}
 
-			core.push_debug_group(&command_group.label);
+			core.push_debug_group(&format!("{:?}", command_group.stage));
 
 			for command in command_group.commands.drain(..) {
 				match command {
 					DebugMessage { label } => {
 						core.debug_marker(&label);
+					}
+
+					PushDebugGroup { label } => {
+						core.push_debug_group(&label);
+					}
+
+					PopDebugGroup => {
+						core.pop_debug_group();
 					}
 
 					Callback(callback) => callback(core, resource_manager),

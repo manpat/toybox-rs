@@ -21,6 +21,8 @@ pub enum Command {
 	CopyTexture,
 
 	DebugMessage { label: String, },
+	PushDebugGroup { label: String, },
+	PopDebugGroup,
 
 	Callback(Box<dyn FnOnce(&mut crate::Core, &mut crate::ResourceManager) + 'static>),
 }

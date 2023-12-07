@@ -37,7 +37,8 @@ impl Renderer {
 
 		let backbuffer_size = gfx.backbuffer_size();
 
-		let mut group = gfx.frame_encoder.command_group("Paint Egui");
+		let mut group = gfx.frame_encoder.command_group(gfx::FrameStage::DebugUi)
+			.annotate("Paint Egui");
 
 		group.execute(|core, _| {
 			unsafe {

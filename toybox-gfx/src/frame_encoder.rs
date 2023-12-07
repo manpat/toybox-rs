@@ -1,5 +1,5 @@
-use crate::command_group::{CommandGroup, CommandGroupEncoder};
-use crate::command::Command;
+use crate::prelude::*;
+use crate::command_group::*;
 use crate::core;
 use crate::upload_heap::{UploadStage, StagedUploadId};
 
@@ -22,7 +22,7 @@ impl FrameEncoder {
 	pub fn new(_core: &mut core::Core) -> FrameEncoder {
 		FrameEncoder {
 			command_groups: Vec::new(),
-			backbuffer_clear_color: [1.0, 0.5, 1.0].into(),
+			backbuffer_clear_color: Color::light_magenta(),
 
 			upload_stage: UploadStage::new(),
 			global_bindings: BindingDescription::new(),
@@ -62,13 +62,13 @@ impl FrameEncoder {
 		self.upload_stage.stage_data_iter(iter)
 	}
 
-	pub fn command_group<'g>(&'g mut self, id: &str) -> CommandGroupEncoder<'g> {
+	pub fn command_group<'g>(&'g mut self, stage: FrameStage) -> CommandGroupEncoder<'g> {
 		let group_index = match self.command_groups.iter()
-			.position(|group| group.label() == id)
+			.position(|group| group.stage == stage)
 		{
 			Some(index) => index,
 			None => {
-				self.command_groups.push(CommandGroup::new(id.to_string()));
+				self.command_groups.push(CommandGroup::new(stage));
 				self.command_groups.len() - 1
 			}
 		};
