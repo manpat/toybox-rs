@@ -17,6 +17,7 @@ impl CreateImageRequest {
 				image_type: ImageType::Image2D,
 				format,
 				size: Vec3i::zero(),
+				levels: 1,
 			},
 
 			resize_policy: ImageResizePolicy::MatchBackbuffer,
@@ -30,6 +31,7 @@ impl CreateImageRequest {
 				image_type: ImageType::Image2D,
 				format,
 				size: size.extend(1),
+				levels: 1,
 			},
 			
 			resize_policy: ImageResizePolicy::Fixed,

@@ -35,6 +35,7 @@ pub struct ImageInfo {
 	pub image_type: ImageType,
 	pub format: ImageFormat,
 	pub size: Vec3i,
+	pub levels: u32,
 }
 
 
@@ -42,8 +43,8 @@ pub struct ImageInfo {
 impl super::Core {
 	pub fn create_image_from_info(&self, image_info: ImageInfo) -> ImageName {
 		let mut name = 0;
-		let levels = 1;
 
+		let levels = image_info.levels as i32;
 		let size = image_info.size;
 		let format = image_info.format;
 
@@ -67,7 +68,7 @@ impl super::Core {
 	}
 
 	pub fn create_typed_image(&self, image_type: ImageType, format: ImageFormat, size: Vec3i) -> ImageName {
-		self.create_image_from_info(ImageInfo{image_type, format, size})
+		self.create_image_from_info(ImageInfo{image_type, format, size, levels: 1})
 	}
 
 	pub fn create_image_2d(&self, format: ImageFormat, size: Vec2i) -> ImageName {
