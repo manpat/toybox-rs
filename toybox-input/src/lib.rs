@@ -37,12 +37,28 @@ impl System {
 		self.tracker.button_just_up(button)
 	}
 
-	pub fn mouse_delta(&self) -> Option<Vec2> {
-		self.tracker.mouse_delta.map(|screen| screen_delta_to_ndc(self.window_size, screen))
+	pub fn mouse_position_pixels(&self) -> Option<Vec2> {
+		self.tracker.physical_mouse_position.map(|Vec2{x, y}| Vec2 {
+			x,
+			y: self.window_size.y as f32 - y - 1.0
+		})
 	}
 
-	pub fn pointer_position(&self) -> Option<Vec2> {
-		self.tracker.pointer_position.map(|screen| screen_pos_to_ndc(self.window_size, screen))
+	pub fn mouse_position_ndc(&self) -> Option<Vec2> {
+		self.mouse_position_pixels().map(|px| {
+			let flipped_ndc = px / self.window_size.to_vec2() - Vec2::splat(0.5);
+			flipped_ndc * 2.0
+		})
+	}
+
+	pub fn mouse_delta_dots(&self) -> Option<Vec2> {
+		self.tracker.mouse_delta.map(|dpf| dpf * Vec2::new(1.0, -1.0))
+	}
+
+	pub fn mouse_delta(&self) -> Option<Vec2> {
+		// TODO(pat.m): should be configurable
+		let sensitivity = 800.0;
+		self.mouse_delta_dots().map(|dpf| dpf / sensitivity)
 	}
 }
 
@@ -109,13 +125,15 @@ impl System {
 
 			WindowEvent::CursorMoved{ position, .. } => {
 				let PhysicalPosition{x, y} = position.cast::<f32>();
-				self.tracker.track_pointer_move(Vec2::new(x, y));
+				self.tracker.track_mouse_position(Vec2::new(x, y));
 			}
 
-			WindowEvent::CursorLeft{..} => self.tracker.track_pointer_left(),
+			WindowEvent::CursorLeft{..} => self.tracker.track_mouse_left(),
 
 			WindowEvent::Focused(false) => self.tracker.track_focus_lost(),
 			WindowEvent::Focused(true) => self.tracker.track_focus_gained(),
+
+			// TODO(pat.m): track dpi
 
 			_ => {}
 		}
@@ -136,15 +154,4 @@ impl System {
 
 	}
 
-}
-
-
-fn screen_pos_to_ndc(window_size: Vec2i, screen_space: Vec2) -> Vec2 {
-	let flipped_ndc = screen_space / window_size.to_vec2() - Vec2::splat(0.5);
-	flipped_ndc * Vec2::new(2.0, -2.0)
-}
-
-fn screen_delta_to_ndc(window_size: Vec2i, screen_space: Vec2) -> Vec2 {
-	let flipped_ndc = screen_space / window_size.to_vec2();
-	flipped_ndc * Vec2::new(2.0, -2.0)
 }

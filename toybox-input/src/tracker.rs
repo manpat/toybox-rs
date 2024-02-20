@@ -8,8 +8,10 @@ pub struct Tracker {
 	pub down_buttons: Vec<Button>,
 	pub up_buttons: Vec<Button>,
 
-	// These are in pixels! in Y-down screen space
-	pub pointer_position: Option<Vec2>,
+	// This is in physical pixels! in Y-down screen space
+	pub physical_mouse_position: Option<Vec2>,
+
+	// This is in raw 'dots' per frame - y-down. related to dpi
 	pub mouse_delta: Option<Vec2>,
 }
 
@@ -51,16 +53,16 @@ impl Tracker {
 		}
 	}
 
-	pub fn track_pointer_move(&mut self, pos: Vec2) {
-		self.pointer_position = Some(pos);
+	pub fn track_mouse_position(&mut self, pos: Vec2) {
+		self.physical_mouse_position = Some(pos);
 	}
 
 	pub fn track_mouse_move(&mut self, mut delta: Vec2) {
 		*self.mouse_delta.get_or_insert_with(Vec2::zero) += delta;
 	}
 
-	pub fn track_pointer_left(&mut self) {
-		self.pointer_position = None;
+	pub fn track_mouse_left(&mut self) {
+		self.physical_mouse_position = None;
 		self.mouse_delta = None;
 	}
 

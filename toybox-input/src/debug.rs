@@ -46,7 +46,7 @@ pub fn tracker_ui(ui: &mut egui::Ui, input: &mut System) {
 		}
 	});
 
-	ui.label(format!("Pointer pos: {:?}", input.tracker.pointer_position));
+	ui.label(format!("Pointer pos: {:?}", input.tracker.physical_mouse_position));
 	ui.label(format!("Mouse delta: {:?}", input.tracker.mouse_delta));
 
 	ui.separator();
