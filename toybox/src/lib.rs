@@ -31,6 +31,8 @@ pub fn run_with_settings<F, A>(settings: host::Settings<'_>, start_app: F) -> an
 	where A: App + 'static
 		, F: FnOnce(&mut Context) -> anyhow::Result<A>
 {
+	let app_name = settings.initial_title;
+
 	let host = Host::create(settings)?;
 	host.install_default_error_handler();
 
@@ -53,11 +55,14 @@ pub fn run_with_settings<F, A>(settings: host::Settings<'_>, start_app: F) -> an
 	let egui = egui::Context::default();
 	let egui_integration = egui_backend::Integration::new(egui.clone(), window.clone(), &mut gfx)?;
 
+	let cfg = cfg::Config::for_app_name(app_name)?;
+
 	let mut context = context::Context {
 		gfx,
 		audio,
 		input,
 		egui,
+		cfg,
 
 		egui_integration,
 		egui_claiming_input_gate: Gate::new(),

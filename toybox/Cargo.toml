@@ -10,6 +10,7 @@ toybox-gfx = { path = "../toybox-gfx" }
 toybox-audio = { path = "../toybox-audio" }
 toybox-input = { path = "../toybox-input" }
 toybox-egui = { path = "../toybox-egui" }
+toybox-cfg = { path = "../toybox-cfg" }
 
 
 common = { git = "https://github.com/manpat/common-rs.git", version = ">=0.3", features=["serde"] }

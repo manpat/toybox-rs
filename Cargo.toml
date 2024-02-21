@@ -1,6 +1,6 @@
 [workspace]
 members = [
 	"toybox", "toybox-host", "toybox-gfx",
-	"toybox-audio", "toybox-input", "toybox-egui", "gl"
+	"toybox-audio", "toybox-input", "toybox-egui", "toybox-cfg", "gl"
 ]
 resolver = "2"

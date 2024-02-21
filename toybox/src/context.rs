@@ -6,6 +6,7 @@ pub struct Context {
 	pub audio: audio::System,
 	pub input: input::System,
 	pub egui: egui::Context,
+	pub cfg: cfg::Config,
 
 	pub(super) egui_integration: egui_backend::Integration,
 
