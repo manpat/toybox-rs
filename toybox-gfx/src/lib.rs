@@ -6,12 +6,13 @@ use anyhow::Context;
 use host::prelude::*;
 use host::gl;
 
-pub mod core;
 pub mod bindings;
 pub mod command;
 pub mod command_group;
+pub mod core;
 pub mod frame_encoder;
 pub mod resource_manager;
+pub mod shaders;
 pub mod upload_heap;
 
 pub use crate::core::*;
@@ -19,6 +20,7 @@ pub use resource_manager::*;
 pub use frame_encoder::*;
 pub use command::PrimitiveType;
 pub use command_group::*;
+pub use shaders::*;
 
 pub mod prelude {
 	pub use crate::host::gl;

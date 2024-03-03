@@ -11,16 +11,16 @@ use std::ops::{Deref, DerefMut};
 pub enum FrameStage {
 	Start,
 
-	BeforeMain(u8),
+	BeforeMain(i8),
 	Main,
-	AfterMain(u8),
+	AfterMain(i8),
 
-	BeforeMainTransparent(u8),
+	BeforeMainTransparent(i8),
 	MainTransparent,
-	AfterMainTransparent(u8),
+	AfterMainTransparent(i8),
 
 	Postprocess,
-	AfterPostprocess(u8),
+	AfterPostprocess(i8),
 
 	DebugUi,
 	Final,

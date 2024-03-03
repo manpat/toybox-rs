@@ -46,7 +46,9 @@ impl Context {
 			self.show_debug_menu = !self.show_debug_menu;
 		}
 
-		if self.input.button_just_down(input::Key::Escape) {
+		if self.input.button_down(input::Key::LControl)
+			&& self.input.button_just_down(input::Key::Q)
+		{
 			self.wants_quit = true;
 		}
 	}
