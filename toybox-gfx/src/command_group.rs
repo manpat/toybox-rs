@@ -103,16 +103,16 @@ impl<'g> CommandGroupEncoder<'g> {
 		self.bind_shared_buffer(BufferBindTarget::SsboIndex(index), buffer);
 	}
 
-	pub fn bind_shared_sampled_image(&mut self, unit: u32, image: impl Into<ImageBindSource>, sampler: SamplerName) {
+	pub fn bind_shared_sampled_image(&mut self, unit: u32, image: impl Into<ImageNameOrHandle>, sampler: SamplerName) {
 		self.group.shared_bindings.bind_image(ImageBindTarget::Sampled(unit), image, sampler);
 	}
 
-	pub fn bind_shared_image(&mut self, unit: u32, image: impl Into<ImageBindSource>) {
+	pub fn bind_shared_image(&mut self, unit: u32, image: impl Into<ImageNameOrHandle>) {
 		self.group.shared_bindings.bind_image(ImageBindTarget::ReadonlyImage(unit), image, None);
 	}
 
 	// TODO(pat.m): do I want RW to be explicit?
-	pub fn bind_shared_image_rw(&mut self, unit: u32, image: impl Into<ImageBindSource>) {
+	pub fn bind_shared_image_rw(&mut self, unit: u32, image: impl Into<ImageNameOrHandle>) {
 		self.group.shared_bindings.bind_image(ImageBindTarget::ReadWriteImage(unit), image, None);
 	}
 
@@ -145,13 +145,13 @@ impl<'g> CommandGroupEncoder<'g> {
 		compute::ComputeCmdBuilder {cmd, upload_stage: self.upload_stage}
 	}
 
-	pub fn clear_image_to_default(&mut self, image: impl Into<ImageBindSource>) {
+	pub fn clear_image_to_default(&mut self, image: impl Into<ImageNameOrHandle>) {
 		let image = image.into();
 
 		self.execute(move |core, rm| {
 			let name = match image {
-				ImageBindSource::Name(name) => name,
-				ImageBindSource::Handle(handle) => rm.images.get_name(handle).expect("Failed to resolve image handle"),
+				ImageNameOrHandle::Name(name) => name,
+				ImageNameOrHandle::Handle(handle) => rm.images.get_name(handle).expect("Failed to resolve image handle"),
 			};
 
 			core.clear_image_to_default(name);

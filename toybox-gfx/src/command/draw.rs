@@ -150,18 +150,18 @@ impl<'cg> DrawCmdBuilder<'cg> {
 		self.buffer(BufferBindTarget::SsboIndex(index), buffer)
 	}
 
-	pub fn sampled_image(&mut self, unit: u32, image: impl Into<ImageBindSource>, sampler: SamplerName) -> &mut Self {
+	pub fn sampled_image(&mut self, unit: u32, image: impl Into<ImageNameOrHandle>, sampler: SamplerName) -> &mut Self {
 		self.cmd.bindings.bind_image(ImageBindTarget::Sampled(unit), image, sampler);
 		self
 	}
 
-	pub fn image(&mut self, unit: u32, image: impl Into<ImageBindSource>) -> &mut Self {
+	pub fn image(&mut self, unit: u32, image: impl Into<ImageNameOrHandle>) -> &mut Self {
 		self.cmd.bindings.bind_image(ImageBindTarget::ReadonlyImage(unit), image, None);
 		self
 	}
 
 	// TODO(pat.m): do I want RW to be explicit?
-	pub fn image_rw(&mut self, unit: u32, image: impl Into<ImageBindSource>) -> &mut Self {
+	pub fn image_rw(&mut self, unit: u32, image: impl Into<ImageNameOrHandle>) -> &mut Self {
 		self.cmd.bindings.bind_image(ImageBindTarget::ReadWriteImage(unit), image, None);
 		self
 	}

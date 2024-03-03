@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::bindings::{BindingDescription, BufferBindTarget, BufferBindSource, IntoBufferBindSourceOrStageable, ImageBindSource, ImageBindTarget};
+use crate::bindings::{BindingDescription, BufferBindTarget, BufferBindSource, IntoBufferBindSourceOrStageable, ImageNameOrHandle, ImageBindTarget};
 use crate::resource_manager::ShaderHandle;
 use crate::upload_heap::UploadStage;
 use crate::core::SamplerName;
@@ -8,7 +8,7 @@ use crate::core::SamplerName;
 pub enum DispatchSize {
 	Explicit(Vec3i),
 	Indirect(BufferBindSource),
-	DeriveFromImage(ImageBindSource),
+	DeriveFromImage(ImageNameOrHandle),
 }
 
 
@@ -66,8 +66,8 @@ impl ComputeCmd {
 
 			DispatchSize::DeriveFromImage(bind_source) => {
 				let image_name = match bind_source {
-					ImageBindSource::Name(name) => name,
-					ImageBindSource::Handle(handle) => rm.images.get_name(handle).expect("Failed to resolve image handle"),
+					ImageNameOrHandle::Name(name) => name,
+					ImageNameOrHandle::Handle(handle) => rm.images.get_name(handle).expect("Failed to resolve image handle"),
 				};
 
 				let workgroup_size = rm.shaders.get_resource(self.compute_shader)
@@ -110,7 +110,7 @@ impl<'cg> ComputeCmdBuilder<'cg> {
 		self
 	}
 
-	pub fn groups_from_image_size(&mut self, image: impl Into<ImageBindSource>) -> &mut Self {
+	pub fn groups_from_image_size(&mut self, image: impl Into<ImageNameOrHandle>) -> &mut Self {
 		self.cmd.dispatch_size = DispatchSize::DeriveFromImage(image.into());
 		self
 	}
@@ -128,18 +128,18 @@ impl<'cg> ComputeCmdBuilder<'cg> {
 		self.buffer(BufferBindTarget::SsboIndex(index), buffer)
 	}
 
-	pub fn sampled_image(&mut self, unit: u32, image: impl Into<ImageBindSource>, sampler: SamplerName) -> &mut Self {
+	pub fn sampled_image(&mut self, unit: u32, image: impl Into<ImageNameOrHandle>, sampler: SamplerName) -> &mut Self {
 		self.cmd.bindings.bind_image(ImageBindTarget::Sampled(unit), image, sampler);
 		self
 	}
 
-	pub fn image(&mut self, unit: u32, image: impl Into<ImageBindSource>) -> &mut Self {
+	pub fn image(&mut self, unit: u32, image: impl Into<ImageNameOrHandle>) -> &mut Self {
 		self.cmd.bindings.bind_image(ImageBindTarget::ReadonlyImage(unit), image, None);
 		self
 	}
 
 	// TODO(pat.m): do I want RW to be explicit?
-	pub fn image_rw(&mut self, unit: u32, image: impl Into<ImageBindSource>) -> &mut Self {
+	pub fn image_rw(&mut self, unit: u32, image: impl Into<ImageNameOrHandle>) -> &mut Self {
 		self.cmd.bindings.bind_image(ImageBindTarget::ReadWriteImage(unit), image, None);
 		self
 	}

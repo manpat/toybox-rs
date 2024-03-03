@@ -62,18 +62,18 @@ impl From<BufferName> for BufferBindSource {
 
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub enum ImageBindSource {
+pub enum ImageNameOrHandle {
 	Name(ImageName),
 	Handle(ImageHandle),
 }
 
-impl From<ImageName> for ImageBindSource {
+impl From<ImageName> for ImageNameOrHandle {
 	fn from(name: ImageName) -> Self {
 		Self::Name(name)
 	}
 }
 
-impl From<ImageHandle> for ImageBindSource {
+impl From<ImageHandle> for ImageNameOrHandle {
 	fn from(handle: ImageHandle) -> Self {
 		Self::Handle(handle)
 	}
@@ -89,7 +89,7 @@ pub struct BufferBindDesc {
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct ImageBindDesc {
 	pub target: ImageBindTarget,
-	pub source: ImageBindSource,
+	pub source: ImageNameOrHandle,
 	pub sampler: Option<SamplerName>,
 }
 
@@ -129,7 +129,7 @@ impl BindingDescription {
 		});
 	}
 
-	pub fn bind_image(&mut self, target: impl Into<ImageBindTarget>, source: impl Into<ImageBindSource>, sampler: impl Into<Option<SamplerName>>) {
+	pub fn bind_image(&mut self, target: impl Into<ImageBindTarget>, source: impl Into<ImageNameOrHandle>, sampler: impl Into<Option<SamplerName>>) {
 		self.image_bindings.push(ImageBindDesc {
 			target: target.into(),
 			source: source.into(),
@@ -172,11 +172,11 @@ impl BindingDescription {
 
 	pub fn resolve_image_bind_sources(&mut self, rm: &mut ResourceManager) {
 		for ImageBindDesc{source, ..} in self.image_bindings.iter_mut() {
-			if let ImageBindSource::Handle(handle) = *source {
+			if let ImageNameOrHandle::Handle(handle) = *source {
 				let name = rm.images.get_name(handle)
 					.expect("Failed to resolve image handle");
 
-				*source = ImageBindSource::Name(name);
+				*source = ImageNameOrHandle::Name(name);
 			}
 		}
 	}
@@ -228,7 +228,7 @@ impl BindingDescription {
 		}
 
 		for ImageBindDesc{target, source, sampler} in self.image_bindings.iter() {
-			let ImageBindSource::Name(image_name) = *source
+			let ImageNameOrHandle::Name(image_name) = *source
 				else { panic!("Unresolved image bind source") };
 
 			match *target {

@@ -6,7 +6,9 @@ use std::hash::Hash;
 use std::collections::HashMap;
 use anyhow::Context;
 
+use crate::prelude::*;
 use crate::upload_heap::UploadHeap;
+use crate::{shaders, ImageName, SamplerName};
 
 mod request;
 pub use request::*;
@@ -42,6 +44,12 @@ pub struct ResourceManager {
 	create_image_requests: ResourceRequestMap<CreateImageRequest>,
 	pub images: ResourceStorage<ImageResource>,
 
+	pub blank_white_image: ImageName,
+	pub blank_black_image: ImageName,
+
+	pub nearest_sampler: SamplerName,
+	pub linear_sampler: SamplerName,
+
 	draw_pipelines: HashMap<(ShaderHandle, Option<ShaderHandle>), core::ShaderPipelineName>,
 	compute_pipelines: HashMap<ShaderHandle, core::ShaderPipelineName>,
 
@@ -58,13 +66,47 @@ impl ResourceManager {
 		let mut shaders = ResourceStorage::<ShaderResource>::new();
 
 		let standard_vs_shader = compile_shader_requests.request_handle(&mut shaders,
-			CompileShaderRequest::vertex("standard vs", crate::shaders::STANDARD_VS_SHADER_SOURCE));
+			CompileShaderRequest::vertex("standard vs", shaders::STANDARD_VS_SHADER_SOURCE));
 
 		let fullscreen_vs_shader = compile_shader_requests.request_handle(&mut shaders,
-			CompileShaderRequest::vertex("fullscreen vs", crate::shaders::FULLSCREEN_VS_SHADER_SOURCE));
+			CompileShaderRequest::vertex("fullscreen vs", shaders::FULLSCREEN_VS_SHADER_SOURCE));
 
 		let flat_fs_shader = compile_shader_requests.request_handle(&mut shaders,
-			CompileShaderRequest::fragment("flat fs", crate::shaders::FLAT_FS_SHADER_SOURCE));
+			CompileShaderRequest::fragment("flat fs", shaders::FLAT_FS_SHADER_SOURCE));
+
+		let blank_white_image = {
+			let format = crate::ImageFormat::Rgba(crate::ComponentFormat::Unorm8);
+			let image = core.create_image_2d(format, Vec2i::splat(1));
+			core.upload_image(image, None, format, &[255u8, 255, 255, 255]);
+			core.set_debug_label(image, "Blank white image");
+			image
+		};
+
+		let blank_black_image = {
+			let format = crate::ImageFormat::Rgba(crate::ComponentFormat::Unorm8);
+			let image = core.create_image_2d(format, Vec2i::splat(1));
+			core.upload_image(image, None, format, &[0u8, 0, 0, 255]);
+			core.set_debug_label(image, "Blank black image");
+			image
+		};
+
+		let nearest_sampler = {
+			let sampler = core.create_sampler();
+			core.set_sampler_minify_filter(sampler, crate::FilterMode::Nearest, None);
+			core.set_sampler_magnify_filter(sampler, crate::FilterMode::Nearest);
+			core.set_sampler_addressing_mode(sampler, crate::AddressingMode::Clamp);
+			core.set_debug_label(sampler, "Nearest sampler");
+			sampler
+		};
+
+		let linear_sampler = {
+			let sampler = core.create_sampler();
+			core.set_sampler_minify_filter(sampler, crate::FilterMode::Linear, None);
+			core.set_sampler_magnify_filter(sampler, crate::FilterMode::Linear);
+			core.set_sampler_addressing_mode(sampler, crate::AddressingMode::Clamp);
+			core.set_debug_label(sampler, "Linear sampler");
+			sampler
+		};
 
 		Ok(ResourceManager {
 			resource_root_path: resource_root_path.to_owned(),
@@ -80,6 +122,12 @@ impl ResourceManager {
 			load_image_requests: ResourceRequestMap::new(),
 			create_image_requests: ResourceRequestMap::new(),
 			images: ResourceStorage::new(),
+
+			blank_white_image,
+			blank_black_image,
+
+			nearest_sampler,
+			linear_sampler,
 
 			draw_pipelines: HashMap::new(),
 			compute_pipelines: HashMap::new(),

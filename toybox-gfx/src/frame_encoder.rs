@@ -91,16 +91,16 @@ impl FrameEncoder {
 		self.bind_global_buffer(BufferBindTarget::SsboIndex(index), buffer);
 	}
 
-	pub fn bind_global_sampled_image(&mut self, unit: u32, image: impl Into<ImageBindSource>, sampler: SamplerName) {
+	pub fn bind_global_sampled_image(&mut self, unit: u32, image: impl Into<ImageNameOrHandle>, sampler: SamplerName) {
 		self.global_bindings.bind_image(ImageBindTarget::Sampled(unit), image, sampler);
 	}
 
-	pub fn bind_global_image(&mut self, unit: u32, image: impl Into<ImageBindSource>) {
+	pub fn bind_global_image(&mut self, unit: u32, image: impl Into<ImageNameOrHandle>) {
 		self.global_bindings.bind_image(ImageBindTarget::ReadonlyImage(unit), image, None);
 	}
 
 	// TODO(pat.m): do I want RW to be explicit?
-	pub fn bind_global_image_rw(&mut self, unit: u32, image: impl Into<ImageBindSource>) {
+	pub fn bind_global_image_rw(&mut self, unit: u32, image: impl Into<ImageNameOrHandle>) {
 		self.global_bindings.bind_image(ImageBindTarget::ReadWriteImage(unit), image, None);
 	}
 }

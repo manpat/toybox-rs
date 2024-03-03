@@ -16,6 +16,7 @@ pub mod shaders;
 pub mod upload_heap;
 
 pub use crate::core::*;
+pub use bindings::ImageNameOrHandle;
 pub use resource_manager::*;
 pub use frame_encoder::*;
 pub use command::PrimitiveType;
