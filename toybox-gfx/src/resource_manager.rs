@@ -34,6 +34,10 @@ pub struct ResourceManager {
 	compile_shader_requests: ResourceRequestMap<CompileShaderRequest>,
 	pub shaders: ResourceStorage<ShaderResource>,
 
+	pub standard_vs_shader: ShaderHandle,
+	pub fullscreen_vs_shader: ShaderHandle,
+	pub flat_fs_shader: ShaderHandle,
+
 	load_image_requests: ResourceRequestMap<LoadImageRequest>,
 	create_image_requests: ResourceRequestMap<CreateImageRequest>,
 	pub images: ResourceStorage<ImageResource>,
@@ -50,12 +54,28 @@ pub struct ResourceManager {
 
 impl ResourceManager {
 	pub fn new(core: &mut core::Core, resource_root_path: &Path) -> anyhow::Result<ResourceManager> {
+		let mut compile_shader_requests = ResourceRequestMap::new();
+		let mut shaders = ResourceStorage::<ShaderResource>::new();
+
+		let standard_vs_shader = compile_shader_requests.request_handle(&mut shaders,
+			CompileShaderRequest::vertex("standard vs", crate::shaders::STANDARD_VS_SHADER_SOURCE));
+
+		let fullscreen_vs_shader = compile_shader_requests.request_handle(&mut shaders,
+			CompileShaderRequest::vertex("fullscreen vs", crate::shaders::FULLSCREEN_VS_SHADER_SOURCE));
+
+		let flat_fs_shader = compile_shader_requests.request_handle(&mut shaders,
+			CompileShaderRequest::fragment("flat fs", crate::shaders::FLAT_FS_SHADER_SOURCE));
+
 		Ok(ResourceManager {
 			resource_root_path: resource_root_path.to_owned(),
 
 			load_shader_requests: ResourceRequestMap::new(),
-			compile_shader_requests: ResourceRequestMap::new(),
-			shaders: ResourceStorage::new(),
+			compile_shader_requests,
+			shaders,
+
+			standard_vs_shader,
+			fullscreen_vs_shader,
+			flat_fs_shader,
 
 			load_image_requests: ResourceRequestMap::new(),
 			create_image_requests: ResourceRequestMap::new(),
