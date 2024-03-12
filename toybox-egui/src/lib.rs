@@ -31,7 +31,6 @@ impl Integration {
 	pub fn new(ctx: egui::Context, window: Rc<Window>, gfx: &mut gfx::System) -> anyhow::Result<Integration> {
 		let mut state = egui_winit::State::new(&*window);
 		state.set_max_texture_side(gfx.core.capabilities().max_texture_size);
-		state.set_pixels_per_point(window.scale_factor() as f32);
 
 		// ctx.tessellation_options_mut(|opts| {
 		//     // opts.feathering = false;
