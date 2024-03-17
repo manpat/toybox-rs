@@ -65,6 +65,10 @@ impl super::Core {
 	// TODO(pat.m): make usage better
 	pub fn allocate_buffer_storage(&self, name: BufferName, size: usize, usage: u32) {
 		self.buffer_info.borrow_mut().insert(name, BufferInfo {size, usage});
+		
+		if size == 0 {
+			return
+		}
 
 		unsafe {
 			self.gl.NamedBufferStorage(name.as_raw(), size as isize, std::ptr::null(), usage);
@@ -79,6 +83,10 @@ impl super::Core {
 		let size = data.len() * std::mem::size_of::<T>();
 
 		self.buffer_info.borrow_mut().insert(name, BufferInfo {size, usage});
+
+		if size == 0 {
+			return
+		}
 
 		unsafe {
 			self.gl.NamedBufferStorage(name.as_raw(), size as isize, data.as_ptr().cast(), usage);
