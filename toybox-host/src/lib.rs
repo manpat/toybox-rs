@@ -12,7 +12,7 @@ use glutin_winit::DisplayBuilder;
 
 use glutin::prelude::*;
 use glutin::config::{ConfigTemplateBuilder, Api};
-use glutin::context::{GlProfile, ContextApi, Version, ContextAttributesBuilder, NotCurrentGlContextSurfaceAccessor};
+use glutin::context::{GlProfile, ContextApi, Version, ContextAttributesBuilder, NotCurrentGlContextSurfaceAccessor, Robustness};
 use glutin::display::{GetGlDisplay};
 use glutin::surface::{SurfaceAttributesBuilder, WindowSurface, SwapInterval};
 
@@ -63,6 +63,7 @@ impl Host {
 		let context_builder = ContextAttributesBuilder::new()
 			.with_debug(true)
 			.with_profile(GlProfile::Core)
+			.with_robustness(Robustness::RobustLoseContextOnReset)
 			.with_context_api(ContextApi::OpenGl(Some(Version::new(4, 5))));
 
 		// Try to create our window and a config that describes a context we can create
@@ -184,7 +185,7 @@ impl Host {
 }
 
 
-extern "system" fn default_gl_error_handler(source: u32, ty: u32, _id: u32, severity: u32,
+extern "system" fn default_gl_error_handler(source: u32, ty: u32, msg_id: u32, severity: u32,
 	length: i32, msg: *const i8, _ud: *mut std::ffi::c_void)
 {
 	let severity_str = match severity {
@@ -216,9 +217,10 @@ extern "system" fn default_gl_error_handler(source: u32, ty: u32, _id: u32, seve
 	};
 
 	eprintln!("GL ERROR!");
-	eprintln!("Source:   {}", source);
-	eprintln!("Severity: {}", severity_str);
-	eprintln!("Type:     {}", ty_str);
+	eprintln!("Source:   {source}");
+	eprintln!("Severity: {severity_str}");
+	eprintln!("Type:     {ty_str}");
+	eprintln!("Id:       {msg_id}");
 
 	unsafe {
 		let msg_slice = std::slice::from_raw_parts(msg.cast(), length as usize);

@@ -97,7 +97,20 @@ impl Core {
 	}
 
 	pub fn swap(&mut self) {
-		self.surface.swap_buffers(&self.gl_context).unwrap();
+		// HACK: For some reason capturing the app with discord (and I suspect other window capture apps)
+		// causes swap_buffers to emit GL_INVALID_ENUM on my machine, which panics ofc.
+		// So for now, we are just not emitting errors pls.
+		unsafe {
+			self.gl.Disable(gl::DEBUG_OUTPUT_SYNCHRONOUS);
+		}
+
+		if let Err(error) = self.surface.swap_buffers(&self.gl_context) {
+			println!("Failed to swap!\n{error}");
+		}
+
+		unsafe {
+			self.gl.Enable(gl::DEBUG_OUTPUT_SYNCHRONOUS);
+		}
 	}
 
 	pub fn backbuffer_size(&self) -> Vec2i {

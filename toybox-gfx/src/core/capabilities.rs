@@ -14,6 +14,8 @@ pub struct Capabilities {
 
 	/// Guaranteed to be at least 1024
 	pub max_texture_size: usize,
+
+	pub max_ubo_size: usize,
 }
 
 impl Capabilities {
@@ -22,6 +24,7 @@ impl Capabilities {
 		let mut ssbo_bind_alignment = 0;
 		let mut max_user_clip_planes = 0;
 		let mut max_texture_size = 0;
+		let mut max_ubo_size = 0;
 		let max_image_units;
 		
 		unsafe {
@@ -46,6 +49,7 @@ impl Capabilities {
 				.min(max_combined_image_units/2);
 
 			gl.GetIntegerv(gl::MAX_TEXTURE_SIZE, &mut max_texture_size);
+			gl.GetIntegerv(gl::MAX_UNIFORM_BLOCK_SIZE, &mut max_ubo_size);
 		}
 
 		Capabilities {
@@ -54,6 +58,7 @@ impl Capabilities {
 			max_user_clip_planes: max_user_clip_planes as usize,
 			max_image_units: max_image_units as usize,
 			max_texture_size: max_texture_size as usize,
+			max_ubo_size: max_ubo_size as usize,
 		}
 	}
 }
