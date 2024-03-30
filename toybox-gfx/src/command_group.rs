@@ -141,6 +141,14 @@ impl<'g> CommandGroupEncoder<'g> {
 		draw::DrawCmdBuilder {cmd, upload_stage: self.upload_stage}
 	}
 
+	/// Same as draw() except uses standard fullscreen vertex shader [gfx::ResourceManager::fullscreen_vs_shader].
+	/// If no fragment shader is provided, uses texture only [gfx::ResourceManager::flat_fs_shader]. 
+	pub fn draw_fullscreen(&mut self, fragment_shader: impl Into<Option<ShaderHandle>>) -> draw::DrawCmdBuilder<'_> {
+		self.add(draw::DrawCmd::from_fullscreen_shader(fragment_shader));
+		let Some(Command::Draw(cmd)) = self.group.commands.last_mut() else { unreachable!() };
+		draw::DrawCmdBuilder {cmd, upload_stage: self.upload_stage}
+	}
+
 	pub fn compute(&mut self, compute_shader: ShaderHandle) -> compute::ComputeCmdBuilder<'_> {
 		self.add(compute::ComputeCmd::new(compute_shader));
 		let Some(Command::Compute(cmd)) = self.group.commands.last_mut() else { unreachable!() };

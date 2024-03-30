@@ -13,13 +13,18 @@ pub enum PrimitiveType {
 	Triangles = gl::TRIANGLES,
 }
 
+#[derive(Debug, Copy, Clone)]
+enum DrawCmdShaders {
+	Pair { vertex_shader: ShaderHandle, fragment_shader: Option<ShaderHandle> },
+	FullscreenQuad { fragment_shader: Option<ShaderHandle> },
+}
+
 
 #[derive(Debug)]
 pub struct DrawCmd {
 	pub bindings: BindingDescription,
 
-	pub vertex_shader: ShaderHandle,
-	pub fragment_shader: Option<ShaderHandle>,
+	shaders: DrawCmdShaders,
 
 	pub primitive_type: PrimitiveType,
 
@@ -46,8 +51,11 @@ impl DrawCmd {
 		DrawCmd {
 			bindings: Default::default(),
 
-			vertex_shader,
-			fragment_shader,
+			shaders: DrawCmdShaders::Pair {
+				vertex_shader,
+				fragment_shader,
+			},
+
 			primitive_type: PrimitiveType::Triangles,
 
 			num_elements: 3,
@@ -61,12 +69,38 @@ impl DrawCmd {
 		}
 	}
 
+	pub fn from_fullscreen_shader(fragment_shader: impl Into<Option<ShaderHandle>>) -> DrawCmd {
+		let fragment_shader = fragment_shader.into();
+
+		DrawCmd {
+			bindings: Default::default(),
+
+			shaders: DrawCmdShaders::FullscreenQuad{fragment_shader},
+			primitive_type: PrimitiveType::Triangles,
+
+			num_elements: 6,
+			num_instances: 1,
+
+			index_buffer: None,
+
+			blend_mode: None,
+			depth_test: false,
+			depth_write: false,
+		}
+	}
+
 	pub fn execute(&self, core: &mut crate::core::Core, rm: &mut crate::resource_manager::ResourceManager) {
+		let (vs, fs) = match self.shaders {
+			DrawCmdShaders::Pair {vertex_shader, fragment_shader} => (vertex_shader, fragment_shader),
+			DrawCmdShaders::FullscreenQuad {fragment_shader}
+				=> (rm.fullscreen_vs_shader, Some(fragment_shader.unwrap_or(rm.flat_fs_shader))),
+		};
+
 		// TODO(pat.m): eugh. should probably be part of a larger pipeline state management system
-		let num_user_clip_planes = rm.shaders.get_resource(self.vertex_shader).unwrap().num_user_clip_planes;
+		let num_user_clip_planes = rm.shaders.get_resource(vs).unwrap().num_user_clip_planes;
 		core.set_user_clip_planes(num_user_clip_planes);
 
-		let pipeline = rm.resolve_draw_pipeline(core, self.vertex_shader, self.fragment_shader);
+		let pipeline = rm.resolve_draw_pipeline(core, vs, fs);
 		core.bind_shader_pipeline(pipeline);
 
 		core.set_blend_mode(self.blend_mode);
