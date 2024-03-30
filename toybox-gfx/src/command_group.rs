@@ -22,6 +22,8 @@ pub enum FrameStage {
 	Postprocess,
 	AfterPostprocess(i8),
 
+	Ui(i32),
+
 	DebugUi,
 	Final,
 }
