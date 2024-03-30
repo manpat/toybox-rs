@@ -6,6 +6,7 @@ use crate::resource_manager::*;
 pub struct CreateImageRequest {
 	pub image_info: ImageInfo,
 	pub resize_policy: ImageResizePolicy,
+	pub clear_policy: ImageClearPolicy,
 	pub label: String,
 }
 
@@ -21,6 +22,7 @@ impl CreateImageRequest {
 			},
 
 			resize_policy: ImageResizePolicy::MatchBackbuffer,
+			clear_policy: ImageClearPolicy::DefaultAtFrameStart,
 			label: label.into(),
 		}
 	}
@@ -35,8 +37,15 @@ impl CreateImageRequest {
 			},
 			
 			resize_policy: ImageResizePolicy::Fixed,
+			clear_policy: ImageClearPolicy::Never,
 			label: label.into(),
 		}
+	}
+}
+
+impl CreateImageRequest {
+	pub fn clear_policy(self, clear_policy: ImageClearPolicy) -> Self {
+		Self { clear_policy, .. self }
 	}
 }
 

@@ -157,6 +157,16 @@ impl ResourceManager {
 		}
 	}
 
+	pub fn start_frame(&mut self, core: &mut core::Core) {
+		self.handle_resize(core);
+
+		for image in self.images.iter_mut() {
+			if image.clear_policy == ImageClearPolicy::DefaultAtFrameStart {
+				core.clear_image_to_default(image.name);
+			}
+		}
+	}
+
 	/// Attempt to turn requested resources into committed GPU resources.
 	pub fn process_requests(&mut self, core: &mut core::Core) -> anyhow::Result<()> {
 		core.push_debug_group("Process Resource Requests");

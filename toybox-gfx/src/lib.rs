@@ -75,7 +75,7 @@ impl System {
 	}
 
 	pub fn start_frame(&mut self) {
-		self.resource_manager.handle_resize(&mut self.core);
+		self.resource_manager.start_frame(&mut self.core);
 		self.frame_encoder.start_frame();
 	}
 

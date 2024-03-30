@@ -29,11 +29,24 @@ pub enum ImageResizePolicy {
 }
 
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum ImageClearPolicy {
+	/// Image is never cleared unless user explicitly clears it.
+	Never,
+
+	/// Image is cleared to default at beginning of the frame.
+	DefaultAtFrameStart,
+
+	// TODO(pat.m): Clear to value
+	// TODO(pat.m): Clear on acquire for temporary images - e.g., throwaway depth buffers
+}
+
 #[derive(Debug)]
 pub struct ImageResource {
 	pub name: ImageName,
 	pub image_info: ImageInfo,
 	pub resize_policy: ImageResizePolicy,
+	pub clear_policy: ImageClearPolicy,
 	pub label: String,
 }
 
@@ -60,6 +73,7 @@ impl ImageResource {
 			name,
 			image_info: core.get_image_info(name).unwrap(),
 			resize_policy: ImageResizePolicy::Fixed,
+			clear_policy: ImageClearPolicy::Never,
 			label,
 		})
 	}
@@ -78,6 +92,7 @@ impl ImageResource {
 			name,
 			image_info,
 			resize_policy: req.resize_policy,
+			clear_policy: req.clear_policy,
 			label: req.label.clone(),
 		}
 	}
