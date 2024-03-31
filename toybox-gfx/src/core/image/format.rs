@@ -3,6 +3,7 @@ use crate::prelude::*;
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum ImageFormat {
 	Rgba(ComponentFormat),
+	Rgb(ComponentFormat),
 	RedGreen(ComponentFormat),
 	Red(ComponentFormat),
 
@@ -44,6 +45,20 @@ impl ImageFormat {
 
 			ImageFormat::Rgba(ComponentFormat::F16) => gl::RGBA16F,
 			ImageFormat::Rgba(ComponentFormat::F32) => gl::RGBA32F,
+
+			ImageFormat::Rgb(ComponentFormat::Unorm8) => gl::RGB8,
+			ImageFormat::Rgb(ComponentFormat::Unorm16) => gl::RGB16,
+
+			ImageFormat::Rgb(ComponentFormat::I8) => gl::RGB8I,
+			ImageFormat::Rgb(ComponentFormat::I16) => gl::RGB16I,
+			ImageFormat::Rgb(ComponentFormat::I32) => gl::RGB32I,
+
+			ImageFormat::Rgb(ComponentFormat::U8) => gl::RGB8UI,
+			ImageFormat::Rgb(ComponentFormat::U16) => gl::RGB16UI,
+			ImageFormat::Rgb(ComponentFormat::U32) => gl::RGB32UI,
+
+			ImageFormat::Rgb(ComponentFormat::F16) => gl::RGB16F,
+			ImageFormat::Rgb(ComponentFormat::F32) => gl::RGB32F,
 
 			ImageFormat::RedGreen(ComponentFormat::Unorm8) => gl::RG8,
 			ImageFormat::RedGreen(ComponentFormat::Unorm16) => gl::RG16,
@@ -92,7 +107,7 @@ impl ImageFormat {
 		use ImageFormat::*;
 
 		match self {
-			Red(component) | RedGreen(component) | Rgba(component) => component.to_raw(),
+			Red(component) | Rgb(component) | RedGreen(component) | Rgba(component) => component.to_raw(),
 			Srgb8 | Srgba8 | Stencil => gl::UNSIGNED_BYTE,
 			_ => panic!("Unsupported"),
 		}
@@ -101,10 +116,12 @@ impl ImageFormat {
 	pub fn to_raw_unsized(&self) -> u32 {
 		match self {
 			ImageFormat::Rgba(comp) if comp.is_normalized() => gl::RGBA,
+			ImageFormat::Rgb(comp) if comp.is_normalized() => gl::RGB,
 			ImageFormat::RedGreen(comp) if comp.is_normalized() => gl::RG,
 			ImageFormat::Red(comp) if comp.is_normalized() => gl::RED,
 
 			ImageFormat::Rgba(_) => gl::RGBA_INTEGER,
+			ImageFormat::Rgb(_) => gl::RGB_INTEGER,
 			ImageFormat::RedGreen(_) => gl::RG_INTEGER,
 			ImageFormat::Red(_) => gl::RED_INTEGER,
 
@@ -126,6 +143,7 @@ impl ImageFormat {
 		match self {
 			Red(component) => component.byte_size(),
 			RedGreen(component) => component.byte_size() * 2,
+			Rgb(component) => component.byte_size() * 3,
 			Rgba(component) => component.byte_size() * 4,
 			Srgb8 => 3,
 			Rgb10A2 | Rgb10A2Ui | R11G11B10F | Srgba8 => 4,
@@ -140,6 +158,7 @@ impl ImageFormat {
 	pub fn is_normalized(&self) -> bool {
 		match self {
 			ImageFormat::Rgba(comp) => comp.is_normalized(),
+			ImageFormat::Rgb(comp) => comp.is_normalized(),
 			ImageFormat::RedGreen(comp) => comp.is_normalized(),
 			ImageFormat::Red(comp) => comp.is_normalized(),
 

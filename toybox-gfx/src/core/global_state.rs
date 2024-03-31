@@ -81,6 +81,12 @@ pub enum BlendFactor {
 	DestinationColor = gl::DST_COLOR,
 	OneMinusDestinationColor = gl::ONE_MINUS_DST_COLOR,
 
+	SecondSourceAlpha = gl::SRC1_ALPHA,
+	OneMinusSecondSourceAlpha = gl::ONE_MINUS_SRC1_ALPHA,
+
+	SecondSourceColor = gl::SRC1_COLOR,
+	OneMinusSecondSourceColor = gl::ONE_MINUS_SRC1_COLOR,
+
 	// TODO(pat.m): the rest?
 }
 
@@ -125,6 +131,16 @@ impl BlendMode {
 
 		source_alpha: BlendFactor::OneMinusDestinationAlpha,
 		destination_alpha: BlendFactor::One,
+
+		.. BlendMode::ALPHA
+	};
+
+	pub const PREMULTIPLIED_DUAL_SOURCE_COVERAGE: BlendMode = BlendMode {
+		source_color: BlendFactor::One,
+		destination_color: BlendFactor::OneMinusSecondSourceColor,
+
+		source_alpha: BlendFactor::One,
+		destination_alpha: BlendFactor::OneMinusSecondSourceAlpha,
 
 		.. BlendMode::ALPHA
 	};
