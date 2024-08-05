@@ -64,6 +64,8 @@ impl UploadHeap {
 		let pre_alignment_cursor = self.buffer_cursor;
 		self.buffer_cursor = (self.buffer_cursor + alignment - 1) & (!alignment + 1);
 
+		assert!(size < UPLOAD_BUFFER_SIZE, "Tried to upload more than the upload heap can hold: {UPLOAD_BUFFER_SIZE}B");
+
 		let should_invalidate = self.buffer_cursor + size > UPLOAD_BUFFER_SIZE;
 		if should_invalidate {
 			self.buffer_cursor = 0;
@@ -74,7 +76,7 @@ impl UploadHeap {
 
 		// Keep track of total buffer usage - including alignment
 		self.buffer_usage_counter += self.buffer_cursor.checked_sub(pre_alignment_cursor)
-			.unwrap_or(size + UPLOAD_BUFFER_SIZE - pre_alignment_cursor);
+			.unwrap_or_else(|| size + UPLOAD_BUFFER_SIZE - pre_alignment_cursor);
 
 		let allocation = BufferRange {
 			offset,

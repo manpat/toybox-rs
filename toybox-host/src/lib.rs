@@ -6,6 +6,7 @@ use winit::{
 	// event::{Event, WindowEvent, DeviceEvent, KeyboardInput, VirtualKeyCode},
 	event_loop::EventLoop,
 	window::WindowBuilder,
+	dpi::{PhysicalPosition, PhysicalSize},
 };
 
 use glutin_winit::DisplayBuilder;
@@ -55,10 +56,26 @@ impl Host {
 			.with_api(Api::OPENGL)
 			.with_stencil_size(8);
 
-		let window_builder = WindowBuilder::new()
+		let mut window_builder = WindowBuilder::new()
 			.with_title(settings.initial_title)
 			.with_transparent(settings.transparent)
 			.with_decorations(!settings.no_decorations);
+
+		// Try to fit window to monitor
+		if let Some(monitor) = event_loop.primary_monitor() {
+			let PhysicalPosition{x, y} = monitor.position();
+			let PhysicalSize{width, height} = monitor.size();
+
+			window_builder = window_builder.with_inner_size(PhysicalSize{
+				width: width.checked_sub(100).unwrap_or(width),
+				height: height.checked_sub(100).unwrap_or(height),
+			});
+
+			window_builder = window_builder.with_position(PhysicalPosition{
+				x: x + 50,
+				y: y + 30, // Fudged for window decorations lol
+			});
+		}
 
 		let context_builder = ContextAttributesBuilder::new()
 			.with_debug(true)
