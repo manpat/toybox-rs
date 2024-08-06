@@ -128,9 +128,11 @@ impl DrawCmd {
 			barrier_tracker.read_buffer(name, gl::ELEMENT_ARRAY_BARRIER_BIT);
 			barrier_tracker.emit_barriers(&core.gl);
 
+			let base_vertex = 0;
+
 			unsafe {
-				core.gl.DrawElementsInstanced(primitive_type, num_elements, index_type,
-					offset_ptr, num_instances);
+				core.gl.DrawElementsInstancedBaseVertex(primitive_type, num_elements, index_type,
+					offset_ptr, num_instances, base_vertex);
 			}
 
 		} else {

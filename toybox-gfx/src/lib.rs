@@ -3,7 +3,6 @@
 use toybox_host as host;
 use anyhow::Context;
 
-use host::prelude::*;
 use host::gl;
 
 pub mod bindings;

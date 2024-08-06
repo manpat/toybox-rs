@@ -304,6 +304,12 @@ impl IntoBufferBindSourceOrStageable for crate::core::BufferName {
 	}
 }
 
+impl IntoBufferBindSourceOrStageable for BufferBindSource {
+	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSource {
+		self
+	}
+}
+
 // Accept anything that can be turned into a slice of sized, copyable items - including regular references
 impl<'t, T> IntoBufferBindSourceOrStageable for &'t T
 	where T: crate::AsStageableSlice
