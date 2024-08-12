@@ -8,7 +8,11 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0"
 
-egui = { version = "0.22", default-features=true }
+egui = { version = "0.22", default-features=true, features=["cint", "mint"] }
 egui-winit = "0.22"
 
 toybox-gfx = { path = "../toybox-gfx" }
+common = { git = "https://github.com/manpat/common-rs.git", version = ">=0.4", features=["interop"] }
+
+mint = { version = "0.5" }
+cint = { version = "0.3" }

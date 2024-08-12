@@ -13,8 +13,11 @@ toybox-egui = { path = "../toybox-egui" }
 toybox-cfg = { path = "../toybox-cfg" }
 
 
-common = { git = "https://github.com/manpat/common-rs.git", version = ">=0.3", features=["serde"] }
+common = { git = "https://github.com/manpat/common-rs.git", version = ">=0.4.1", features=["serde", "interop"] }
 toy = { git = "https://github.com/manpat/toy-rs.git" }
+
+mint = { version = "0.5" }
+cint = { version = "0.3" }
 
 anyhow = "1.0"
 

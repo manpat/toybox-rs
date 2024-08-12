@@ -8,11 +8,14 @@ use std::rc::Rc;
 
 mod renderer;
 mod textures;
+mod conversions;
 
 pub mod prelude {
 	pub use egui_winit::egui;
 	pub use egui::epaint;
 	pub use egui::emath;
+
+	pub use crate::conversions::*;
 }
 
 pub use textures::{image_name_to_egui, image_handle_to_egui};
