@@ -270,6 +270,11 @@ impl BindingDescription {
 				// We only need to make sure that if an image is _modified_ that a barrier is inserted before rendering to it.
 				barrier_tracker.read_image(*attachment_image, gl::FRAMEBUFFER_BARRIER_BIT);
 			}
+
+			let framebuffer_size = core.get_framebuffer_size(framebuffer_name);
+			core.set_viewport(framebuffer_size);
+		} else {
+			core.set_viewport(core.backbuffer_size());
 		}
 
 		core.bind_framebuffer(framebuffer);

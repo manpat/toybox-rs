@@ -26,6 +26,9 @@ pub enum ImageResizePolicy {
 
 	/// Automatically resize to match the backbuffer size.
 	MatchBackbuffer,
+
+	/// Automatically resize to match a fraction of the backbuffers size.
+	MatchBackbufferFraction(u32),
 }
 
 
@@ -81,8 +84,16 @@ impl ImageResource {
 	pub fn from_create_request(core: &mut Core, req: &CreateImageRequest) -> ImageResource {
 		let mut image_info = req.image_info.clone();
 
-		if req.resize_policy == ImageResizePolicy::MatchBackbuffer {
-			image_info.size = core.backbuffer_size().extend(1);
+		match req.resize_policy {
+			ImageResizePolicy::MatchBackbuffer => {
+				image_info.size = core.backbuffer_size().extend(1);
+			}
+
+			ImageResizePolicy::MatchBackbufferFraction(fraction) => {
+				image_info.size = (core.backbuffer_size() / fraction as i32).extend(1);
+			}
+
+			_ => {}
 		}
 		
 		let name = core.create_image_from_info(image_info.clone());
@@ -98,11 +109,13 @@ impl ImageResource {
 	}
 
 	pub(crate) fn on_resize(&mut self, core: &mut Core) {
-		if self.resize_policy == ImageResizePolicy::Fixed {
-			return
-		}
+		let size_2d = match self.resize_policy {
+			ImageResizePolicy::Fixed => return,
+			ImageResizePolicy::MatchBackbuffer => core.backbuffer_size(),
+			ImageResizePolicy::MatchBackbufferFraction(fraction) => core.backbuffer_size() / fraction as i32,
+		};
 
-		self.image_info.size = core.backbuffer_size().extend(1);
+		self.image_info.size = size_2d.extend(1);
 
 		core.destroy_image(self.name);
 		self.name = core.create_image_from_info(self.image_info.clone());

@@ -27,6 +27,11 @@ impl CreateImageRequest {
 		}
 	}
 
+	pub fn fractional_rendertarget(label: impl Into<String>, format: ImageFormat, fraction: u32) -> CreateImageRequest {
+		CreateImageRequest::rendertarget(label, format)
+			.resize_to_backbuffer_fraction(fraction)
+	}
+
 	pub fn fixed_2d(label: impl Into<String>, size: Vec2i, format: ImageFormat) -> CreateImageRequest {
 		CreateImageRequest {
 			image_info: ImageInfo {
@@ -46,6 +51,18 @@ impl CreateImageRequest {
 impl CreateImageRequest {
 	pub fn clear_policy(self, clear_policy: ImageClearPolicy) -> Self {
 		Self { clear_policy, .. self }
+	}
+
+	pub fn resize_policy(self, resize_policy: ImageResizePolicy) -> Self {
+		Self { resize_policy, .. self }
+	}
+
+	pub fn resize_to_backbuffer(self) -> Self {
+		self.resize_policy(ImageResizePolicy::MatchBackbuffer)
+	}
+
+	pub fn resize_to_backbuffer_fraction(self, fraction: u32) -> Self {
+		self.resize_policy(ImageResizePolicy::MatchBackbufferFraction(fraction))
 	}
 }
 

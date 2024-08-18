@@ -74,6 +74,13 @@ impl super::Core {
 			.expect("Invalid FramebufferName")
 	}
 
+	pub fn get_framebuffer_size(&self, name: FramebufferName) -> Vec2i {
+		let info = self.get_framebuffer_info(name);
+		info.attachments.values().next()
+			.and_then(|&image_name| self.get_image_info(image_name))
+			.map_or(Vec2i::zero(), |info| info.size.to_xy())
+	}
+
 	pub fn bind_framebuffer(&self, name: impl Into<Option<FramebufferName>>) {
 		let name = name.into();
 
