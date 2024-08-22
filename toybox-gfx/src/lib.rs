@@ -51,12 +51,17 @@ impl System {
 
 impl System {
 	pub fn new(mut core: core::Core, resource_root_path: &Path) -> anyhow::Result<System> {
+		core.enable_debugging();
+
 		let resource_manager = resource_manager::ResourceManager::new(&mut core, resource_root_path)?;
 		let frame_encoder = frame_encoder::FrameEncoder::new(&mut core);
 		
 		unsafe {
 			core.gl.Enable(gl::PROGRAM_POINT_SIZE);
 			core.gl.Enable(gl::DEPTH_TEST);
+
+			// Make sure sRGB handling is enabled by default.
+			core.gl.Enable(gl::FRAMEBUFFER_SRGB);
 		}
 
 		Ok(System {

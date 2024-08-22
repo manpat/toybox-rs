@@ -205,12 +205,12 @@ impl super::Core {
 		} else {
 			// TODO(pat.m): what to do here. we could hack it and just calculate _a_ size here
 			// but it would probably be better to keep track of how big buffers are and use that instead.
-			let size = unimplemented!();
+			let _size = unimplemented!();
 
-			unsafe {
-				self.upload_image_raw(image_name, dest_range, buffer_format,
-					std::ptr::null(), size);
-			}
+			// unsafe {
+			// 	self.upload_image_raw(image_name, dest_range, buffer_format,
+			// 		std::ptr::null(), size);
+			// }
 		}
 
 		self.bind_image_upload_buffer(None);

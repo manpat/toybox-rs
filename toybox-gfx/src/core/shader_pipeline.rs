@@ -35,7 +35,7 @@ impl super::Core {
 		}
 	}
 
-	pub fn attach_shader_to_pipeline(&self, pipeline: ShaderPipelineName, shader: super::ShaderName) {
+	pub fn attach_shader_to_pipeline(&self, pipeline: ShaderPipelineName, shader: ShaderName) {
 		let stage_bit = match shader.shader_type {
 			ShaderType::Vertex => gl::VERTEX_SHADER_BIT,
 			ShaderType::Fragment => gl::FRAGMENT_SHADER_BIT,

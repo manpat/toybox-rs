@@ -161,6 +161,57 @@ impl Core {
 			self.gl.ObjectLabel(N::GL_IDENTIFIER, name.as_raw(), label.len() as i32, label.as_ptr() as *const _);
 		}
 	}
+
+	pub fn enable_debugging(&self) {
+		unsafe {
+			self.gl.DebugMessageCallback(Some(default_gl_error_handler), std::ptr::null());
+			self.gl.Enable(gl::DEBUG_OUTPUT_SYNCHRONOUS);
+
+			// Disable performance messages
+			self.gl.DebugMessageControl(
+				gl::DONT_CARE,
+				gl::DEBUG_TYPE_PERFORMANCE,
+				gl::DONT_CARE,
+				0, std::ptr::null(),
+				gl::FALSE
+			);
+
+			// Disable medium and low portability messages
+			// Otherwise we get spammed about opengl es 3 portability which we don't care about.
+			self.gl.DebugMessageControl(
+				gl::DONT_CARE,
+				gl::DEBUG_TYPE_PORTABILITY,
+				gl::DEBUG_SEVERITY_MEDIUM,
+				0, std::ptr::null(),
+				gl::FALSE
+			);
+			self.gl.DebugMessageControl(
+				gl::DONT_CARE,
+				gl::DEBUG_TYPE_PORTABILITY,
+				gl::DEBUG_SEVERITY_LOW,
+				0, std::ptr::null(),
+				gl::FALSE
+			);
+
+			// Disable notification messages
+			self.gl.DebugMessageControl(
+				gl::DONT_CARE,
+				gl::DONT_CARE,
+				gl::DEBUG_SEVERITY_NOTIFICATION,
+				0, std::ptr::null(),
+				gl::FALSE
+			);
+
+			// Disable marker messages
+			self.gl.DebugMessageControl(
+				gl::DONT_CARE,
+				gl::DEBUG_TYPE_MARKER,
+				gl::DONT_CARE,
+				0, std::ptr::null(),
+				gl::FALSE
+			);
+		}
+	}
 }
 
 
@@ -215,5 +266,57 @@ impl<T> ResourceName for Option<T>
 		} else {
 			0
 		}
+	}
+}
+
+
+
+extern "system" fn default_gl_error_handler(source: u32, ty: u32, msg_id: u32, severity: u32,
+	length: i32, msg: *const i8, _ud: *mut std::ffi::c_void)
+{
+	let severity_str = match severity {
+		gl::DEBUG_SEVERITY_HIGH => "high",
+		gl::DEBUG_SEVERITY_MEDIUM => "medium",
+		gl::DEBUG_SEVERITY_LOW => "low",
+		gl::DEBUG_SEVERITY_NOTIFICATION => return,
+		_ => panic!("Unknown severity {}", severity),
+	};
+
+	let ty_str = match ty {
+		gl::DEBUG_TYPE_ERROR => "error",
+		gl::DEBUG_TYPE_DEPRECATED_BEHAVIOR => "deprecated behaviour",
+		gl::DEBUG_TYPE_UNDEFINED_BEHAVIOR => "undefined behaviour",
+		gl::DEBUG_TYPE_PORTABILITY => "portability",
+		gl::DEBUG_TYPE_PERFORMANCE => "performance",
+		gl::DEBUG_TYPE_OTHER => "other",
+		_ => panic!("Unknown type {}", ty),
+	};
+
+	let source = match source {
+		gl::DEBUG_SOURCE_API => "api",
+		gl::DEBUG_SOURCE_WINDOW_SYSTEM => "window system",
+		gl::DEBUG_SOURCE_SHADER_COMPILER => "shader compiler",
+		gl::DEBUG_SOURCE_THIRD_PARTY => "third party",
+		gl::DEBUG_SOURCE_APPLICATION => "application",
+		gl::DEBUG_SOURCE_OTHER => "other",
+		_ => panic!("Unknown source {}", source),
+	};
+
+	eprintln!("GL ERROR!");
+	eprintln!("Source:   {source}");
+	eprintln!("Severity: {severity_str}");
+	eprintln!("Type:     {ty_str}");
+	eprintln!("Id:       {msg_id}");
+
+	unsafe {
+		let msg_slice = std::slice::from_raw_parts(msg.cast(), length as usize);
+		let msg_utf8 = String::from_utf8_lossy(msg_slice);
+		eprintln!("Message: {}", msg_utf8);
+	}
+
+	match (severity, ty) {
+		(_, gl::DEBUG_TYPE_PORTABILITY | gl::DEBUG_TYPE_PERFORMANCE | gl::DEBUG_TYPE_OTHER) => {}
+		(gl::DEBUG_SEVERITY_HIGH | gl::DEBUG_SEVERITY_MEDIUM, _) => panic!("GL ERROR!"),
+		_ => {}
 	}
 }

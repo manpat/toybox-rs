@@ -140,7 +140,7 @@ impl super::Core {
 		// than what was specified on creation?
 		let map_flags = buffer_info.usage;
 		unsafe {
-			self.gl.MapNamedBufferRange(name.as_raw(), offset as isize, size as isize, buffer_info.usage).cast()
+			self.gl.MapNamedBufferRange(name.as_raw(), offset as isize, size as isize, map_flags).cast()
 		}
 	}
 
