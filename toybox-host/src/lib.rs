@@ -2,10 +2,13 @@ pub use gl;
 pub use winit;
 pub use glutin;
 
+use std::rc::Rc;
+
 use winit::{
 	// event::{Event, WindowEvent, DeviceEvent, KeyboardInput, VirtualKeyCode},
-	event_loop::EventLoop,
-	window::WindowBuilder,
+	application::ApplicationHandler,
+	event_loop::{EventLoop},
+	window::{WindowId, WindowAttributes},
 	dpi::{PhysicalPosition, PhysicalSize},
 };
 
@@ -13,11 +16,11 @@ use glutin_winit::DisplayBuilder;
 
 use glutin::prelude::*;
 use glutin::config::{ConfigTemplateBuilder, Api};
-use glutin::context::{GlProfile, ContextApi, Version, ContextAttributesBuilder, NotCurrentGlContextSurfaceAccessor, Robustness};
+use glutin::context::{GlProfile, ContextApi, Version, ContextAttributesBuilder, Robustness};
 use glutin::display::{GetGlDisplay};
-use glutin::surface::{SurfaceAttributesBuilder, WindowSurface, SwapInterval};
+use glutin::surface::{WindowSurface, SwapInterval};
 
-use raw_window_handle::HasRawWindowHandle;
+use raw_window_handle::HasWindowHandle;
 
 use std::num::NonZeroU32;
 
@@ -29,227 +32,145 @@ pub mod prelude {
 	pub use glutin::prelude::*;
 }
 
-
-pub use winit::window::Window;
+pub use winit::{
+	event::{WindowEvent, StartCause, DeviceId, DeviceEvent},
+	event_loop::{ActiveEventLoop},
+	window::Window,
+};
 
 pub type Surface = glutin::surface::Surface<WindowSurface>;
 pub type GlContext = glutin::context::PossiblyCurrentContext;
 
 
-pub struct Host {
-	pub event_loop: winit::event_loop::EventLoop<()>,
 
-	pub window: Window,
-
-	pub surface: Surface,
-	pub gl_context: GlContext,
-
-	pub gl_state: gl::Gl,
-}
-
-
-impl Host {
-	pub fn create(settings: Settings<'_>) -> anyhow::Result<Host> {
-		let event_loop = EventLoop::new();
-		
-		let config_template = ConfigTemplateBuilder::new()
-			.with_api(Api::OPENGL)
-			.with_stencil_size(8);
-
-		let mut window_builder = WindowBuilder::new()
-			.with_title(settings.initial_title)
-			.with_transparent(settings.transparent)
-			.with_decorations(!settings.no_decorations);
-
-		// Try to fit window to monitor
-		if let Some(monitor) = event_loop.primary_monitor() {
-			let PhysicalPosition{x, y} = monitor.position();
-			let PhysicalSize{width, height} = monitor.size();
-
-			window_builder = window_builder.with_inner_size(PhysicalSize{
-				width: width.checked_sub(100).unwrap_or(width),
-				height: height.checked_sub(100).unwrap_or(height),
-			});
-
-			window_builder = window_builder.with_position(PhysicalPosition{
-				x: x + 50,
-				y: y + 30, // Fudged for window decorations lol
-			});
-		}
-
-		let context_builder = ContextAttributesBuilder::new()
-			.with_debug(true)
-			.with_profile(GlProfile::Core)
-			.with_robustness(Robustness::RobustLoseContextOnReset)
-			.with_context_api(ContextApi::OpenGl(Some(Version::new(4, 5))));
-
-		// Try to create our window and a config that describes a context we can create
-		let (maybe_window, config) = DisplayBuilder::new()
-			.with_window_builder(Some(window_builder))
-			.build(&event_loop, config_template, |configs| {
-				for config in configs {
-					// We require an sRGB capable backbuffer
-					if !config.srgb_capable() { continue }
-					return config;
-				}
-
-				panic!("No suitable config");
-			})
-			.map_err(|e| anyhow::format_err!("Failed to create window: {e}"))?;
-
-
-		let Some(window) = maybe_window else {
-			anyhow::bail!("Failed to create a window")
-		};
-
-		let display = config.display();
-
-		let gl_context = unsafe {
-			let ctx_attributes = context_builder.build(Some(window.raw_window_handle()));
-			display.create_context(&config, &ctx_attributes)?
-		};
-
-
-		let (width, height): (u32, u32) = window.inner_size().into();
-		let attrs = SurfaceAttributesBuilder::<WindowSurface>::new()
-			.with_srgb(Some(true))
-			.build(
-				window.raw_window_handle(),
-				NonZeroU32::new(width).unwrap(),
-				NonZeroU32::new(height).unwrap(),
-			);
-
-		let surface = unsafe { display.create_window_surface(&config, &attrs).unwrap() };
-
-
-		let gl_context = gl_context.make_current(&surface).unwrap();
-		surface.set_swap_interval(&gl_context, SwapInterval::Wait(NonZeroU32::new(1).unwrap())).unwrap();
-
-		let gl_state = gl::Gl::load_with(|symbol| {
-			let symbol = std::ffi::CString::new(symbol).unwrap();
-			display.get_proc_address(symbol.as_c_str()).cast()
-		});
-
-		// Make sure sRGB handling is enabled by default.
-		unsafe {
-			gl_state.Enable(gl::FRAMEBUFFER_SRGB);
-		}
-
-		Ok(Host {
-			event_loop,
-
-			window,
-
-			surface,
-			gl_context,
-
-			gl_state,
-		})
-	}
-
-	pub fn install_default_error_handler(&self) {
-		let gl = &self.gl_state;
-
-		unsafe {
-			gl.DebugMessageCallback(Some(default_gl_error_handler), std::ptr::null());
-			gl.Enable(gl::DEBUG_OUTPUT_SYNCHRONOUS);
-
-			// Disable performance messages
-			gl.DebugMessageControl(
-				gl::DONT_CARE,
-				gl::DEBUG_TYPE_PERFORMANCE,
-				gl::DONT_CARE,
-				0, std::ptr::null(),
-				gl::FALSE
-			);
-
-			// Disable medium and low portability messages
-			// Otherwise we get spammed about opengl es 3 portability which we don't care about.
-			gl.DebugMessageControl(
-				gl::DONT_CARE,
-				gl::DEBUG_TYPE_PORTABILITY,
-				gl::DEBUG_SEVERITY_MEDIUM,
-				0, std::ptr::null(),
-				gl::FALSE
-			);
-			gl.DebugMessageControl(
-				gl::DONT_CARE,
-				gl::DEBUG_TYPE_PORTABILITY,
-				gl::DEBUG_SEVERITY_LOW,
-				0, std::ptr::null(),
-				gl::FALSE
-			);
-
-			// Disable notification messages
-			gl.DebugMessageControl(
-				gl::DONT_CARE,
-				gl::DONT_CARE,
-				gl::DEBUG_SEVERITY_NOTIFICATION,
-				0, std::ptr::null(),
-				gl::FALSE
-			);
-
-			// Disable marker messages
-			gl.DebugMessageControl(
-				gl::DONT_CARE,
-				gl::DEBUG_TYPE_MARKER,
-				gl::DONT_CARE,
-				0, std::ptr::null(),
-				gl::FALSE
-			);
-		}
-	}
-}
-
-
-extern "system" fn default_gl_error_handler(source: u32, ty: u32, msg_id: u32, severity: u32,
-	length: i32, msg: *const i8, _ud: *mut std::ffi::c_void)
+pub fn start<F, H>(settings: Settings<'_>, start_hostee: F) -> anyhow::Result<()>
+	where F: FnOnce(&Host) -> anyhow::Result<H>
+		, H: HostedApp + 'static
 {
-	let severity_str = match severity {
-		gl::DEBUG_SEVERITY_HIGH => "high",
-		gl::DEBUG_SEVERITY_MEDIUM => "medium",
-		gl::DEBUG_SEVERITY_LOW => "low",
-		gl::DEBUG_SEVERITY_NOTIFICATION => return,
-		_ => panic!("Unknown severity {}", severity),
+	let event_loop = EventLoop::new()?;
+
+	let window_attributes = Window::default_attributes()
+		.with_title(settings.initial_title)
+		.with_transparent(settings.transparent)
+		.with_decorations(!settings.no_decorations)
+		.with_resizable(true)
+		.with_visible(false);
+	
+	let gl_config_template = ConfigTemplateBuilder::new()
+		.with_api(Api::OPENGL)
+		.with_stencil_size(8) // TODO(pat.m): don't rely on default backbuffer
+		.with_transparency(settings.transparent);
+
+	let gl_context_attributes = ContextAttributesBuilder::new()
+		.with_debug(true)
+		.with_profile(GlProfile::Core)
+		.with_robustness(Robustness::RobustLoseContextOnReset)
+		.with_context_api(ContextApi::OpenGl(Some(Version::new(4, 5))));
+
+
+	let bootstrap_state = BootstrapState {
+		window_attributes,
+		gl_config_template,
+		gl_context_attributes,
 	};
 
-	let ty_str = match ty {
-		gl::DEBUG_TYPE_ERROR => "error",
-		gl::DEBUG_TYPE_DEPRECATED_BEHAVIOR => "deprecated behaviour",
-		gl::DEBUG_TYPE_UNDEFINED_BEHAVIOR => "undefined behaviour",
-		gl::DEBUG_TYPE_PORTABILITY => "portability",
-		gl::DEBUG_TYPE_PERFORMANCE => "performance",
-		gl::DEBUG_TYPE_OTHER => "other",
-		_ => panic!("Unknown type {}", ty),
-	};
+	let mut app_host = ApplicationHost::Bootstrap(bootstrap_state, start_hostee);
 
-	let source = match source {
-		gl::DEBUG_SOURCE_API => "api",
-		gl::DEBUG_SOURCE_WINDOW_SYSTEM => "window system",
-		gl::DEBUG_SOURCE_SHADER_COMPILER => "shader compiler",
-		gl::DEBUG_SOURCE_THIRD_PARTY => "third party",
-		gl::DEBUG_SOURCE_APPLICATION => "application",
-		gl::DEBUG_SOURCE_OTHER => "other",
-		_ => panic!("Unknown source {}", source),
-	};
+	event_loop.run_app(&mut app_host)?;
 
-	eprintln!("GL ERROR!");
-	eprintln!("Source:   {source}");
-	eprintln!("Severity: {severity_str}");
-	eprintln!("Type:     {ty_str}");
-	eprintln!("Id:       {msg_id}");
+	Ok(())
+}
 
-	unsafe {
-		let msg_slice = std::slice::from_raw_parts(msg.cast(), length as usize);
-		let msg_utf8 = String::from_utf8_lossy(msg_slice);
-		eprintln!("Message: {}", msg_utf8);
+
+
+#[derive(Default)]
+enum ApplicationHost<F, H> {
+	#[default]
+	Empty,
+	Bootstrap(BootstrapState, F),
+	Hosting(Host, H),
+}
+
+impl<F, H> ApplicationHandler for ApplicationHost<F, H>
+	where F: FnOnce(&Host) -> anyhow::Result<H>
+		, H: HostedApp + 'static
+{
+	fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+		let ApplicationHost::Bootstrap(state, start_hostee) = std::mem::take(self) else { return };
+
+		let host = state.bootstrap(event_loop).expect("Failed to bootstrap application");
+
+		// Enable vsync
+		host.set_vsync(true);
+
+		let mut hosted_app = start_hostee(&host)
+			.expect("Failed to start hosted app");
+
+		hosted_app.draw(event_loop);
+		host.swap();
+
+		host.window.set_visible(true);
+
+		*self = ApplicationHost::Hosting(host, hosted_app);
 	}
 
-	match (severity, ty) {
-		(_, gl::DEBUG_TYPE_PORTABILITY | gl::DEBUG_TYPE_PERFORMANCE | gl::DEBUG_TYPE_OTHER) => {}
-		(gl::DEBUG_SEVERITY_HIGH | gl::DEBUG_SEVERITY_MEDIUM, _) => panic!("GL ERROR!"),
-		_ => {}
+	fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
+		if let ApplicationHost::Hosting(_, hosted_app) = self {
+			hosted_app.new_events(event_loop, cause);
+		}
 	}
+
+	fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
+		let ApplicationHost::Hosting(host, hosted_app) = self else {
+			return
+		};
+
+		if window_id != host.window.id() {
+			// TODO(pat.m): manage child windows
+			return
+		}
+
+		match event {
+			WindowEvent::RedrawRequested => {
+				hosted_app.draw(event_loop);
+				host.swap();
+			}
+
+			event @ WindowEvent::Resized(physical_size) => {
+				host.resize(physical_size.width, physical_size.height);
+				hosted_app.window_event(event_loop, event);
+			}
+
+			event => {
+				hosted_app.window_event(event_loop, event);
+			}
+		}
+	}
+
+	fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
+		if let ApplicationHost::Hosting(_, hosted_app) = self {
+			hosted_app.device_event(event_loop, device_id, event);
+		}
+	}
+
+	fn exiting(&mut self, event_loop: &ActiveEventLoop) {
+		if let ApplicationHost::Hosting(_, hosted_app) = self {
+			hosted_app.shutdown(event_loop);
+			return
+		}
+	}
+}
+
+
+pub trait HostedApp {
+	fn new_events(&mut self, _: &ActiveEventLoop, _: StartCause) {}
+
+	fn window_event(&mut self, _: &ActiveEventLoop, _: WindowEvent) {}
+	fn device_event(&mut self, _: &ActiveEventLoop, _: DeviceId, _: DeviceEvent) {}
+
+	fn draw(&mut self, _: &ActiveEventLoop) {}
+
+	fn shutdown(&mut self, _: &ActiveEventLoop) {}
 }
 
 
@@ -278,5 +199,141 @@ impl<'title> Settings<'title> {
 	pub fn no_decorations(mut self) -> Self {
 		self.no_decorations = true;
 		self
+	}
+}
+
+
+
+
+struct BootstrapState {
+	window_attributes: WindowAttributes,
+
+	gl_config_template: ConfigTemplateBuilder,
+	gl_context_attributes: ContextAttributesBuilder,
+}
+
+impl BootstrapState {
+	fn bootstrap(mut self, event_loop: &ActiveEventLoop) -> anyhow::Result<Host> {
+		// Try to fit window to monitor
+		if let Some(monitor) = event_loop.primary_monitor() {
+			let PhysicalPosition{x, y} = monitor.position();
+			let PhysicalSize{width, height} = monitor.size();
+
+			self.window_attributes = self.window_attributes.with_inner_size(PhysicalSize{
+				width: width.checked_sub(100).unwrap_or(width),
+				height: height.checked_sub(100).unwrap_or(height),
+			});
+
+			self.window_attributes = self.window_attributes.with_position(PhysicalPosition{
+				x: x + 50,
+				y: y + 30, // Fudged for window decorations lol
+			});
+		}
+
+		// Try to create our window and a config that describes a context we can create
+		let (maybe_window, gl_config) = DisplayBuilder::new()
+			.with_window_attributes(Some(self.window_attributes.clone()))
+			.build(event_loop, self.gl_config_template, |configs| {
+				for config in configs {
+					// We require an sRGB capable backbuffer
+					if !config.srgb_capable() { continue }
+					return config;
+				}
+
+				panic!("No suitable config");
+			})
+			.map_err(|e| anyhow::format_err!("Failed to find suitable surface config: {e}"))?;
+
+		let maybe_raw_window_handle = maybe_window
+			.as_ref()
+			.and_then(|window| window.window_handle().ok())
+			.map(|handle| handle.as_raw());
+
+		let gl_context_attributes = self.gl_context_attributes.build(maybe_raw_window_handle);
+		let gl_display = gl_config.display();
+
+		// Create our context
+		let non_current_gl_context = unsafe {
+			gl_display.create_context(&gl_config, &gl_context_attributes)?
+		};
+
+		// Create our window for real if not already
+		let window = match maybe_window {
+			Some(window) => window,
+			None => glutin_winit::finalize_window(event_loop, self.window_attributes.clone(), &gl_config)?,
+		};
+
+		let window = Rc::new(window);
+
+		// Create a surface
+		let (width, height): (u32, u32) = window.inner_size().into();
+		let surface_attributes = glutin::surface::SurfaceAttributesBuilder::<WindowSurface>::new()
+			.with_srgb(Some(true))
+			.build(
+				window.window_handle()?.as_raw(),
+				NonZeroU32::new(width).unwrap(),
+				NonZeroU32::new(height).unwrap(),
+			);
+
+		let gl_surface = unsafe {
+			gl_display.create_window_surface(&gl_config, &surface_attributes)?
+		};
+
+		// Finally make our context current
+		let gl_context = non_current_gl_context.make_current(&gl_surface)?;
+
+		let gl = gl::Gl::load_with(|symbol| {
+			let symbol = std::ffi::CString::new(symbol).unwrap();
+			gl_display.get_proc_address(symbol.as_c_str()).cast()
+		});
+
+		Ok(Host {
+			context: gl_context,
+			gl,
+
+			window,
+			surface: gl_surface,
+
+			config: gl_config,
+			window_attributes: self.window_attributes,
+		})
+	}
+}
+
+
+pub struct Host {
+	pub context: glutin::context::PossiblyCurrentContext,
+	pub gl: gl::Gl,
+
+	pub config: glutin::config::Config,
+	pub window_attributes: WindowAttributes,
+
+	pub window: Rc<Window>,
+	pub surface: glutin::surface::Surface<WindowSurface>,
+}
+
+impl Host {
+	pub fn set_vsync(&self, enabled: bool) {
+		let interval = match enabled {
+			false => SwapInterval::DontWait,
+			true => SwapInterval::Wait(NonZeroU32::new(1).unwrap()),
+		};
+
+		if let Err(error) = self.surface.set_swap_interval(&self.context, interval) {
+			eprintln!("Failed to set swap interval: {error}");
+		}
+	}
+
+	pub fn swap(&self) {
+		if let Err(error) = self.surface.swap_buffers(&self.context) {
+			// TODO(pat.m): possibly try to recreate surface if lost
+			panic!("Failed to swap: {error}");
+		}
+	}
+
+	pub fn resize(&self, width: u32, height: u32) {
+		if let Some((width, height)) = NonZeroU32::new(width).zip(NonZeroU32::new(height)) {
+			self.surface.resize(&self.context, width, height);
+		}
 	}
 }
