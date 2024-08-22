@@ -36,6 +36,8 @@ pub fn run_with_settings<F, A>(settings: host::Settings<'_>, start_app: F) -> an
 		let resource_root_path = resources::find_resource_folder()
 			.context("Can't find resource directory")?;
 
+		log::info!("Resource Root Path: {}", resource_root_path.display());
+
 		let winit::dpi::PhysicalSize{width, height} = host.window.inner_size().cast::<i32>();
 		let backbuffer_size = Vec2i::new(width, height);
 

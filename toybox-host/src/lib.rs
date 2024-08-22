@@ -47,6 +47,17 @@ pub fn start<F, H>(settings: Settings<'_>, start_hostee: F) -> anyhow::Result<()
 	where F: FnOnce(&Host) -> anyhow::Result<H>
 		, H: HostedApp + 'static
 {
+	let mut log_builder = env_logger::builder();
+	log_builder.parse_default_env();
+	log_builder.format_timestamp_millis();
+	log_builder.format_indent(None);
+
+	if cfg!(debug_assertions) {
+		log_builder.filter_level(log::LevelFilter::Debug);
+	}
+
+	log_builder.init();
+
 	let event_loop = EventLoop::new()?;
 
 	let window_attributes = Window::default_attributes()
@@ -97,6 +108,8 @@ impl<F, H> ApplicationHandler for ApplicationHost<F, H>
 {
 	fn resumed(&mut self, event_loop: &ActiveEventLoop) {
 		let ApplicationHost::Bootstrap(state, start_hostee) = std::mem::take(self) else { return };
+
+		log::trace!("Bootstrapping ApplicationHost");
 
 		let host = state.bootstrap(event_loop).expect("Failed to bootstrap application");
 
@@ -257,6 +270,8 @@ impl BootstrapState {
 			})
 			.map_err(|e| anyhow::format_err!("Failed to find suitable surface config: {e}"))?;
 
+		log::info!("Display built with config: {gl_config:?}");
+
 		let maybe_raw_window_handle = maybe_window
 			.as_ref()
 			.and_then(|window| window.window_handle().ok())
@@ -269,6 +284,8 @@ impl BootstrapState {
 		let non_current_gl_context = unsafe {
 			gl_display.create_context(&gl_config, &gl_context_attributes)?
 		};
+
+		log::info!("Context created with {gl_context_attributes:?}");
 
 		// Create our window for real if not already
 		let window = match maybe_window {
@@ -333,7 +350,7 @@ impl Host {
 		};
 
 		if let Err(error) = self.surface.set_swap_interval(&self.context, interval) {
-			eprintln!("Failed to set swap interval: {error}");
+			log::warn!("Failed to set swap interval: {error}");
 		}
 	}
 

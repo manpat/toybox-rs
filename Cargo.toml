@@ -36,6 +36,7 @@ cint = "0.3"
 
 tracing = "0.1"
 
+log = "0.4"
 
 [workspace.dependencies.egui]
 # Specific commit so we can us winit 0.30.5

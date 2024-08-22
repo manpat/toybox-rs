@@ -53,11 +53,21 @@ pub struct Core {
 }
 
 impl Core {
-	pub fn new(gl: gl::Gl)
-		-> Core
-	{
+	pub fn new(gl: gl::Gl) -> Core {
 		let capabilities = Capabilities::from(&gl);
 		let global_vao_name = Self::create_and_bind_global_vao(&gl);
+
+		let get_string = |name| unsafe {
+			std::ffi::CStr::from_ptr(gl.GetString(name).cast())
+				.to_string_lossy()
+		};
+
+		log::info!("OpenGL Vendor: {}", get_string(gl::VENDOR));
+		log::info!("OpenGL Renderer: {}", get_string(gl::RENDERER));
+		log::info!("OpenGL Version: {}", get_string(gl::VERSION));
+		log::info!("GLSL Version: {}", get_string(gl::SHADING_LANGUAGE_VERSION));
+
+		log::info!("OpenGL {capabilities:#?}");
 
 		Core {
 			gl,

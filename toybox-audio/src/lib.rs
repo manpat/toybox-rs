@@ -12,20 +12,20 @@ pub mod prelude {
 pub fn init() -> anyhow::Result<System> {
 	let host = cpal::default_host();
 
-	if false {
-		println!("vvvvvvv Available audio devices vvvvvvvv");
+	if true {
+		log::trace!("vvvvvvv Available audio devices vvvvvvvv");
 
 		for device in host.output_devices()? {
-			println!("   => {}", device.name()?);
-			println!("      => default output config: {:?}", device.default_output_config()?);
-			println!("      => supported configs:");
+			log::trace!("   => {}", device.name()?);
+			log::trace!("      => default output config: {:?}", device.default_output_config()?);
+			log::trace!("      => supported configs:");
 			for config in device.supported_output_configs()? {
-				println!("         => {config:?}");
+				log::trace!("         => {config:?}");
 			}
-			println!();
+			log::trace!("");
 		}
 
-		println!("^^^^^^ Available audio devices ^^^^^^^");
+		log::trace!("^^^^^^ Available audio devices ^^^^^^^");
 	}
 
 	let shared = Arc::new(SharedState {
@@ -121,6 +121,8 @@ struct SharedState {
 fn build_output_stream(host: &cpal::Host, shared: &Arc<SharedState>) -> anyhow::Result<(cpal::Stream, Configuration)> {
 	let device = host.default_output_device().expect("no output device available");
 
+	log::info!("Selected audio device: {}", device.name().unwrap_or_else(|_| String::from("<no name>")));
+
 	let supported_configs_range = device.supported_output_configs()
 		.expect("error while querying configs");
 
@@ -134,9 +136,9 @@ fn build_output_stream(host: &cpal::Host, shared: &Arc<SharedState>) -> anyhow::
 	let supported_config = supported_config
 		.with_sample_rate(cpal::SampleRate(desired_sample_rate));
 
-	dbg!(&supported_config);
-
 	let config = supported_config.into();
+
+	log::info!("Selected audio device config: {config:#?}");
 
 	let stream = device.build_output_stream(
 		&config,
@@ -157,7 +159,7 @@ fn build_output_stream(host: &cpal::Host, shared: &Arc<SharedState>) -> anyhow::
 
 			move |err| {
 				// react to errors here.
-				println!("audio device error! {err}");
+				log::warn!("audio device lost! {err}");
 				shared.device_lost.store(true, Ordering::Relaxed);
 			}
 		},

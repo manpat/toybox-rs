@@ -21,6 +21,7 @@ mint.workspace = true
 cint.workspace = true
 
 anyhow.workspace = true
+log.workspace = true
 
 # bitflags = "1.2"
 # slotmap = "1.0"

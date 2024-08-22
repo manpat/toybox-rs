@@ -42,7 +42,9 @@ impl Config {
 
 		// TODO(pat.m): resolve
 
-		Ok(dbg!(config))
+		log::info!("Loaded config: {config:?}");
+
+		Ok(config)
 	}
 
 	pub fn save(&self) -> anyhow::Result<()> {
