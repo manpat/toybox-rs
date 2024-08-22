@@ -1,20 +1,18 @@
 [workspace]
+resolver = "2"
 members = [
 	"toybox", "toybox-host", "toybox-gfx",
 	"toybox-audio", "toybox-input", "toybox-egui", "toybox-cfg", "gl"
 ]
-resolver = "2"
+
 
 [workspace.dependencies]
 anyhow = "1.0"
 
-winit = "0.30"
+winit = "0.30.5"
 glutin = "0.32"
 glutin-winit = "0.5"
 raw-window-handle = "0.6"
-
-egui = { version = "0.28", default-features=true, features=["cint", "mint"] }
-egui-winit = "0.28"
 
 common = { git = "https://github.com/manpat/common-rs.git", version = ">=0.4.1", features=["interop", "serde"] }
 toy = { git = "https://github.com/manpat/toy-rs.git" }
@@ -25,9 +23,25 @@ toybox-audio = { path = "toybox-audio" }
 toybox-input = { path = "toybox-input" }
 toybox-egui = { path = "toybox-egui" }
 toybox-cfg = { path = "toybox-cfg" }
+
 gl = { path = "gl" }
 
 mint = "0.5"
 cint = "0.3"
 
 tracing = "0.1"
+
+
+[workspace.dependencies.egui]
+# Specific commit so we can us winit 0.30.5
+git = "https://github.com/emilk/egui.git"
+rev = "1f6ae49a5f6bf43a869c215dea0d3028be8d742a"
+# version = "0.28.1"
+default-features=true
+features=["cint", "mint"]
+
+[workspace.dependencies.egui-winit]
+# Specific commit so we can us winit 0.30.5
+git = "https://github.com/emilk/egui.git"
+rev = "1f6ae49a5f6bf43a869c215dea0d3028be8d742a"
+# version = "0.28.1"

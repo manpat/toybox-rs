@@ -7,12 +7,14 @@ use std::rc::Rc;
 
 pub mod debug;
 pub mod tracker;
+pub mod keys;
 
 pub mod prelude {}
 
 pub use tracker::*;
 pub use winit::event::{MouseButton};
 pub use winit::keyboard::{Key as LogicalKey, NamedKey as LogicalNamedKey, KeyCode as PhysicalKey};
+
 
 pub struct System {
 	pub tracker: Tracker,

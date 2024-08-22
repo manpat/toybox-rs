@@ -4,6 +4,7 @@ version = "0.4.0"
 authors = ["Patrick Monaghan <0x5f.manpat@gmail.com>"]
 edition = "2021"
 
+
 [dependencies]
 toybox-host.workspace = true
 toybox-gfx.workspace = true

@@ -5,10 +5,10 @@ edition = "2021"
 
 [dependencies]
 anyhow.workspace = true
-bumpalo = "3.12.1"
-
 common.workspace = true
 toybox-host.workspace = true
+
+bumpalo = "3.12.1"
 
 [dependencies.image]
 version = "0.24"

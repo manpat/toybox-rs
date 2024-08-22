@@ -36,16 +36,21 @@ pub fn run_with_settings<F, A>(settings: host::Settings<'_>, start_app: F) -> an
 		let resource_root_path = resources::find_resource_folder()
 			.context("Can't find resource directory")?;
 
+		let winit::dpi::PhysicalSize{width, height} = host.window.inner_size().cast::<i32>();
+		let backbuffer_size = Vec2i::new(width, height);
+
 		let mut gfx = {
-			let core = gfx::Core::new(host.surface, host.context, host.gl);
+			let core = gfx::Core::new(host.gl.clone());
 			gfx::System::new(core, &resource_root_path)?
 		};
 
+		gfx.resize(backbuffer_size);
+
 		let audio = audio::init()?;
-		let input = input::System::new(window.clone());
+		let input = input::System::new(host.window.clone());
 
 		let egui = egui::Context::default();
-		let egui_integration = egui_backend::Integration::new(egui.clone(), window.clone(), &mut gfx)?;
+		let egui_integration = egui_backend::Integration::new(egui.clone(), host.window.clone(), &mut gfx)?;
 
 		let cfg = cfg::Config::for_app_name(app_name)?;
 
@@ -65,9 +70,7 @@ pub fn run_with_settings<F, A>(settings: host::Settings<'_>, start_app: F) -> an
 			wants_quit: false,
 		};
 
-		let mut app = start_app(&mut context)?;
-
-		let mut debug_menu_state = debug::MenuState::default();
+		let app = start_app(&mut context)?;
 
 		Ok(HostedApp {
 			context,
@@ -89,21 +92,17 @@ struct HostedApp<A: App> {
 
 
 impl<A: App> host::HostedApp for HostedApp<A> {
-	fn new_events(&mut self, _: &host::ActiveEventLoop, _: host::StartCause) {
-		self.context.prepare_frame();
-	}
-
 	fn window_event(&mut self, _: &host::ActiveEventLoop, event: host::WindowEvent) {
-		if self.context.egui_integration.on_event(event) {
+		if self.context.egui_integration.on_event(&event) {
 			return
 		}
 
 		match event {
-			WindowEvent::CloseRequested => {
+			host::WindowEvent::CloseRequested => {
 				self.context.wants_quit = true;
 			}
 
-			WindowEvent::Resized(physical_size) => {
+			host::WindowEvent::Resized(physical_size) => {
 				let new_size = Vec2i::new(physical_size.width as i32, physical_size.height as i32);
 				self.context.notify_resized(new_size);
 				// self.app.resize(new_size);
@@ -130,6 +129,8 @@ impl<A: App> host::HostedApp for HostedApp<A> {
 		if self.context.wants_quit {
 			event_loop.exit();
 		}
+
+		self.context.prepare_frame();
 	}
 
 	fn shutdown(&mut self, _: &host::ActiveEventLoop) {

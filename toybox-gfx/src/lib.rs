@@ -51,7 +51,7 @@ impl System {
 
 impl System {
 	pub fn new(mut core: core::Core, resource_root_path: &Path) -> anyhow::Result<System> {
-		core.enable_debugging();
+		core.register_debug_hook();
 
 		let resource_manager = resource_manager::ResourceManager::new(&mut core, resource_root_path)?;
 		let frame_encoder = frame_encoder::FrameEncoder::new(&mut core);
@@ -79,6 +79,8 @@ impl System {
 	}
 
 	pub fn start_frame(&mut self) {
+		self.core.set_debugging_enabled(true);
+
 		self.resource_manager.start_frame(&mut self.core);
 		self.frame_encoder.start_frame();
 	}
@@ -122,10 +124,13 @@ impl System {
 
         self.resource_manager.upload_heap.create_end_frame_fence(&mut self.core);
 
-		self.core.swap();
 		self.frame_encoder.end_frame();
-
         self.resource_manager.upload_heap.reset();
+
+		// HACK: For some reason capturing the app with discord (and I suspect other window capture apps)
+		// causes swap_buffers to emit GL_INVALID_ENUM on my machine, which panics ofc.
+		// So for now, we are just not emitting errors pls.
+		self.core.set_debugging_enabled(false);
 	}
 
 	fn resolve_named_bind_targets(&mut self) {

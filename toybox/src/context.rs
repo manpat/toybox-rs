@@ -42,12 +42,12 @@ impl Context {
 		self.input.process();
 		self.egui = self.egui_integration.start_frame();
 
-		if self.input.button_just_down(input::Key::F10) {
+		if self.input.button_just_down(input::keys::F10) {
 			self.show_debug_menu = !self.show_debug_menu;
 		}
 
-		if self.input.button_down(input::Key::LControl)
-			&& self.input.button_just_down(input::Key::Q)
+		if self.input.button_down(input::keys::Control)
+			&& self.input.button_just_down(input::keys::KeyQ)
 		{
 			self.wants_quit = true;
 		}

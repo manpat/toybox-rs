@@ -7,7 +7,7 @@ use std::rc::Rc;
 use winit::{
 	// event::{Event, WindowEvent, DeviceEvent, KeyboardInput, VirtualKeyCode},
 	application::ApplicationHandler,
-	event_loop::{EventLoop},
+	event_loop::{EventLoop, ControlFlow},
 	window::{WindowId, WindowAttributes},
 	dpi::{PhysicalPosition, PhysicalSize},
 };
@@ -106,14 +106,19 @@ impl<F, H> ApplicationHandler for ApplicationHost<F, H>
 		let mut hosted_app = start_hostee(&host)
 			.expect("Failed to start hosted app");
 
+		// Draw before making the window visisble
 		hosted_app.draw(event_loop);
+
+		host.window.pre_present_notify();
 		host.swap();
 
 		host.window.set_visible(true);
+		host.window.request_redraw();
 
 		*self = ApplicationHost::Hosting(host, hosted_app);
 	}
 
+	// TODO(pat.m): is this even useful?
 	fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
 		if let ApplicationHost::Hosting(_, hosted_app) = self {
 			hosted_app.new_events(event_loop, cause);
@@ -133,6 +138,8 @@ impl<F, H> ApplicationHandler for ApplicationHost<F, H>
 		match event {
 			WindowEvent::RedrawRequested => {
 				hosted_app.draw(event_loop);
+
+				host.window.pre_present_notify();
 				host.swap();
 			}
 
@@ -150,6 +157,12 @@ impl<F, H> ApplicationHandler for ApplicationHost<F, H>
 	fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
 		if let ApplicationHost::Hosting(_, hosted_app) = self {
 			hosted_app.device_event(event_loop, device_id, event);
+		}
+	}
+
+	fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+		if let ApplicationHost::Hosting(host, _) = self {
+			host.window.request_redraw();
 		}
 	}
 

@@ -32,11 +32,14 @@ pub struct Integration {
 
 impl Integration {
 	pub fn new(ctx: egui::Context, window: Rc<Window>, gfx: &mut gfx::System) -> anyhow::Result<Integration> {
+		let theme = None;
+
 		let state = egui_winit::State::new(
 			ctx.clone(),
 			egui::ViewportId::ROOT,
 			&*window,
 			Some(window.scale_factor() as f32),
+			theme,
 			Some(gfx.core.capabilities().max_texture_size)
 		);
 

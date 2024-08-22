@@ -28,8 +28,6 @@ use std::collections::HashMap;
 
 
 pub struct Core {
-	surface: host::Surface,
-	gl_context: host::GlContext,
 	pub gl: gl::Gl,
 	capabilities: Capabilities,
 
@@ -55,15 +53,13 @@ pub struct Core {
 }
 
 impl Core {
-	pub fn new(surface: host::Surface, gl_context: host::GlContext, gl: gl::Gl)
+	pub fn new(gl: gl::Gl)
 		-> Core
 	{
 		let capabilities = Capabilities::from(&gl);
 		let global_vao_name = Self::create_and_bind_global_vao(&gl);
 
 		Core {
-			surface,
-			gl_context,
 			gl,
 			capabilities,
 
@@ -94,23 +90,6 @@ impl Core {
 
 	pub fn barrier_tracker(&self) -> RefMut<'_, barrier::BarrierTracker> {
 		self.barrier_tracker.borrow_mut()
-	}
-
-	pub fn swap(&mut self) {
-		// HACK: For some reason capturing the app with discord (and I suspect other window capture apps)
-		// causes swap_buffers to emit GL_INVALID_ENUM on my machine, which panics ofc.
-		// So for now, we are just not emitting errors pls.
-		unsafe {
-			self.gl.Disable(gl::DEBUG_OUTPUT_SYNCHRONOUS);
-		}
-
-		if let Err(error) = self.surface.swap_buffers(&self.gl_context) {
-			println!("Failed to swap!\n{error}");
-		}
-
-		unsafe {
-			self.gl.Enable(gl::DEBUG_OUTPUT_SYNCHRONOUS);
-		}
 	}
 
 	pub fn backbuffer_size(&self) -> Vec2i {
@@ -162,10 +141,18 @@ impl Core {
 		}
 	}
 
-	pub fn enable_debugging(&self) {
+	pub fn set_debugging_enabled(&self, enabled: bool) {
+		unsafe {
+			match enabled {
+				true => self.gl.Enable(gl::DEBUG_OUTPUT_SYNCHRONOUS),
+				false => self.gl.Disable(gl::DEBUG_OUTPUT_SYNCHRONOUS),
+			}
+		}
+	}
+
+	pub fn register_debug_hook(&self) {
 		unsafe {
 			self.gl.DebugMessageCallback(Some(default_gl_error_handler), std::ptr::null());
-			self.gl.Enable(gl::DEBUG_OUTPUT_SYNCHRONOUS);
 
 			// Disable performance messages
 			self.gl.DebugMessageControl(
