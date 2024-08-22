@@ -8,4 +8,4 @@ edition = "2021"
 [dependencies]
 dirs = "5.0.1"
 toml = "0.8.10"
-anyhow = "1.0"
+anyhow.workspace = true

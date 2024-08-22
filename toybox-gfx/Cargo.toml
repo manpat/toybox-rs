@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0"
+anyhow.workspace = true
 bumpalo = "3.12.1"
 
-common = { git = "https://github.com/manpat/common-rs.git", version = ">=0.4", features=["interop"] }
-toybox-host = { path = "../toybox-host" }
+common.workspace = true
+toybox-host.workspace = true
 
 [dependencies.image]
 version = "0.24"

@@ -4,3 +4,30 @@ members = [
 	"toybox-audio", "toybox-input", "toybox-egui", "toybox-cfg", "gl"
 ]
 resolver = "2"
+
+[workspace.dependencies]
+anyhow = "1.0"
+
+winit = "0.30"
+glutin = "0.32"
+glutin-winit = "0.5"
+raw-window-handle = "0.6"
+
+egui = { version = "0.28", default-features=true, features=["cint", "mint"] }
+egui-winit = "0.28"
+
+common = { git = "https://github.com/manpat/common-rs.git", version = ">=0.4.1", features=["interop", "serde"] }
+toy = { git = "https://github.com/manpat/toy-rs.git" }
+
+toybox-host = { path = "toybox-host" }
+toybox-gfx = { path = "toybox-gfx" }
+toybox-audio = { path = "toybox-audio" }
+toybox-input = { path = "toybox-input" }
+toybox-egui = { path = "toybox-egui" }
+toybox-cfg = { path = "toybox-cfg" }
+gl = { path = "gl" }
+
+mint = "0.5"
+cint = "0.3"
+
+tracing = "0.1"

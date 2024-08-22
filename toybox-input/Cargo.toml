@@ -4,10 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-winit = "0.28"
+winit.workspace = true
 # gilrs = "0.10.2"
 
-# TODO(pat.m): make this an optional feature, and conditionally opt in in toybox crate
-egui = { version = "0.22", default-features=true }
+egui.workspace = true
 
-common = { git = "https://github.com/manpat/common-rs.git", version = ">=0.3" }
+common.workspace = true

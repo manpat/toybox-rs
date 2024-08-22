@@ -6,11 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0"
-winit = "0.28"
-glutin = "0.30"
-glutin-winit = "0.3"
-raw-window-handle = "0.5.0"
+anyhow.workspace = true
+winit.workspace = true
+glutin.workspace = true
+glutin-winit.workspace = true
+raw-window-handle.workspace = true
 
-common = { git = "https://github.com/manpat/common-rs.git", version = ">=0.3" }
-gl = { path = "../gl" }
+common.workspace = true
+gl.workspace = true

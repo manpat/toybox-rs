@@ -5,21 +5,21 @@ authors = ["Patrick Monaghan <0x5f.manpat@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-toybox-host = { path = "../toybox-host" }
-toybox-gfx = { path = "../toybox-gfx" }
-toybox-audio = { path = "../toybox-audio" }
-toybox-input = { path = "../toybox-input" }
-toybox-egui = { path = "../toybox-egui" }
-toybox-cfg = { path = "../toybox-cfg" }
+toybox-host.workspace = true
+toybox-gfx.workspace = true
+toybox-audio.workspace = true
+toybox-input.workspace = true
+toybox-egui.workspace = true
+toybox-cfg.workspace = true
 
 
-common = { git = "https://github.com/manpat/common-rs.git", version = ">=0.4.1", features=["serde", "interop"] }
-toy = { git = "https://github.com/manpat/toy-rs.git" }
+common.workspace = true
+toy.workspace = true
 
-mint = { version = "0.5" }
-cint = { version = "0.3" }
+mint.workspace = true
+cint.workspace = true
 
-anyhow = "1.0"
+anyhow.workspace = true
 
 # bitflags = "1.2"
 # slotmap = "1.0"
@@ -34,7 +34,7 @@ anyhow = "1.0"
 
 # symphonia = "0.4"
 
-tracing = "0.1"
+tracing.workspace = true
 tracing-subscriber = "0.3"
 tracing-tracy = { version = "0.8", optional = true }
 
