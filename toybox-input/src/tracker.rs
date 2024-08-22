@@ -1,5 +1,5 @@
-use winit::event::{VirtualKeyCode, MouseButton};
 use common::math::*;
+use crate::*;
 
 
 #[derive(Default)]
@@ -44,12 +44,12 @@ impl Tracker {
 
 		if down {
 			if !self.active_buttons.contains(&button) {
-				self.down_buttons.push(button);
+				self.down_buttons.push(button.clone());
 				self.active_buttons.push(button);
 			}
 		} else {
-			self.up_buttons.push(button);
 			self.active_buttons.retain(|active_button| *active_button != button);
+			self.up_buttons.push(button);
 		}
 	}
 
@@ -57,7 +57,7 @@ impl Tracker {
 		self.physical_mouse_position = Some(pos);
 	}
 
-	pub fn track_mouse_move(&mut self, mut delta: Vec2) {
+	pub fn track_mouse_move(&mut self, delta: Vec2) {
 		*self.mouse_delta.get_or_insert_with(Vec2::zero) += delta;
 	}
 
@@ -76,15 +76,34 @@ impl Tracker {
 }
 
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Button {
-	Key(VirtualKeyCode),
+	LogicalKey(LogicalKey),
+	PhysicalKey(winit::keyboard::PhysicalKey),
 	Mouse(MouseButton),
 }
 
-impl From<VirtualKeyCode> for Button {
-	fn from(o: VirtualKeyCode) -> Button {
-		Button::Key(o)
+impl From<LogicalKey> for Button {
+	fn from(o: LogicalKey) -> Button {
+		Button::LogicalKey(o)
+	} 
+}
+
+impl From<LogicalNamedKey> for Button {
+	fn from(o: LogicalNamedKey) -> Button {
+		Button::LogicalKey(LogicalKey::Named(o))
+	} 
+}
+
+impl From<winit::keyboard::PhysicalKey> for Button {
+	fn from(o: winit::keyboard::PhysicalKey) -> Button {
+		Button::PhysicalKey(o)
+	} 
+}
+
+impl From<PhysicalKey> for Button {
+	fn from(o: PhysicalKey) -> Button {
+		Button::PhysicalKey(o.into())
 	} 
 }
 

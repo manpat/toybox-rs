@@ -11,7 +11,8 @@ pub mod tracker;
 pub mod prelude {}
 
 pub use tracker::*;
-pub use winit::event::{VirtualKeyCode as Key, MouseButton};
+pub use winit::event::{MouseButton};
+pub use winit::keyboard::{Key as LogicalKey, NamedKey as LogicalNamedKey, KeyCode as PhysicalKey};
 
 pub struct System {
 	pub tracker: Tracker,
@@ -113,14 +114,20 @@ impl System {
 		self.window_size = new_size;
 	}
 
-	pub fn on_window_event(&mut self, event: &WindowEvent<'_>) {
+	pub fn on_window_event(&mut self, event: &WindowEvent) {
+		use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
+
 		match event {
-			WindowEvent::KeyboardInput{ input: KeyboardInput{ virtual_keycode: Some(key), state, .. }, .. } => {
-				self.tracker.track_button(*key, *state == ElementState::Pressed);
+			WindowEvent::KeyboardInput{ event: event @ KeyEvent{ physical_key, state, .. }, .. } => {
+				// Track logical key
+				self.tracker.track_button(event.key_without_modifiers(), *state == ElementState::Pressed);
+
+				// Track physical key
+				self.tracker.track_button(*physical_key, *state == ElementState::Pressed);
 			}
 
 			WindowEvent::MouseInput{ button, state, .. } => {
-				self.tracker.track_button(*button, *state == ElementState::Pressed);
+				self.tracker.track_button(button.clone(), *state == ElementState::Pressed);
 			}
 
 			WindowEvent::CursorMoved{ position, .. } => {

@@ -22,8 +22,8 @@ pub fn tracker_ui(ui: &mut egui::Ui, input: &mut System) {
 	state.recently_down_buttons.retain(|(_, timer)| *timer > 0);
 	state.recently_up_buttons.retain(|(_, timer)| *timer > 0);
 
-	state.recently_down_buttons.extend(input.tracker.down_buttons.iter().map(|&button| (button, 30)));
-	state.recently_up_buttons.extend(input.tracker.up_buttons.iter().map(|&button| (button, 30)));
+	state.recently_down_buttons.extend(input.tracker.down_buttons.iter().map(|button| (button.clone(), 30)));
+	state.recently_up_buttons.extend(input.tracker.up_buttons.iter().map(|button| (button.clone(), 30)));
 
 	ui.horizontal(|ui| {
 		ui.label("Active Keys: ");
@@ -53,7 +53,7 @@ pub fn tracker_ui(ui: &mut egui::Ui, input: &mut System) {
 
 	ui.label("Press F9 to toggle mouse capture");
 
-	if input.button_just_down(Key::F9) {
+	if input.button_just_down(LogicalNamedKey::F9) {
 		state.wants_capture = !state.wants_capture;
 		input.set_capture_mouse(state.wants_capture);
 	}
