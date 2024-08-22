@@ -5,6 +5,11 @@ members = [
 	"toybox-audio", "toybox-input", "toybox-egui", "toybox-cfg", "gl"
 ]
 
+[workspace.package]
+version = "0.5.0"
+edition = "2021"
+authors = ["Patrick Monaghan <0x5f.manpat@gmail.com>"]
+
 
 [workspace.dependencies]
 anyhow = "1.0"
