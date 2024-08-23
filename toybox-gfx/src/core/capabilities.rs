@@ -15,6 +15,8 @@ pub struct Capabilities {
 	/// Guaranteed to be at least 1024
 	pub max_texture_size: usize,
 
+	pub max_samples: usize,
+
 	pub max_ubo_size: usize,
 }
 
@@ -25,6 +27,8 @@ impl Capabilities {
 		let mut max_user_clip_planes = 0;
 		let mut max_texture_size = 0;
 		let mut max_ubo_size = 0;
+
+		let min_max_samples;
 		let max_image_units;
 		
 		unsafe {
@@ -33,6 +37,22 @@ impl Capabilities {
 			gl.GetIntegerv(gl::SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT, &mut ssbo_bind_alignment);
 
 			gl.GetIntegerv(gl::MAX_CLIP_DISTANCES, &mut max_user_clip_planes);
+
+			let mut max_color_texture_samples = 0;
+			let mut max_depth_texture_samples = 0;
+			let mut max_framebuffer_samples = 0;
+			let mut max_samples = 0;
+			gl.GetIntegerv(gl::MAX_COLOR_TEXTURE_SAMPLES, &mut max_color_texture_samples);
+			gl.GetIntegerv(gl::MAX_DEPTH_TEXTURE_SAMPLES, &mut max_depth_texture_samples);
+			gl.GetIntegerv(gl::MAX_FRAMEBUFFER_SAMPLES, &mut max_framebuffer_samples);
+			gl.GetIntegerv(gl::MAX_SAMPLES, &mut max_samples);
+
+			// This is the guaranteed minimum for any multisample compatible texture format.
+			// It is overly conservative, but thats kinda fine.
+			min_max_samples = max_color_texture_samples
+				.min(max_depth_texture_samples)
+				.min(max_framebuffer_samples)
+				.min(max_samples);
 
 			let mut max_vertex_image_units = 0;
 			let mut max_fragment_image_units = 0;
@@ -58,6 +78,7 @@ impl Capabilities {
 			max_user_clip_planes: max_user_clip_planes as usize,
 			max_image_units: max_image_units as usize,
 			max_texture_size: max_texture_size as usize,
+			max_samples: min_max_samples as usize,
 			max_ubo_size: max_ubo_size as usize,
 		}
 	}

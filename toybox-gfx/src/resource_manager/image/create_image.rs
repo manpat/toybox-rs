@@ -18,6 +18,7 @@ impl CreateImageRequest {
 				format,
 				size: Vec3i::zero(),
 				levels: 1,
+				samples: 1,
 			},
 
 			resize_policy: ImageResizePolicy::MatchBackbuffer,
@@ -38,6 +39,7 @@ impl CreateImageRequest {
 				format,
 				size: size.extend(1),
 				levels: 1,
+				samples: 1,
 			},
 			
 			resize_policy: ImageResizePolicy::Fixed,
