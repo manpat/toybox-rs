@@ -29,7 +29,6 @@ pub mod prelude {
 	pub use common::math::*;
 }
 
-use std::path::Path;
 use prelude::*;
 
 
@@ -50,10 +49,10 @@ impl System {
 }
 
 impl System {
-	pub fn new(mut core: core::Core, resource_root_path: &Path) -> anyhow::Result<System> {
+	pub fn new(mut core: core::Core, vfs: &toybox_vfs::Vfs) -> anyhow::Result<System> {
 		core.register_debug_hook();
 
-		let resource_manager = resource_manager::ResourceManager::new(&mut core, resource_root_path)?;
+		let resource_manager = resource_manager::ResourceManager::new(&mut core, vfs)?;
 		let frame_encoder = frame_encoder::FrameEncoder::new(&mut core);
 		
 		unsafe {

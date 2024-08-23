@@ -7,8 +7,10 @@ edition.workspace = true
 [dependencies]
 anyhow.workspace = true
 common.workspace = true
-toybox-host.workspace = true
 log.workspace = true
+
+toybox-host.workspace = true
+toybox-vfs.workspace = true
 
 bumpalo = "3.12.1"
 

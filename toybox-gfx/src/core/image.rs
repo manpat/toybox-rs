@@ -48,7 +48,9 @@ impl super::Core {
 		let levels = image_info.levels as i32;
 		let size = image_info.size;
 		let format = image_info.format;
-		let samples = image_info.samples;
+
+		// TODO(pat.m): multisampled images
+		let _samples = image_info.samples;
 
 		unsafe {
 			self.gl.CreateTextures(image_info.image_type as u32, 1, &mut name);

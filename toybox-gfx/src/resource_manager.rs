@@ -1,5 +1,5 @@
 use crate::core;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::fmt::Debug;
 use std::hash::Hash;
 
@@ -30,7 +30,7 @@ pub use framebuffer::*;
 //  - cache of FBOs for render passes
 // Shader cache
 pub struct ResourceManager {
-	resource_root_path: PathBuf,
+	resource_root_path: Box<Path>,
 
 	load_shader_requests: ResourceRequestMap<LoadShaderRequest>,
 	compile_shader_requests: ResourceRequestMap<CompileShaderRequest>,
@@ -61,7 +61,7 @@ pub struct ResourceManager {
 }
 
 impl ResourceManager {
-	pub fn new(core: &mut core::Core, resource_root_path: &Path) -> anyhow::Result<ResourceManager> {
+	pub fn new(core: &mut core::Core, vfs: &toybox_vfs::Vfs) -> anyhow::Result<ResourceManager> {
 		let mut compile_shader_requests = ResourceRequestMap::new();
 		let mut shaders = ResourceStorage::<ShaderResource>::new();
 
@@ -109,7 +109,7 @@ impl ResourceManager {
 		};
 
 		Ok(ResourceManager {
-			resource_root_path: resource_root_path.to_owned(),
+			resource_root_path: vfs.resource_root().to_owned().into_boxed_path(),
 
 			load_shader_requests: ResourceRequestMap::new(),
 			compile_shader_requests,

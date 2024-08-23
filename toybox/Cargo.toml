@@ -12,6 +12,7 @@ toybox-audio.workspace = true
 toybox-input.workspace = true
 toybox-egui.workspace = true
 toybox-cfg.workspace = true
+toybox-vfs.workspace = true
 
 
 common.workspace = true
@@ -68,3 +69,4 @@ tracing-tracy = { version = "0.8", optional = true }
 
 [features]
 tracy = ["dep:tracing-tracy"]
+gamepad = ["toybox-input/gamepad"]

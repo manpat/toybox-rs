@@ -1,3 +1,4 @@
+
 pub use common::{self, rand, math::*};
 pub use rand::prelude::*;
 
@@ -9,12 +10,14 @@ pub use toybox_cfg as cfg;
 pub use toybox_audio as audio;
 pub use toybox_input as input;
 pub use toybox_egui as egui_backend;
+pub use toybox_vfs as vfs;
 
 pub use host::prelude::*;
 pub use gfx::prelude::*;
-pub use cfg::prelude::*;
 pub use audio::prelude::*;
-pub use input::prelude::*;
+#[allow(unused_imports)] pub use cfg::prelude::*;
+#[allow(unused_imports)] pub use vfs::prelude::*;
+#[allow(unused_imports)] pub use input::prelude::*;
 pub use egui_backend::prelude::*;
 
 

@@ -1,5 +1,5 @@
 #![doc = include_str!("../README.md")]
-#![feature(let_chains)]
+// #![feature(let_chains)]
 
 pub mod prelude;
 pub use crate::prelude::*;
@@ -8,7 +8,6 @@ pub mod context;
 pub use context::Context;
 
 mod debug;
-mod resources;
 
 
 pub trait App {
@@ -33,17 +32,18 @@ pub fn run_with_settings<F, A>(settings: host::Settings<'_>, start_app: F) -> an
 
 	host::start(settings, move |host| {
 		use anyhow::Context;
-		let resource_root_path = resources::find_resource_folder()
-			.context("Can't find resource directory")?;
+		
+		let vfs = vfs::Vfs::new()
+			.context("Initialising Vfs")?;
 
-		log::info!("Resource Root Path: {}", resource_root_path.display());
+		log::info!("Resource Root Path: {}", vfs.resource_root().display());
 
 		let winit::dpi::PhysicalSize{width, height} = host.window.inner_size().cast::<i32>();
 		let backbuffer_size = Vec2i::new(width, height);
 
 		let mut gfx = {
 			let core = gfx::Core::new(host.gl.clone());
-			gfx::System::new(core, &resource_root_path)?
+			gfx::System::new(core, &vfs)?
 		};
 
 		gfx.resize(backbuffer_size);
@@ -62,11 +62,10 @@ pub fn run_with_settings<F, A>(settings: host::Settings<'_>, start_app: F) -> an
 			input,
 			egui,
 			cfg,
+			vfs,
 
 			egui_integration,
 			egui_claiming_input_gate: Gate::new(),
-
-			resource_root_path,
 
 			show_debug_menu: false,
 			wants_quit: false,

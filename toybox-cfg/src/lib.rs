@@ -4,7 +4,7 @@ pub mod prelude {}
 pub mod table;
 use table::{Table, Value};
 
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 
 
 /// Runtime representation of hierarchical key-value storage, intended for settings, command line config, etc.

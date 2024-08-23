@@ -12,6 +12,8 @@ pub struct MenuState {
 	egui_inspection: bool,
 
 	input_tracker: bool,
+
+	#[cfg(feature="gamepad")]
 	input_gamepad: bool,
 }
 
@@ -71,11 +73,12 @@ pub fn show_menu(ctx: &mut super::Context, app: &mut impl super::App, state: &mu
 			input::debug::tracker_ui(ui, &mut ctx.input);
 		});
 
-	// egui::Window::new("Gamepad")
-	// 	.open(&mut state.input_gamepad)
-	// 	.show(&ctx.egui, |ui| {
-	// 		input::debug::gamepad_ui(ui, &mut ctx.input);
-	// 	});
+	#[cfg(feature="gamepad")]
+	egui::Window::new("Gamepad")
+		.open(&mut state.input_gamepad)
+		.show(&ctx.egui, |ui| {
+			input::debug::gamepad_ui(ui, &mut ctx.input);
+		});
 }
 
 fn show_submenus(ui: &mut egui::Ui, state: &mut MenuState) {

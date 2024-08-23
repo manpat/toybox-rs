@@ -7,7 +7,7 @@ use std::rc::Rc;
 use winit::{
 	// event::{Event, WindowEvent, DeviceEvent, KeyboardInput, VirtualKeyCode},
 	application::ApplicationHandler,
-	event_loop::{EventLoop, ControlFlow},
+	event_loop::{EventLoop},
 	window::{WindowId, WindowAttributes},
 	dpi::{PhysicalPosition, PhysicalSize},
 };
@@ -173,7 +173,7 @@ impl<F, H> ApplicationHandler for ApplicationHost<F, H>
 		}
 	}
 
-	fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+	fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
 		if let ApplicationHost::Hosting(host, _) = self {
 			host.window.request_redraw();
 		}

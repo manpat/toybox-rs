@@ -6,8 +6,12 @@ edition.workspace = true
 
 [dependencies]
 winit.workspace = true
-# gilrs = "0.10.2"
-
 egui.workspace = true
-
 common.workspace = true
+
+
+gilrs = { version = "0.10.2", optional = true }
+
+[features]
+default = []
+gamepad = ["dep:gilrs"]

@@ -17,7 +17,7 @@ impl Table {
 	pub fn from_file(path: impl AsRef<Path>) -> anyhow::Result<Table> {
 		let data = std::fs::read_to_string(path)?;
 		let raw: toml::Table = toml::from_str(&data)?;
-		dbg!(raw);
+		let _ = dbg!(raw);
 
 		Ok(Table::default())
 	}
@@ -26,7 +26,7 @@ impl Table {
 		let mut args = std::env::args();
 		let _ = args.next(); // skip first arg
 
-		dbg!(args);
+		let _ = dbg!(args);
 
 		Ok(Table::default())
 	}
@@ -40,12 +40,12 @@ impl Table {
 	}
 
 	/// Copy or replace values present in `other`
-	pub fn merge_from(&mut self, other: &Table) {
+	pub fn merge_from(&mut self, _other: &Table) {
 		todo!()
 	}
 
 	/// Recursively remove values from this table that are present in `other`
-	pub fn remove_values_in(&mut self, other: &Table) {
+	pub fn remove_values_in(&mut self, _other: &Table) {
 		todo!()
 	}
 
