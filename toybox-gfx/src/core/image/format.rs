@@ -175,6 +175,21 @@ impl ImageFormat {
 		}
 	}
 
+	pub fn is_srgb(&self) -> bool {
+		match self {
+			ImageFormat::Srgb8 | ImageFormat::Srgba8 => true,
+			_ => false,
+		}
+	}
+
+	pub fn to_non_srgb(&self) -> ImageFormat {
+		match self {
+			ImageFormat::Srgb8 => ImageFormat::Rgb(ComponentFormat::Unorm8),
+			ImageFormat::Srgba8 => ImageFormat::Rgba(ComponentFormat::Unorm8),
+			_ => *self,
+		}
+	}
+
 	pub fn is_depth(&self) -> bool {
 		use ImageFormat::*;
 		matches!(self, Depth | Depth16 | Depth32)

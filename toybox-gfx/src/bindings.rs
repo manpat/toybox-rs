@@ -232,7 +232,7 @@ impl BindingDescription {
 				else { panic!("Unresolved image bind source") };
 
 			match *target {
-				ImageBindTarget::Sampled(unit) => { 
+				ImageBindTarget::Sampled(unit) => {
 					barrier_tracker.read_image(image_name, gl::TEXTURE_FETCH_BARRIER_BIT);
 
 					let sampler_name = sampler.expect("Sampled bind target missing sampler");
@@ -240,12 +240,12 @@ impl BindingDescription {
 					core.bind_sampled_image(unit, image_name);
 				}
 
-				ImageBindTarget::ReadonlyImage(unit) => { 
+				ImageBindTarget::ReadonlyImage(unit) => {
 					barrier_tracker.read_image(image_name, gl::SHADER_IMAGE_ACCESS_BARRIER_BIT);
 					core.bind_image(unit, image_name);
 				}
 
-				ImageBindTarget::ReadWriteImage(unit) => { 
+				ImageBindTarget::ReadWriteImage(unit) => {
 					barrier_tracker.write_image(image_name, gl::SHADER_IMAGE_ACCESS_BARRIER_BIT);
 					core.bind_image_rw(unit, image_name);
 				}

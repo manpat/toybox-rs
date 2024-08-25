@@ -46,7 +46,7 @@ pub struct Core {
 	global_vao_name: u32,
 
 	buffer_info: RefCell<HashMap<BufferName, BufferInfo>>,
-	image_info: RefCell<HashMap<ImageName, ImageInfo>>,
+	image_info: RefCell<HashMap<ImageName, ImageInfoInternal>>,
 	framebuffer_info: RefCell<HashMap<FramebufferName, FramebufferInfo>>,
 
 	backbuffer_size: Vec2i,

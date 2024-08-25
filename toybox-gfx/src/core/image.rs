@@ -31,6 +31,12 @@ pub enum ImageType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(in crate::core) struct ImageInfoInternal {
+	info: ImageInfo,
+	views: Vec<(ImageFormat, u32)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ImageInfo {
 	pub image_type: ImageType,
 	pub format: ImageFormat,
@@ -67,7 +73,10 @@ impl super::Core {
 		};
 
 		let name = ImageName {raw: name};
-		self.image_info.borrow_mut().insert(name, image_info);
+		self.image_info.borrow_mut().insert(name, ImageInfoInternal {
+			info: image_info,
+			views: Default::default(),
+		});
 		name
 	}
 
@@ -88,7 +97,36 @@ impl super::Core {
 	}
 
 	pub fn get_image_info(&self, name: ImageName) -> Option<ImageInfo> {
-		self.image_info.borrow().get(&name).cloned()
+		self.image_info.borrow().get(&name).map(|info_internal| info_internal.info.clone())
+	}
+
+	fn get_image_alias_raw(&self, name: ImageName, target_format: ImageFormat) -> u32 {
+		let mut image_info = self.image_info.borrow_mut();
+		let info_internal = image_info.get_mut(&name).expect("Invalid ImageName");
+
+		if info_internal.info.format == target_format {
+			return name.raw;
+		}
+
+		if let Some((_, view)) = info_internal.views.iter()
+			.find(|(format, _)| *format == target_format)
+		{
+			return *view;
+		}
+
+		let mut texture_view = 0;
+		let (min_level, min_layer) = (0, 0);
+		let (num_levels, num_layers) = (1, 1);
+
+		unsafe {
+			self.gl.GenTextures(1, &mut texture_view);
+			self.gl.TextureView(texture_view, gl::TEXTURE_2D, name.raw,
+				target_format.to_raw(), min_level, num_levels, min_layer, num_layers);
+		}
+
+		info_internal.views.push((target_format, texture_view));
+
+		texture_view
 	}
 
 	pub fn bind_sampled_image(&self, unit: u32, name: ImageName) {
@@ -104,14 +142,15 @@ impl super::Core {
 	pub fn bind_image(&self, unit: u32, name: ImageName) {
 		assert!(unit < self.capabilities.max_image_units as u32);
 
-		// TODO(pat.m): make sure name is compatible with image binding - e.g., srgb formats are NOT SUPPORTED!
 		let info = self.get_image_info(name).expect("Invalid ImageName");
-		let format = info.format.to_raw();
+		let bind_format = info.format.to_non_srgb();
+
+		let image_raw = self.get_image_alias_raw(name, bind_format);
 
 		// TODO(pat.m): state tracking
 		unsafe {
 			let (level, layered, layer) = (0, gl::FALSE, 0);
-			self.gl.BindImageTexture(unit, name.raw, level, layered, layer, gl::READ_ONLY, format);
+			self.gl.BindImageTexture(unit, image_raw, level, layered, layer, gl::READ_ONLY, bind_format.to_raw());
 		}
 	}
 
@@ -119,23 +158,39 @@ impl super::Core {
 	pub fn bind_image_rw(&self, unit: u32, name: ImageName) {
 		assert!(unit < self.capabilities.max_image_units as u32);
 
-		// TODO(pat.m): make sure name is compatible with image binding - e.g., srgb formats are NOT SUPPORTED!
 		let info = self.get_image_info(name).expect("Invalid ImageName");
-		let format = info.format.to_raw();
+		let bind_format = info.format.to_non_srgb();
+
+		let image_raw = self.get_image_alias_raw(name, bind_format);
 
 		// TODO(pat.m): state tracking
 		unsafe {
 			let (level, layered, layer) = (0, gl::FALSE, 0);
-			self.gl.BindImageTexture(unit, name.raw, level, layered, layer, gl::READ_WRITE, format);
+			self.gl.BindImageTexture(unit, image_raw, level, layered, layer, gl::READ_WRITE, bind_format.to_raw());
 		}
 	}
 
 	pub fn destroy_image(&self, name: ImageName) {
+		use std::collections::hash_map::Entry;
+
 		unsafe {
 			self.gl.DeleteTextures(1, &name.raw)
 		}
 
-		self.image_info.borrow_mut().remove(&name);
+		match self.image_info.borrow_mut().entry(name) {
+			Entry::Occupied(occupied) => {
+				let image_info = occupied.remove();
+
+				// Destroy any cached texture views attached to image
+				for (_, view) in image_info.views {
+					unsafe {
+						self.gl.DeleteTextures(1, &view);
+					}
+				}
+			}
+
+			Entry::Vacant(..) => {}
+		}
 	}
 
 	pub unsafe fn upload_image_raw(&self, name: ImageName, range: impl Into<Option<ImageRange>>,
