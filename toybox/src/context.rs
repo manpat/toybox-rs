@@ -61,7 +61,7 @@ impl Context {
 			_ => {}
 		}
 
-		self.gfx.execute_frame();
+		self.gfx.execute_frame(&self.vfs);
 	}
 
 	pub(crate) fn shutdown(&mut self) {}

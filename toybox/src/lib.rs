@@ -31,8 +31,6 @@ pub fn run_with_settings<F, A>(settings: host::Settings<'_>, start_app: F) -> an
 	let app_name = settings.initial_title;
 
 	host::start(settings, move |host| {
-		use anyhow::Context;
-		
 		let vfs = vfs::Vfs::new()
 			.context("Initialising Vfs")?;
 
@@ -43,7 +41,7 @@ pub fn run_with_settings<F, A>(settings: host::Settings<'_>, start_app: F) -> an
 
 		let mut gfx = {
 			let core = gfx::Core::new(host.gl.clone());
-			gfx::System::new(core, &vfs)?
+			gfx::System::new(core)?
 		};
 
 		gfx.resize(backbuffer_size);

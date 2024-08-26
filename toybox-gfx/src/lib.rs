@@ -49,10 +49,10 @@ impl System {
 }
 
 impl System {
-	pub fn new(mut core: core::Core, vfs: &toybox_vfs::Vfs) -> anyhow::Result<System> {
+	pub fn new(mut core: core::Core) -> anyhow::Result<System> {
 		core.register_debug_hook();
 
-		let resource_manager = resource_manager::ResourceManager::new(&mut core, vfs)?;
+		let resource_manager = resource_manager::ResourceManager::new(&mut core)?;
 		let frame_encoder = frame_encoder::FrameEncoder::new(&mut core);
 		
 		unsafe {
@@ -84,8 +84,8 @@ impl System {
 		self.frame_encoder.start_frame();
 	}
 
-	pub fn execute_frame(&mut self) {
-		self.resource_manager.process_requests(&mut self.core)
+	pub fn execute_frame(&mut self, vfs: &toybox_vfs::Vfs) {
+		self.resource_manager.process_requests(&mut self.core, vfs)
 			.context("Error while processing resource requests")
 			.unwrap();
 

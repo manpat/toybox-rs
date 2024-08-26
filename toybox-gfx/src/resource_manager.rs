@@ -1,5 +1,4 @@
 use crate::core;
-use std::path::Path;
 use std::fmt::Debug;
 use std::hash::Hash;
 
@@ -30,8 +29,6 @@ pub use framebuffer::*;
 //  - cache of FBOs for render passes
 // Shader cache
 pub struct ResourceManager {
-	resource_root_path: Box<Path>,
-
 	load_shader_requests: ResourceRequestMap<LoadShaderRequest>,
 	compile_shader_requests: ResourceRequestMap<CompileShaderRequest>,
 	pub shaders: ResourceStorage<ShaderResource>,
@@ -61,7 +58,7 @@ pub struct ResourceManager {
 }
 
 impl ResourceManager {
-	pub fn new(core: &mut core::Core, vfs: &toybox_vfs::Vfs) -> anyhow::Result<ResourceManager> {
+	pub fn new(core: &mut core::Core) -> anyhow::Result<ResourceManager> {
 		let mut compile_shader_requests = ResourceRequestMap::new();
 		let mut shaders = ResourceStorage::<ShaderResource>::new();
 
@@ -109,8 +106,6 @@ impl ResourceManager {
 		};
 
 		Ok(ResourceManager {
-			resource_root_path: vfs.resource_root().to_owned().into_boxed_path(),
-
 			load_shader_requests: ResourceRequestMap::new(),
 			compile_shader_requests,
 			shaders,
@@ -168,12 +163,12 @@ impl ResourceManager {
 	}
 
 	/// Attempt to turn requested resources into committed GPU resources.
-	pub fn process_requests(&mut self, core: &mut core::Core) -> anyhow::Result<()> {
+	pub fn process_requests(&mut self, core: &mut core::Core, vfs: &toybox_vfs::Vfs) -> anyhow::Result<()> {
 		core.push_debug_group("Process Resource Requests");
 
 		self.load_shader_requests.process_requests(&mut self.shaders, |def| {
 			let label = def.path.display().to_string();
-			let full_path = self.resource_root_path.join(&def.path);
+			let full_path = vfs.resource_path(&def.path);
 
 			ShaderResource::from_disk(core, def.shader_type, &full_path, &label)
 				.with_context(|| format!("Compiling shader '{}'", full_path.display()))
@@ -186,7 +181,7 @@ impl ResourceManager {
 
 		self.load_image_requests.process_requests(&mut self.images, |def| {
 			let label = def.path.display().to_string();
-			let full_path = self.resource_root_path.join(&def.path);
+			let full_path = vfs.resource_path(&def.path);
 			ImageResource::from_disk(core, &full_path, label)
 				.with_context(|| format!("Loading image '{}'", full_path.display()))
 		})?;
@@ -200,10 +195,6 @@ impl ResourceManager {
 		core.pop_debug_group();
 
 		Ok(())
-	}
-
-	pub fn resource_path(&self) -> &Path {
-		&self.resource_root_path
 	}
 }
 

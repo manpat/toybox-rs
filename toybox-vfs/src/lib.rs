@@ -22,6 +22,10 @@ impl Vfs {
     pub fn resource_root(&self) -> &Path {
         &self.resource_root
     }
+
+    pub fn resource_path(&self, relative_path: impl AsRef<Path>) -> PathBuf {
+        self.resource_root.join(relative_path)
+    }
 }
 
 
