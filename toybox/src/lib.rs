@@ -11,7 +11,7 @@ mod debug;
 
 
 pub trait App {
-	fn customise_debug_menu(&mut self, _: &mut egui::Ui) {}
+	fn customise_debug_menu(&mut self, _: &mut Context, _: &mut egui::Ui) {}
 	fn present(&mut self, _: &mut Context);
 }
 

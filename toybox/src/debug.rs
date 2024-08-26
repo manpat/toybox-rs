@@ -20,8 +20,10 @@ pub struct MenuState {
 pub fn show_menu(ctx: &mut super::Context, app: &mut impl super::App, state: &mut MenuState) {
 	use egui::menu;
 
+	let egui_ctx = &ctx.egui.clone();
+
 	egui::TopBottomPanel::top("main_debug_menu")
-		.show_animated(&ctx.egui, ctx.show_debug_menu, |ui| {
+		.show_animated(egui_ctx, ctx.show_debug_menu, |ui| {
 			menu::bar(ui, |ui| {
 				ui.menu_button("Toybox", |ui| {
 					show_submenus(ui, state);
@@ -33,50 +35,50 @@ pub fn show_menu(ctx: &mut super::Context, app: &mut impl super::App, state: &mu
 					}
 				});
 
-				app.customise_debug_menu(ui);
+				app.customise_debug_menu(ctx, ui);
 			})
 		});
 
 	egui::Window::new("Egui Settings")
 		.open(&mut state.egui_settings)
-		.show(&ctx.egui, |ui| {
+		.show(egui_ctx, |ui| {
 			ctx.egui.settings_ui(ui);
 		});
 
 	egui::Window::new("Egui Style")
 		.open(&mut state.egui_style)
-		.show(&ctx.egui, |ui| {
+		.show(egui_ctx, |ui| {
 			ctx.egui.style_ui(ui);
 		});
 
 	egui::Window::new("Egui Memory")
 		.open(&mut state.egui_memory)
-		.show(&ctx.egui, |ui| {
+		.show(egui_ctx, |ui| {
 			ctx.egui.memory_ui(ui);
 		});
 
 	egui::Window::new("Egui Textures")
 		.open(&mut state.egui_textures)
-		.show(&ctx.egui, |ui| {
+		.show(egui_ctx, |ui| {
 			ctx.egui.texture_ui(ui);
 		});
 
 	egui::Window::new("Egui Inspection")
 		.open(&mut state.egui_inspection)
-		.show(&ctx.egui, |ui| {
+		.show(egui_ctx, |ui| {
 			ctx.egui.inspection_ui(ui);
 		});
 
 	egui::Window::new("Input Tracker")
 		.open(&mut state.input_tracker)
-		.show(&ctx.egui, |ui| {
+		.show(egui_ctx, |ui| {
 			input::debug::tracker_ui(ui, &mut ctx.input);
 		});
 
 	#[cfg(feature="gamepad")]
 	egui::Window::new("Gamepad")
 		.open(&mut state.input_gamepad)
-		.show(&ctx.egui, |ui| {
+		.show(egui_ctx, |ui| {
 			input::debug::gamepad_ui(ui, &mut ctx.input);
 		});
 }
