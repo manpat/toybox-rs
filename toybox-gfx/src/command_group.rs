@@ -2,7 +2,6 @@ use crate::bindings::*;
 use crate::command::{Command, compute, draw};
 use crate::resource_manager::ShaderHandle;
 use crate::upload_heap::{UploadStage, StagedUploadId};
-use crate::core::SamplerName;
 
 use std::ops::{Deref, DerefMut};
 
@@ -105,20 +104,20 @@ impl<'g> CommandGroupEncoder<'g> {
 		self.bind_shared_buffer(BufferBindTarget::SsboIndex(index), buffer);
 	}
 
-	pub fn bind_shared_sampled_image(&mut self, unit: u32, image: impl Into<ImageNameOrHandle>, sampler: SamplerName) {
-		self.group.shared_bindings.bind_image(ImageBindTarget::Sampled(unit), image, sampler);
+	pub fn bind_shared_sampled_image(&mut self, unit: u32, image: impl Into<ImageArgument>, sampler: impl Into<SamplerArgument>) {
+		self.group.shared_bindings.bind_sampled_image(ImageBindTarget::Sampled(unit), image, sampler);
 	}
 
-	pub fn bind_shared_image(&mut self, unit: u32, image: impl Into<ImageNameOrHandle>) {
-		self.group.shared_bindings.bind_image(ImageBindTarget::ReadonlyImage(unit), image, None);
+	pub fn bind_shared_image(&mut self, unit: u32, image: impl Into<ImageArgument>) {
+		self.group.shared_bindings.bind_image(ImageBindTarget::ReadonlyImage(unit), image);
 	}
 
 	// TODO(pat.m): do I want RW to be explicit?
-	pub fn bind_shared_image_rw(&mut self, unit: u32, image: impl Into<ImageNameOrHandle>) {
-		self.group.shared_bindings.bind_image(ImageBindTarget::ReadWriteImage(unit), image, None);
+	pub fn bind_shared_image_rw(&mut self, unit: u32, image: impl Into<ImageArgument>) {
+		self.group.shared_bindings.bind_image(ImageBindTarget::ReadWriteImage(unit), image);
 	}
 
-	pub fn bind_rendertargets(&mut self, rts: impl Into<FramebufferDescriptionOrName>)  {
+	pub fn bind_rendertargets(&mut self, rts: impl Into<FramebufferArgument>)  {
 		self.group.shared_bindings.bind_framebuffer(rts);
 	}
 }
@@ -155,13 +154,14 @@ impl<'g> CommandGroupEncoder<'g> {
 		compute::ComputeCmdBuilder {cmd, upload_stage: self.upload_stage}
 	}
 
-	pub fn clear_image_to_default(&mut self, image: impl Into<ImageNameOrHandle>) {
+	pub fn clear_image_to_default(&mut self, image: impl Into<ImageArgument>) {
 		let image = image.into();
 
 		self.execute(move |core, rm| {
 			let name = match image {
-				ImageNameOrHandle::Name(name) => name,
-				ImageNameOrHandle::Handle(handle) => rm.images.get_name(handle).expect("Failed to resolve image handle"),
+				ImageArgument::Name(name) => name,
+				ImageArgument::Handle(handle) => rm.images.get_name(handle).expect("Failed to resolve image handle"),
+				ImageArgument::Blank(_) => panic!("Trying to clear a basic image - these are immutable"),
 			};
 
 			core.clear_image_to_default(name);

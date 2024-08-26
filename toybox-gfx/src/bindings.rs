@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use crate::core::*;
-use crate::resource_manager::{ResourceManager, ImageHandle, FramebufferDescription};
+use crate::resource_manager::{ResourceManager, ImageHandle, FramebufferDescription, BlankImage, CommonSampler};
 use crate::upload_heap::{UploadStage, UploadHeap, StagedUploadId};
 
 
@@ -60,22 +60,47 @@ impl From<BufferName> for BufferBindSource {
 	}
 }
 
-
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub enum ImageNameOrHandle {
+pub enum ImageArgument {
 	Name(ImageName),
 	Handle(ImageHandle),
+	Blank(BlankImage),
 }
 
-impl From<ImageName> for ImageNameOrHandle {
+impl From<ImageName> for ImageArgument {
 	fn from(name: ImageName) -> Self {
 		Self::Name(name)
 	}
 }
 
-impl From<ImageHandle> for ImageNameOrHandle {
+impl From<ImageHandle> for ImageArgument {
 	fn from(handle: ImageHandle) -> Self {
 		Self::Handle(handle)
+	}
+}
+
+impl From<BlankImage> for ImageArgument {
+	fn from(handle: BlankImage) -> Self {
+		Self::Blank(handle)
+	}
+}
+
+
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+pub enum SamplerArgument {
+	Name(SamplerName),
+	Common(CommonSampler),
+}
+
+impl From<SamplerName> for SamplerArgument {
+	fn from(name: SamplerName) -> Self {
+		Self::Name(name)
+	}
+}
+
+impl From<CommonSampler> for SamplerArgument {
+	fn from(handle: CommonSampler) -> Self {
+		Self::Common(handle)
 	}
 }
 
@@ -89,13 +114,13 @@ pub struct BufferBindDesc {
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct ImageBindDesc {
 	pub target: ImageBindTarget,
-	pub source: ImageNameOrHandle,
-	pub sampler: Option<SamplerName>,
+	pub source: ImageArgument,
+	pub sampler: Option<SamplerArgument>,
 }
 
 
 #[derive(Debug, Clone)]
-pub enum FramebufferDescriptionOrName {
+pub enum FramebufferArgument {
 	Default,
 	Name(FramebufferName),
 	Description(FramebufferDescription),
@@ -108,7 +133,7 @@ pub struct BindingDescription {
 	pub buffer_bindings: Vec<BufferBindDesc>,
 	pub image_bindings: Vec<ImageBindDesc>,
 
-	pub framebuffer: Option<FramebufferDescriptionOrName>,
+	pub framebuffer: Option<FramebufferArgument>,
 }
 
 
@@ -129,17 +154,25 @@ impl BindingDescription {
 		});
 	}
 
-	pub fn bind_image(&mut self, target: impl Into<ImageBindTarget>, source: impl Into<ImageNameOrHandle>, sampler: impl Into<Option<SamplerName>>) {
+	pub fn bind_image(&mut self, target: impl Into<ImageBindTarget>, source: impl Into<ImageArgument>) {
 		self.image_bindings.push(ImageBindDesc {
 			target: target.into(),
 			source: source.into(),
-			sampler: sampler.into(),
+			sampler: None,
+		});
+	}
+
+	pub fn bind_sampled_image(&mut self, target: impl Into<ImageBindTarget>, source: impl Into<ImageArgument>, sampler: impl Into<SamplerArgument>) {
+		self.image_bindings.push(ImageBindDesc {
+			target: target.into(),
+			source: source.into(),
+			sampler: Some(sampler.into()),
 		});
 	}
 
 	/// Bind for the duration of the binding scope, either a FramebufferName, a framebuffer described by a FramebufferDescription, or
 	/// the default framebuffer (None).
-	pub fn bind_framebuffer(&mut self, framebuffer: impl Into<FramebufferDescriptionOrName>) {
+	pub fn bind_framebuffer(&mut self, framebuffer: impl Into<FramebufferArgument>) {
 		self.framebuffer = Some(framebuffer.into());
 	}
 
@@ -172,12 +205,13 @@ impl BindingDescription {
 
 	pub fn resolve_image_bind_sources(&mut self, rm: &mut ResourceManager) {
 		for ImageBindDesc{source, ..} in self.image_bindings.iter_mut() {
-			if let ImageNameOrHandle::Handle(handle) = *source {
-				let name = rm.images.get_name(handle)
-					.expect("Failed to resolve image handle");
+			let name = match *source {
+				ImageArgument::Handle(handle) => rm.images.get_name(handle).expect("Failed to resolve image handle"),
+				ImageArgument::Blank(image) => rm.get_blank_image(image),
+				ImageArgument::Name(_) => continue,
+			};
 
-				*source = ImageNameOrHandle::Name(name);
-			}
+			*source = ImageArgument::Name(name);
 		}
 	}
 
@@ -228,14 +262,19 @@ impl BindingDescription {
 		}
 
 		for ImageBindDesc{target, source, sampler} in self.image_bindings.iter() {
-			let ImageNameOrHandle::Name(image_name) = *source
+			let ImageArgument::Name(image_name) = *source
 				else { panic!("Unresolved image bind source") };
 
 			match *target {
 				ImageBindTarget::Sampled(unit) => {
 					barrier_tracker.read_image(image_name, gl::TEXTURE_FETCH_BARRIER_BIT);
 
-					let sampler_name = sampler.expect("Sampled bind target missing sampler");
+					// TODO(pat.m): use default instead of panicking
+					let sampler_name = match sampler.expect("Sampled bind target missing sampler") {
+						SamplerArgument::Name(name) => name,
+						SamplerArgument::Common(sampler) => resource_manager.get_common_sampler(sampler),
+					};
+
 					core.bind_sampler(unit, sampler_name);
 					core.bind_sampled_image(unit, image_name);
 				}
@@ -327,27 +366,27 @@ impl<'t, T> IntoBufferBindSourceOrStageable for &'t T
 
 
 
-impl<T> From<T> for FramebufferDescriptionOrName
+impl<T> From<T> for FramebufferArgument
 	where T: Into<FramebufferDescription>
 {
 	fn from(o: T) -> Self {
-		FramebufferDescriptionOrName::Description(o.into())
+		FramebufferArgument::Description(o.into())
 	}
 }
 
 
-impl From<FramebufferName> for FramebufferDescriptionOrName {
+impl From<FramebufferName> for FramebufferArgument {
 	fn from(o: FramebufferName) -> Self {
-		FramebufferDescriptionOrName::Name(o)
+		FramebufferArgument::Name(o)
 	}
 }
 
-impl FramebufferDescriptionOrName {
+impl FramebufferArgument {
 	pub fn resolve_name(&self, core: &Core, resource_manager: &mut ResourceManager) -> Option<FramebufferName> {
 		match self {
-			FramebufferDescriptionOrName::Default => None,
-			FramebufferDescriptionOrName::Name(name) => Some(*name),
-			FramebufferDescriptionOrName::Description(desc) => resource_manager.resolve_framebuffer(core, desc.clone()),
+			FramebufferArgument::Default => None,
+			FramebufferArgument::Name(name) => Some(*name),
+			FramebufferArgument::Description(desc) => resource_manager.resolve_framebuffer(core, desc.clone()),
 		}
 	}
 }

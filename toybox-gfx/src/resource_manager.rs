@@ -33,6 +33,7 @@ pub struct ResourceManager {
 	compile_shader_requests: ResourceRequestMap<CompileShaderRequest>,
 	pub shaders: ResourceStorage<ShaderResource>,
 
+	// TODO(pat.m): make Basic versions of these a la BlankImage and CommonSampler
 	pub standard_vs_shader: ShaderHandle,
 	pub fullscreen_vs_shader: ShaderHandle,
 	pub flat_fs_shader: ShaderHandle,
@@ -41,11 +42,11 @@ pub struct ResourceManager {
 	create_image_requests: ResourceRequestMap<CreateImageRequest>,
 	pub images: ResourceStorage<ImageResource>,
 
-	pub blank_white_image: ImageName,
-	pub blank_black_image: ImageName,
+	blank_white_image: ImageName,
+	blank_black_image: ImageName,
 
-	pub nearest_sampler: SamplerName,
-	pub linear_sampler: SamplerName,
+	nearest_sampler: SamplerName,
+	linear_sampler: SamplerName,
 
 	draw_pipelines: HashMap<(ShaderHandle, Option<ShaderHandle>), core::ShaderPipelineName>,
 	compute_pipelines: HashMap<ShaderHandle, core::ShaderPipelineName>,
@@ -250,6 +251,20 @@ impl ResourceManager {
 	{
 		self.framebuffer_cache.resolve(core, &self.images, desc.into())
 	}
+
+	pub fn get_blank_image(&self, image: BlankImage) -> ImageName {
+		match image {
+			BlankImage::White => self.blank_white_image,
+			BlankImage::Black => self.blank_black_image,
+		}
+	}
+
+	pub fn get_common_sampler(&self, sampler: CommonSampler) -> SamplerName {
+		match sampler {
+			CommonSampler::Linear => self.linear_sampler,
+			CommonSampler::Nearest => self.nearest_sampler,
+		}
+	}
 }
 
 
@@ -319,3 +334,19 @@ impl<R: Resource> ResourceStorage<R> {
 	}
 }
 
+
+
+
+
+
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+pub enum BlankImage {
+	White,
+	Black,
+}
+
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+pub enum CommonSampler {
+	Nearest,
+	Linear,
+}

@@ -186,23 +186,23 @@ impl<'cg> DrawCmdBuilder<'cg> {
 		self.buffer(BufferBindTarget::SsboIndex(index), buffer)
 	}
 
-	pub fn sampled_image(&mut self, unit: u32, image: impl Into<ImageNameOrHandle>, sampler: SamplerName) -> &mut Self {
-		self.cmd.bindings.bind_image(ImageBindTarget::Sampled(unit), image, sampler);
+	pub fn sampled_image(&mut self, unit: u32, image: impl Into<ImageArgument>, sampler: impl Into<SamplerArgument>) -> &mut Self {
+		self.cmd.bindings.bind_sampled_image(ImageBindTarget::Sampled(unit), image, sampler);
 		self
 	}
 
-	pub fn image(&mut self, unit: u32, image: impl Into<ImageNameOrHandle>) -> &mut Self {
-		self.cmd.bindings.bind_image(ImageBindTarget::ReadonlyImage(unit), image, None);
+	pub fn image(&mut self, unit: u32, image: impl Into<ImageArgument>) -> &mut Self {
+		self.cmd.bindings.bind_image(ImageBindTarget::ReadonlyImage(unit), image);
 		self
 	}
 
 	// TODO(pat.m): do I want RW to be explicit?
-	pub fn image_rw(&mut self, unit: u32, image: impl Into<ImageNameOrHandle>) -> &mut Self {
-		self.cmd.bindings.bind_image(ImageBindTarget::ReadWriteImage(unit), image, None);
+	pub fn image_rw(&mut self, unit: u32, image: impl Into<ImageArgument>) -> &mut Self {
+		self.cmd.bindings.bind_image(ImageBindTarget::ReadWriteImage(unit), image);
 		self
 	}
 
-	pub fn rendertargets(&mut self, rts: impl Into<FramebufferDescriptionOrName>) -> &mut Self {
+	pub fn rendertargets(&mut self, rts: impl Into<FramebufferArgument>) -> &mut Self {
 		self.cmd.bindings.bind_framebuffer(rts);
 		self
 	}

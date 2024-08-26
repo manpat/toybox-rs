@@ -2,9 +2,7 @@ use crate::prelude::*;
 use crate::command_group::*;
 use crate::core;
 use crate::upload_heap::{UploadStage, StagedUploadId};
-
 use crate::bindings::*;
-use crate::core::SamplerName;
 
 
 
@@ -31,7 +29,7 @@ impl FrameEncoder {
 
 	pub fn start_frame(&mut self) {
 		// Any command or command group not specifying a framebuffer should use the default
-		self.global_bindings.bind_framebuffer(FramebufferDescriptionOrName::Default);
+		self.global_bindings.bind_framebuffer(FramebufferArgument::Default);
 	}
 
 	pub fn end_frame(&mut self) {
@@ -91,16 +89,16 @@ impl FrameEncoder {
 		self.bind_global_buffer(BufferBindTarget::SsboIndex(index), buffer);
 	}
 
-	pub fn bind_global_sampled_image(&mut self, unit: u32, image: impl Into<ImageNameOrHandle>, sampler: SamplerName) {
-		self.global_bindings.bind_image(ImageBindTarget::Sampled(unit), image, sampler);
+	pub fn bind_global_sampled_image(&mut self, unit: u32, image: impl Into<ImageArgument>, sampler: impl Into<SamplerArgument>) {
+		self.global_bindings.bind_sampled_image(ImageBindTarget::Sampled(unit), image, sampler);
 	}
 
-	pub fn bind_global_image(&mut self, unit: u32, image: impl Into<ImageNameOrHandle>) {
-		self.global_bindings.bind_image(ImageBindTarget::ReadonlyImage(unit), image, None);
+	pub fn bind_global_image(&mut self, unit: u32, image: impl Into<ImageArgument>) {
+		self.global_bindings.bind_image(ImageBindTarget::ReadonlyImage(unit), image);
 	}
 
 	// TODO(pat.m): do I want RW to be explicit?
-	pub fn bind_global_image_rw(&mut self, unit: u32, image: impl Into<ImageNameOrHandle>) {
-		self.global_bindings.bind_image(ImageBindTarget::ReadWriteImage(unit), image, None);
+	pub fn bind_global_image_rw(&mut self, unit: u32, image: impl Into<ImageArgument>) {
+		self.global_bindings.bind_image(ImageBindTarget::ReadWriteImage(unit), image);
 	}
 }
