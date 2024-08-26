@@ -23,11 +23,38 @@ impl Vfs {
         &self.resource_root
     }
 
-    pub fn resource_path(&self, relative_path: impl AsRef<Path>) -> PathBuf {
-        self.resource_root.join(relative_path)
+    pub fn resource_path(&self, virtual_path: impl AsRef<Path>) -> PathBuf {
+        let components = virtual_path.as_ref().components();
+
+        let clean_path = clean_virtual_path(components)
+            .with_context(|| virtual_path.as_ref().display().to_string())
+            .expect("Failed to clean resource path");
+
+        self.resource_root.join(clean_path)
     }
 }
 
+
+
+fn clean_virtual_path(mut components: std::path::Components<'_>) -> anyhow::Result<&Path> {
+    use std::path::Component;
+
+    for component in components.clone() {
+        match component {
+            Component::RootDir => {
+                // Strip root prefix - virtual paths are always relative to resource root
+                let _ = components.next();
+            }
+
+            Component::Normal(_) | Component::CurDir => {}
+
+            Component::ParentDir => anyhow::bail!("References to parent directories '..' in resource paths are not allowed."),
+            Component::Prefix(prefix) => anyhow::bail!("Path prefixes (like {:?}) in resource paths are not allowed.", prefix.as_os_str()),
+        }
+    }
+
+    Ok(components.as_path())
+}
 
 
 
