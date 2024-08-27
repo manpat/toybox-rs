@@ -1,6 +1,6 @@
 use crate::bindings::*;
 use crate::command::{Command, compute, draw};
-use crate::resource_manager::ShaderHandle;
+use crate::resource_manager::{ShaderHandle, arguments::*};
 use crate::upload_heap::{UploadStage, StagedUploadId};
 
 use std::ops::{Deref, DerefMut};
@@ -92,15 +92,15 @@ impl<'g> CommandGroupEncoder<'g> {
 
 /// Bindings shared between all commands in the group.
 impl<'g> CommandGroupEncoder<'g> {
-	pub fn bind_shared_buffer(&mut self, target: impl Into<BufferBindTarget>, buffer: impl IntoBufferBindSourceOrStageable) {
+	pub fn bind_shared_buffer(&mut self, target: impl Into<BufferBindTarget>, buffer: impl IntoBufferArgument) {
 		self.group.shared_bindings.bind_buffer(target, buffer.into_bind_source(self.upload_stage));
 	}
 
-	pub fn bind_shared_ubo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) {
+	pub fn bind_shared_ubo(&mut self, index: u32, buffer: impl IntoBufferArgument) {
 		self.bind_shared_buffer(BufferBindTarget::UboIndex(index), buffer);
 	}
 
-	pub fn bind_shared_ssbo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) {
+	pub fn bind_shared_ssbo(&mut self, index: u32, buffer: impl IntoBufferArgument) {
 		self.bind_shared_buffer(BufferBindTarget::SsboIndex(index), buffer);
 	}
 

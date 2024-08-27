@@ -9,6 +9,9 @@ use crate::prelude::*;
 use crate::upload_heap::UploadHeap;
 use crate::{shaders, ImageName, SamplerName};
 
+pub mod arguments;
+pub use arguments::*;
+
 mod request;
 pub use request::*;
 
@@ -335,18 +338,3 @@ impl<R: Resource> ResourceStorage<R> {
 }
 
 
-
-
-
-
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub enum BlankImage {
-	White,
-	Black,
-}
-
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub enum CommonSampler {
-	Nearest,
-	Linear,
-}

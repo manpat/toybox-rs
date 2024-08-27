@@ -122,6 +122,28 @@ impl super::Core {
 			self.gl.GenTextures(1, &mut texture_view);
 			self.gl.TextureView(texture_view, gl::TEXTURE_2D, name.raw,
 				target_format.to_raw(), min_level, num_levels, min_layer, num_layers);
+
+			// Get original images debug label and try to use it to generate a new one for the view.
+			let mut label_length = 0;
+			self.gl.GetObjectLabel(gl::TEXTURE, name.raw, 0, &mut label_length, std::ptr::null_mut());
+
+			let view_name = ImageName{raw: texture_view};
+
+			if label_length > 0 {
+				// +1 for null terminator
+				let mut label_data = vec![0u8; (label_length+1) as usize];
+				self.gl.GetObjectLabel(gl::TEXTURE, name.raw, label_length+1, std::ptr::null_mut(), label_data.as_mut_ptr().cast());
+
+				// glGetObjectLabel should do this already, but we're just doing it to be sure we can use the unchecked function below.
+				label_data[label_length as usize] = 0;
+
+				let label_str = std::ffi::CStr::from_bytes_with_nul_unchecked(&label_data).to_string_lossy();
+
+				self.set_debug_label(view_name, format!("{label_str} viewed as {target_format:?}"));
+
+			} else {
+				self.set_debug_label(view_name, format!("{name:?} viewed as {target_format:?}"));
+			}
 		}
 
 		info_internal.views.push((target_format, texture_view));

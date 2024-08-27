@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use crate::core::*;
-use crate::resource_manager::{ResourceManager, ImageHandle, FramebufferDescription, BlankImage, CommonSampler};
-use crate::upload_heap::{UploadStage, UploadHeap, StagedUploadId};
+use crate::resource_manager::{ResourceManager, arguments::*};
+use crate::upload_heap::{UploadStage, UploadHeap};
 
 
 // TODO: string interning would be great
@@ -40,75 +40,9 @@ impl BufferBindTarget {
 
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub enum BufferBindSource {
-	Name {
-		name: BufferName, 
-		range: Option<BufferRange>,
-	},
-	Staged(StagedUploadId),
-}
-
-impl From<StagedUploadId> for BufferBindSource {
-	fn from(upload_id: StagedUploadId) -> Self {
-		Self::Staged(upload_id)
-	}
-}
-
-impl From<BufferName> for BufferBindSource {
-	fn from(name: BufferName) -> Self {
-		Self::Name{name, range: None}
-	}
-}
-
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub enum ImageArgument {
-	Name(ImageName),
-	Handle(ImageHandle),
-	Blank(BlankImage),
-}
-
-impl From<ImageName> for ImageArgument {
-	fn from(name: ImageName) -> Self {
-		Self::Name(name)
-	}
-}
-
-impl From<ImageHandle> for ImageArgument {
-	fn from(handle: ImageHandle) -> Self {
-		Self::Handle(handle)
-	}
-}
-
-impl From<BlankImage> for ImageArgument {
-	fn from(handle: BlankImage) -> Self {
-		Self::Blank(handle)
-	}
-}
-
-
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub enum SamplerArgument {
-	Name(SamplerName),
-	Common(CommonSampler),
-}
-
-impl From<SamplerName> for SamplerArgument {
-	fn from(name: SamplerName) -> Self {
-		Self::Name(name)
-	}
-}
-
-impl From<CommonSampler> for SamplerArgument {
-	fn from(handle: CommonSampler) -> Self {
-		Self::Common(handle)
-	}
-}
-
-
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct BufferBindDesc {
 	pub target: BufferBindTarget,
-	pub source: BufferBindSource,
+	pub source: BufferArgument,
 }
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
@@ -116,14 +50,6 @@ pub struct ImageBindDesc {
 	pub target: ImageBindTarget,
 	pub source: ImageArgument,
 	pub sampler: Option<SamplerArgument>,
-}
-
-
-#[derive(Debug, Clone)]
-pub enum FramebufferArgument {
-	Default,
-	Name(FramebufferName),
-	Description(FramebufferDescription),
 }
 
 
@@ -147,7 +73,7 @@ impl BindingDescription {
 		self.image_bindings.clear();
 	}
 
-	pub fn bind_buffer(&mut self, target: impl Into<BufferBindTarget>, source: impl Into<BufferBindSource>) {
+	pub fn bind_buffer(&mut self, target: impl Into<BufferBindTarget>, source: impl Into<BufferArgument>) {
 		self.buffer_bindings.push(BufferBindDesc {
 			target: target.into(),
 			source: source.into(),
@@ -184,7 +110,7 @@ impl BindingDescription {
 
 	pub fn imbue_staged_buffer_alignments(&self, upload_stage: &mut UploadStage, capabilities: &Capabilities) {
 		for bind_desc in self.buffer_bindings.iter() {
-			let BufferBindSource::Staged(upload_id) = bind_desc.source else { continue };
+			let BufferArgument::Staged(upload_id) = bind_desc.source else { continue };
 
 			// https://registry.khronos.org/OpenGL/specs/gl/glspec45.core.pdf#subsection.6.7.1
 			let alignment = match bind_desc.target {
@@ -245,7 +171,7 @@ impl BindingDescription {
 		let mut barrier_tracker = core.barrier_tracker();
 
 		for BufferBindDesc{target, source} in self.buffer_bindings.iter() {
-			let BufferBindSource::Name{name, range} = *source
+			let BufferArgument::Name{name, range} = *source
 				else { panic!("Unresolved buffer bind source") };
 
 			let Some((index, indexed_target)) = target.to_raw_index().zip(target.to_indexed_buffer_target())
@@ -320,73 +246,13 @@ impl BindingDescription {
 	}
 }
 
-pub fn resolve_staged_bind_source(source: &mut BufferBindSource, upload_heap: &UploadHeap) {
-	if let BufferBindSource::Staged(upload_id) = *source {
+pub fn resolve_staged_bind_source(source: &mut BufferArgument, upload_heap: &UploadHeap) {
+	if let BufferArgument::Staged(upload_id) = *source {
 		let allocation = upload_heap.resolve_allocation(upload_id);
-		*source = BufferBindSource::Name {
+		*source = BufferArgument::Name {
 			name: upload_heap.buffer_name(),
 			range: Some(allocation),
 		};
 	}
 }
 
-
-
-pub trait IntoBufferBindSourceOrStageable {
-	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSource;
-}
-
-impl IntoBufferBindSourceOrStageable for crate::upload_heap::StagedUploadId {
-	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSource {
-		self.into()
-	}
-}
-
-impl IntoBufferBindSourceOrStageable for crate::core::BufferName {
-	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSource {
-		self.into()
-	}
-}
-
-impl IntoBufferBindSourceOrStageable for BufferBindSource {
-	fn into_bind_source(self, _: &mut UploadStage) -> BufferBindSource {
-		self
-	}
-}
-
-// Accept anything that can be turned into a slice of sized, copyable items - including regular references
-impl<'t, T> IntoBufferBindSourceOrStageable for &'t T
-	where T: crate::AsStageableSlice
-{
-	fn into_bind_source(self, stage: &mut UploadStage) -> BufferBindSource {
-		stage.stage_data(self.as_slice()).into()
-	}
-}
-
-
-
-
-impl<T> From<T> for FramebufferArgument
-	where T: Into<FramebufferDescription>
-{
-	fn from(o: T) -> Self {
-		FramebufferArgument::Description(o.into())
-	}
-}
-
-
-impl From<FramebufferName> for FramebufferArgument {
-	fn from(o: FramebufferName) -> Self {
-		FramebufferArgument::Name(o)
-	}
-}
-
-impl FramebufferArgument {
-	pub fn resolve_name(&self, core: &Core, resource_manager: &mut ResourceManager) -> Option<FramebufferName> {
-		match self {
-			FramebufferArgument::Default => None,
-			FramebufferArgument::Name(name) => Some(*name),
-			FramebufferArgument::Description(desc) => resource_manager.resolve_framebuffer(core, desc.clone()),
-		}
-	}
-}

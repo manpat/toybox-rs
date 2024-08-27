@@ -39,6 +39,7 @@ impl TextureManager {
 		let format = ImageFormat::Rgba(ComponentFormat::Unorm8);
 		let default_image = gfx.core.create_image_2d(format, Vec2i::splat(1));
 		gfx.core.upload_image(default_image, None, format, &[255u8, 0, 255, 255]);
+		gfx.core.set_debug_label(default_image, "egui default image");
 
 		TextureManager {
 			sampler,
@@ -108,7 +109,16 @@ impl TextureManager {
 				let is_full_image_update = delta.pos.is_none();
 				assert!(is_full_image_update);
 
-				*managed_image = Some(create_managed_image(&gfx.core, delta));
+				let TextureId::Managed(managed_id) = id else {
+					panic!("egui trying to update user image")
+				};
+
+				let label = match delta.image {
+					ImageData::Color(_) => format!("egui color image #{managed_id}"),
+					ImageData::Font(_) => format!("egui font atlas #{managed_id}"),
+				};
+
+				*managed_image = Some(create_managed_image(&gfx.core, delta, label));
 			}
 
 			// By this point we must have a ready managed image, so unconditionally upload the data
@@ -130,7 +140,7 @@ impl TextureManager {
 
 
 
-fn create_managed_image(core: &gfx::Core, delta: &ImageDelta) -> ManagedImage {
+fn create_managed_image(core: &gfx::Core, delta: &ImageDelta, label: impl AsRef<str>) -> ManagedImage {
 	let size = Vec2i::new(delta.image.width() as i32, delta.image.height() as i32);
 	let holds_font = matches!(&delta.image, ImageData::Font(_));
 
@@ -139,8 +149,11 @@ fn create_managed_image(core: &gfx::Core, delta: &ImageDelta) -> ManagedImage {
 		false => ImageFormat::Srgba8,
 	};
 
+	let name = core.create_image_2d(format, size);
+	core.set_debug_label(name, label);
+
 	ManagedImage {
-		name: core.create_image_2d(format, size),
+		name,
 		allocated_size: size,
 		holds_font,
 	}

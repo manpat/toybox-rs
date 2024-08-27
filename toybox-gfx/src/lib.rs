@@ -3,8 +3,6 @@
 use toybox_host as host;
 use anyhow::Context;
 
-use host::gl;
-
 pub mod bindings;
 pub mod command;
 pub mod command_group;
@@ -15,7 +13,6 @@ pub mod shaders;
 pub mod upload_heap;
 
 pub use crate::core::*;
-pub use bindings::{ImageArgument, SamplerArgument};
 pub use resource_manager::*;
 pub use frame_encoder::*;
 pub use command::PrimitiveType;
@@ -29,7 +26,7 @@ pub mod prelude {
 	pub use common::math::*;
 }
 
-use prelude::*;
+pub use prelude::*;
 
 
 pub struct System {

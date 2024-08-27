@@ -1,8 +1,13 @@
 use crate::prelude::*;
 use crate::bindings::*;
-use crate::resource_manager::{ShaderHandle};
-use crate::upload_heap::UploadStage;
-use crate::core::*;
+
+use crate::{
+	Core, ResourceManager,
+	ShaderHandle,
+	BlendMode,
+	upload_heap::UploadStage,
+	arguments::*,
+};
 
 
 #[derive(Debug, Copy, Clone)]
@@ -31,7 +36,10 @@ pub struct DrawCmd {
 	pub num_elements: u32,
 	pub num_instances: u32,
 
-	pub index_buffer: Option<BufferBindSource>,
+	pub index_buffer: Option<BufferArgument>,
+
+	// TODO(pat.m): different name?
+	pub base_vertex: u32,
 
 	pub blend_mode: Option<BlendMode>,
 	pub depth_test: bool,
@@ -62,6 +70,7 @@ impl DrawCmd {
 			num_instances: 1,
 
 			index_buffer: None,
+			base_vertex: 0,
 
 			blend_mode: None,
 			depth_test: true,
@@ -82,6 +91,7 @@ impl DrawCmd {
 			num_instances: 1,
 
 			index_buffer: None,
+			base_vertex: 0,
 
 			blend_mode: None,
 			depth_test: false,
@@ -89,11 +99,11 @@ impl DrawCmd {
 		}
 	}
 
-	pub fn execute(&self, core: &mut crate::core::Core, rm: &mut crate::resource_manager::ResourceManager) {
+	pub fn execute(&self, core: &mut Core, rm: &mut ResourceManager) {
 		let (vs, fs) = match self.shaders {
 			DrawCmdShaders::Pair {vertex_shader, fragment_shader} => (vertex_shader, fragment_shader),
 			DrawCmdShaders::FullscreenQuad {fragment_shader}
-				=> (rm.fullscreen_vs_shader, Some(fragment_shader.unwrap_or(rm.flat_fs_shader))),
+				=> (rm.fullscreen_vs_shader, fragment_shader.or(Some(rm.flat_fs_shader))),
 		};
 
 		// TODO(pat.m): eugh. should probably be part of a larger pipeline state management system
@@ -115,20 +125,19 @@ impl DrawCmd {
 
 		let mut barrier_tracker = core.barrier_tracker();
 
-		if let Some(bind_source) = self.index_buffer {
-			let BufferBindSource::Name{name, range} = bind_source
+		if let Some(buffer_argument) = self.index_buffer {
+			let BufferArgument::Name{name, range} = buffer_argument
 				else { panic!("Unresolved buffer bind source description") };
 
 			// TODO(pat.m): allow non 32b indices
 			let index_type = gl::UNSIGNED_INT;
-			let offset_ptr = range.map(|r| r.offset).unwrap_or(0) as *const _;
+			let offset_ptr = range.map_or(0, |r| r.offset) as *const _;
+			let base_vertex = self.base_vertex as i32;
 
 			core.bind_index_buffer(name);
 
 			barrier_tracker.read_buffer(name, gl::ELEMENT_ARRAY_BARRIER_BIT);
 			barrier_tracker.emit_barriers(&core.gl);
-
-			let base_vertex = 0;
 
 			unsafe {
 				core.gl.DrawElementsInstancedBaseVertex(primitive_type, num_elements, index_type,
@@ -167,22 +176,27 @@ impl<'cg> DrawCmdBuilder<'cg> {
 		self
 	}
 
-	pub fn indexed(&mut self, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
+	pub fn indexed(&mut self, buffer: impl IntoBufferArgument) -> &mut Self {
 		let bind_source = buffer.into_bind_source(self.upload_stage);
 		self.cmd.index_buffer = Some(bind_source);
 		self
 	}
 
-	pub fn buffer(&mut self, target: impl Into<BufferBindTarget>, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
+	pub fn base_vertex(&mut self, base_vertex: u32) -> &mut Self {
+		self.cmd.base_vertex = base_vertex;
+		self
+	}
+
+	pub fn buffer(&mut self, target: impl Into<BufferBindTarget>, buffer: impl IntoBufferArgument) -> &mut Self {
 		self.cmd.bindings.bind_buffer(target, buffer.into_bind_source(self.upload_stage));
 		self
 	}
 
-	pub fn ubo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
+	pub fn ubo(&mut self, index: u32, buffer: impl IntoBufferArgument) -> &mut Self {
 		self.buffer(BufferBindTarget::UboIndex(index), buffer)
 	}
 
-	pub fn ssbo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
+	pub fn ssbo(&mut self, index: u32, buffer: impl IntoBufferArgument) -> &mut Self {
 		self.buffer(BufferBindTarget::SsboIndex(index), buffer)
 	}
 

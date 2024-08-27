@@ -1,12 +1,17 @@
 use crate::prelude::*;
 use crate::bindings::*;
-use crate::resource_manager::ShaderHandle;
-use crate::upload_heap::UploadStage;
+
+use crate::{
+	Core, ResourceManager,
+	ShaderHandle,
+	upload_heap::UploadStage,
+	arguments::*,
+};
 
 #[derive(Debug)]
 pub enum DispatchSize {
 	Explicit(Vec3i),
-	Indirect(BufferBindSource),
+	Indirect(BufferArgument),
 	DeriveFromImage(ImageArgument),
 }
 
@@ -33,7 +38,7 @@ impl ComputeCmd {
 		}
 	}
 
-	pub fn execute(&self, core: &mut crate::core::Core, rm: &mut crate::resource_manager::ResourceManager) {
+	pub fn execute(&self, core: &mut Core, rm: &mut ResourceManager) {
 		let pipeline = rm.resolve_compute_pipeline(core, self.compute_shader);
 		core.bind_shader_pipeline(pipeline);
 
@@ -48,7 +53,7 @@ impl ComputeCmd {
 			}
 
 			DispatchSize::Indirect(bind_source) => {
-				let BufferBindSource::Name{name, range} = bind_source
+				let BufferArgument::Name{name, range} = bind_source
 					else { panic!("Unresolved buffer bind source description") };
 
 				let offset = range.map(|r| r.offset).unwrap_or(0);
@@ -105,7 +110,7 @@ impl<'cg> ComputeCmdBuilder<'cg> {
 		self
 	}
 
-	pub fn indirect(&mut self, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
+	pub fn indirect(&mut self, buffer: impl IntoBufferArgument) -> &mut Self {
 		self.cmd.dispatch_size = DispatchSize::Indirect(buffer.into_bind_source(self.upload_stage));
 		self
 	}
@@ -115,16 +120,16 @@ impl<'cg> ComputeCmdBuilder<'cg> {
 		self
 	}
 
-	pub fn buffer(&mut self, target: impl Into<BufferBindTarget>, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
+	pub fn buffer(&mut self, target: impl Into<BufferBindTarget>, buffer: impl IntoBufferArgument) -> &mut Self {
 		self.cmd.bindings.bind_buffer(target, buffer.into_bind_source(self.upload_stage));
 		self
 	}
 
-	pub fn ubo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
+	pub fn ubo(&mut self, index: u32, buffer: impl IntoBufferArgument) -> &mut Self {
 		self.buffer(BufferBindTarget::UboIndex(index), buffer)
 	}
 
-	pub fn ssbo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) -> &mut Self {
+	pub fn ssbo(&mut self, index: u32, buffer: impl IntoBufferArgument) -> &mut Self {
 		self.buffer(BufferBindTarget::SsboIndex(index), buffer)
 	}
 

@@ -1,15 +1,16 @@
 use crate::prelude::*;
 use crate::command_group::*;
-use crate::core;
+use crate::core::Core;
 use crate::upload_heap::{UploadStage, StagedUploadId};
 use crate::bindings::*;
+use crate::arguments::*;
 
 
 
 // Encodes per-frame commands, organised into passes/command groups
 pub struct FrameEncoder {
 	pub(crate) command_groups: Vec<CommandGroup>,
-	pub(crate) backbuffer_clear_color: common::Color,
+	pub(crate) backbuffer_clear_color: Color,
 
 	pub upload_stage: UploadStage,
 
@@ -17,7 +18,7 @@ pub struct FrameEncoder {
 }
 
 impl FrameEncoder {
-	pub fn new(_core: &mut core::Core) -> FrameEncoder {
+	pub fn new(_core: &mut Core) -> FrameEncoder {
 		FrameEncoder {
 			command_groups: Vec::new(),
 			backbuffer_clear_color: Color::light_magenta(),
@@ -44,7 +45,7 @@ impl FrameEncoder {
 
 
 impl FrameEncoder {
-	pub fn backbuffer_color(&mut self, color: impl Into<common::Color>) {
+	pub fn backbuffer_color(&mut self, color: impl Into<Color>) {
 		self.backbuffer_clear_color = color.into();
 	}
 
@@ -77,15 +78,15 @@ impl FrameEncoder {
 
 /// Global per-frame bindings.
 impl FrameEncoder {
-	pub fn bind_global_buffer(&mut self, target: impl Into<BufferBindTarget>, buffer: impl IntoBufferBindSourceOrStageable) {
+	pub fn bind_global_buffer(&mut self, target: impl Into<BufferBindTarget>, buffer: impl IntoBufferArgument) {
 		self.global_bindings.bind_buffer(target, buffer.into_bind_source(&mut self.upload_stage));
 	}
 
-	pub fn bind_global_ubo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) {
+	pub fn bind_global_ubo(&mut self, index: u32, buffer: impl IntoBufferArgument) {
 		self.bind_global_buffer(BufferBindTarget::UboIndex(index), buffer);
 	}
 
-	pub fn bind_global_ssbo(&mut self, index: u32, buffer: impl IntoBufferBindSourceOrStageable) {
+	pub fn bind_global_ssbo(&mut self, index: u32, buffer: impl IntoBufferArgument) {
 		self.bind_global_buffer(BufferBindTarget::SsboIndex(index), buffer);
 	}
 

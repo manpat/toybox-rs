@@ -43,6 +43,8 @@ pub struct Core {
 	depth_test_enabled: Cell<bool>,
 	depth_write_enabled: Cell<bool>,
 
+	current_viewport_size: Cell<Vec2i>,
+
 	global_vao_name: u32,
 
 	buffer_info: RefCell<HashMap<BufferName, BufferInfo>>,
@@ -83,6 +85,8 @@ impl Core {
 			current_blend_mode: Cell::new(None),
 			depth_test_enabled: Cell::new(true),
 			depth_write_enabled: Cell::new(true),
+
+			current_viewport_size: Cell::new(Vec2i::zero()),
 
 			global_vao_name,
 
@@ -143,9 +147,11 @@ impl Core {
 		}
 	}
 
-	pub fn set_debug_label<N>(&self, name: N, label: &str)
+	pub fn set_debug_label<N>(&self, name: N, label: impl AsRef<str>)
 		where N: ResourceName
 	{
+		let label = label.as_ref();
+
 		unsafe {
 			self.gl.ObjectLabel(N::GL_IDENTIFIER, name.as_raw(), label.len() as i32, label.as_ptr() as *const _);
 		}
