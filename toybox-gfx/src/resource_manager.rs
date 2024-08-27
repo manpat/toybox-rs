@@ -36,13 +36,13 @@ pub struct ResourceManager {
 	compile_shader_requests: ResourceRequestMap<CompileShaderRequest>,
 	pub shaders: ResourceStorage<ShaderResource>,
 
-	standard_vs_shader: ShaderHandle,
-	fullscreen_vs_shader: ShaderHandle,
-	flat_textured_fs_shader: ShaderHandle,
-
 	load_image_requests: ResourceRequestMap<LoadImageRequest>,
 	create_image_requests: ResourceRequestMap<CreateImageRequest>,
 	pub images: ResourceStorage<ImageResource>,
+
+	standard_vs_shader: ShaderHandle,
+	fullscreen_vs_shader: ShaderHandle,
+	flat_textured_fs_shader: ShaderHandle,
 
 	blank_white_image: ImageName,
 	blank_black_image: ImageName,
@@ -113,13 +113,13 @@ impl ResourceManager {
 			compile_shader_requests,
 			shaders,
 
-			standard_vs_shader,
-			fullscreen_vs_shader,
-			flat_textured_fs_shader,
-
 			load_image_requests: ResourceRequestMap::new(),
 			create_image_requests: ResourceRequestMap::new(),
 			images: ResourceStorage::new(),
+
+			standard_vs_shader,
+			fullscreen_vs_shader,
+			flat_textured_fs_shader,
 
 			blank_white_image,
 			blank_black_image,
