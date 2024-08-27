@@ -21,7 +21,7 @@ pub use shaders::*;
 
 pub mod prelude {
 	pub use crate::host::gl;
-	pub use crate::core::ResourceName;
+	pub use crate::{ResourceName, BufferRangeExt};
 
 	pub use common::math::*;
 }
@@ -267,6 +267,7 @@ impl<T> AsStageableSlice for Vec<T>
 		self
 	}
 }
+
 
 
 // TODO(pat.m): move somewhere else

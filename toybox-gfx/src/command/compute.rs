@@ -111,7 +111,7 @@ impl<'cg> ComputeCmdBuilder<'cg> {
 	}
 
 	pub fn indirect(&mut self, buffer: impl IntoBufferArgument) -> &mut Self {
-		self.cmd.dispatch_size = DispatchSize::Indirect(buffer.into_bind_source(self.upload_stage));
+		self.cmd.dispatch_size = DispatchSize::Indirect(buffer.into_buffer_argument(self.upload_stage));
 		self
 	}
 
@@ -121,7 +121,7 @@ impl<'cg> ComputeCmdBuilder<'cg> {
 	}
 
 	pub fn buffer(&mut self, target: impl Into<BufferBindTarget>, buffer: impl IntoBufferArgument) -> &mut Self {
-		self.cmd.bindings.bind_buffer(target, buffer.into_bind_source(self.upload_stage));
+		self.cmd.bindings.bind_buffer(target, buffer.into_buffer_argument(self.upload_stage));
 		self
 	}
 

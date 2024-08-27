@@ -177,8 +177,8 @@ impl<'cg> DrawCmdBuilder<'cg> {
 	}
 
 	pub fn indexed(&mut self, buffer: impl IntoBufferArgument) -> &mut Self {
-		let bind_source = buffer.into_bind_source(self.upload_stage);
-		self.cmd.index_buffer = Some(bind_source);
+		let buffer_argument = buffer.into_buffer_argument(self.upload_stage);
+		self.cmd.index_buffer = Some(buffer_argument);
 		self
 	}
 
@@ -188,7 +188,7 @@ impl<'cg> DrawCmdBuilder<'cg> {
 	}
 
 	pub fn buffer(&mut self, target: impl Into<BufferBindTarget>, buffer: impl IntoBufferArgument) -> &mut Self {
-		self.cmd.bindings.bind_buffer(target, buffer.into_bind_source(self.upload_stage));
+		self.cmd.bindings.bind_buffer(target, buffer.into_buffer_argument(self.upload_stage));
 		self
 	}
 

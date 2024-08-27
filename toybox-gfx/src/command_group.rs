@@ -93,7 +93,7 @@ impl<'g> CommandGroupEncoder<'g> {
 /// Bindings shared between all commands in the group.
 impl<'g> CommandGroupEncoder<'g> {
 	pub fn bind_shared_buffer(&mut self, target: impl Into<BufferBindTarget>, buffer: impl IntoBufferArgument) {
-		self.group.shared_bindings.bind_buffer(target, buffer.into_bind_source(self.upload_stage));
+		self.group.shared_bindings.bind_buffer(target, buffer.into_buffer_argument(self.upload_stage));
 	}
 
 	pub fn bind_shared_ubo(&mut self, index: u32, buffer: impl IntoBufferArgument) {

@@ -79,7 +79,7 @@ impl FrameEncoder {
 /// Global per-frame bindings.
 impl FrameEncoder {
 	pub fn bind_global_buffer(&mut self, target: impl Into<BufferBindTarget>, buffer: impl IntoBufferArgument) {
-		self.global_bindings.bind_buffer(target, buffer.into_bind_source(&mut self.upload_stage));
+		self.global_bindings.bind_buffer(target, buffer.into_buffer_argument(&mut self.upload_stage));
 	}
 
 	pub fn bind_global_ubo(&mut self, index: u32, buffer: impl IntoBufferArgument) {
