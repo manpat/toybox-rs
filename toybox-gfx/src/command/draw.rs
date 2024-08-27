@@ -3,7 +3,7 @@ use crate::bindings::*;
 
 use crate::{
 	Core, ResourceManager,
-	ShaderHandle,
+	ShaderArgument,
 	BlendMode,
 	upload_heap::UploadStage,
 	arguments::*,
@@ -18,18 +18,13 @@ pub enum PrimitiveType {
 	Triangles = gl::TRIANGLES,
 }
 
-#[derive(Debug, Copy, Clone)]
-enum DrawCmdShaders {
-	Pair { vertex_shader: ShaderHandle, fragment_shader: Option<ShaderHandle> },
-	FullscreenQuad { fragment_shader: Option<ShaderHandle> },
-}
-
 
 #[derive(Debug)]
 pub struct DrawCmd {
 	pub bindings: BindingDescription,
 
-	shaders: DrawCmdShaders,
+	vertex_shader: ShaderArgument,
+	fragment_shader: Option<ShaderArgument>,
 
 	pub primitive_type: PrimitiveType,
 
@@ -53,16 +48,12 @@ impl From<DrawCmd> for super::Command {
 }
 
 impl DrawCmd {
-	pub fn from_shaders(vertex_shader: ShaderHandle, fragment_shader: impl Into<Option<ShaderHandle>>) -> DrawCmd {
-		let fragment_shader = fragment_shader.into();
-
+	pub fn from_shaders(vertex_shader: ShaderArgument, fragment_shader: Option<ShaderArgument>) -> DrawCmd {
 		DrawCmd {
 			bindings: Default::default(),
 
-			shaders: DrawCmdShaders::Pair {
-				vertex_shader,
-				fragment_shader,
-			},
+			vertex_shader,
+			fragment_shader: fragment_shader,
 
 			primitive_type: PrimitiveType::Triangles,
 
@@ -78,13 +69,13 @@ impl DrawCmd {
 		}
 	}
 
-	pub fn from_fullscreen_shader(fragment_shader: impl Into<Option<ShaderHandle>>) -> DrawCmd {
-		let fragment_shader = fragment_shader.into();
-
+	pub fn from_fullscreen_shader(fragment_shader: ShaderArgument) -> DrawCmd {
 		DrawCmd {
 			bindings: Default::default(),
 
-			shaders: DrawCmdShaders::FullscreenQuad{fragment_shader},
+			vertex_shader: CommonShader::FullscreenVertex.into(),
+			fragment_shader: Some(fragment_shader),
+
 			primitive_type: PrimitiveType::Triangles,
 
 			num_elements: 6,
@@ -100,17 +91,22 @@ impl DrawCmd {
 	}
 
 	pub fn execute(&self, core: &mut Core, rm: &mut ResourceManager) {
-		let (vs, fs) = match self.shaders {
-			DrawCmdShaders::Pair {vertex_shader, fragment_shader} => (vertex_shader, fragment_shader),
-			DrawCmdShaders::FullscreenQuad {fragment_shader}
-				=> (rm.fullscreen_vs_shader, fragment_shader.or(Some(rm.flat_fs_shader))),
+		let vertex_shader_handle = match self.vertex_shader {
+			ShaderArgument::Handle(name) => name,
+			ShaderArgument::Common(shader) => rm.get_common_shader(shader),
+		};
+
+		let fragment_shader_handle = match self.fragment_shader {
+			Some(ShaderArgument::Handle(name)) => Some(name),
+			Some(ShaderArgument::Common(shader)) => Some(rm.get_common_shader(shader)),
+			None => None,
 		};
 
 		// TODO(pat.m): eugh. should probably be part of a larger pipeline state management system
-		let num_user_clip_planes = rm.shaders.get_resource(vs).unwrap().num_user_clip_planes;
+		let num_user_clip_planes = rm.shaders.get_resource(vertex_shader_handle).unwrap().num_user_clip_planes;
 		core.set_user_clip_planes(num_user_clip_planes);
 
-		let pipeline = rm.resolve_draw_pipeline(core, vs, fs);
+		let pipeline = rm.resolve_draw_pipeline(core, vertex_shader_handle, fragment_shader_handle);
 		core.bind_shader_pipeline(pipeline);
 
 		core.set_blend_mode(self.blend_mode);
@@ -236,4 +232,3 @@ impl<'cg> DrawCmdBuilder<'cg> {
 		self
 	}
 }
-

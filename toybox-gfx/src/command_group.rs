@@ -134,22 +134,27 @@ impl<'g> CommandGroupEncoder<'g> {
 		self.add(Command::Callback(Box::new(cb)));
 	}
 
-	pub fn draw(&mut self, vertex_shader: ShaderHandle, fragment_shader: ShaderHandle) -> draw::DrawCmdBuilder<'_> {
-		self.add(draw::DrawCmd::from_shaders(vertex_shader, fragment_shader));
+	pub fn draw(&mut self, vertex_shader: impl Into<ShaderArgument>, fragment_shader: impl Into<ShaderArgument>) -> draw::DrawCmdBuilder<'_> {
+		self.add(draw::DrawCmd::from_shaders(vertex_shader.into(), Some(fragment_shader.into())));
 		let Some(Command::Draw(cmd)) = self.group.commands.last_mut() else { unreachable!() };
 		draw::DrawCmdBuilder {cmd, upload_stage: self.upload_stage}
 	}
 
+	// TODO(pat.m): draw_depth_only
+
 	/// Same as draw() except uses standard fullscreen vertex shader [gfx::ResourceManager::fullscreen_vs_shader].
 	/// If no fragment shader is provided, uses texture only [gfx::ResourceManager::flat_fs_shader]. 
 	pub fn draw_fullscreen(&mut self, fragment_shader: impl Into<Option<ShaderHandle>>) -> draw::DrawCmdBuilder<'_> {
+		let fragment_shader = fragment_shader.into()
+			.map_or(CommonShader::FlatTexturedFragment.into(), |handle| handle.into());
+
 		self.add(draw::DrawCmd::from_fullscreen_shader(fragment_shader));
 		let Some(Command::Draw(cmd)) = self.group.commands.last_mut() else { unreachable!() };
 		draw::DrawCmdBuilder {cmd, upload_stage: self.upload_stage}
 	}
 
-	pub fn compute(&mut self, compute_shader: ShaderHandle) -> compute::ComputeCmdBuilder<'_> {
-		self.add(compute::ComputeCmd::new(compute_shader));
+	pub fn compute(&mut self, compute_shader: impl Into<ShaderArgument>) -> compute::ComputeCmdBuilder<'_> {
+		self.add(compute::ComputeCmd::new(compute_shader.into()));
 		let Some(Command::Compute(cmd)) = self.group.commands.last_mut() else { unreachable!() };
 		compute::ComputeCmdBuilder {cmd, upload_stage: self.upload_stage}
 	}

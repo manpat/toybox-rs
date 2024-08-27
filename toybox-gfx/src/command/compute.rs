@@ -3,7 +3,6 @@ use crate::bindings::*;
 
 use crate::{
 	Core, ResourceManager,
-	ShaderHandle,
 	upload_heap::UploadStage,
 	arguments::*,
 };
@@ -18,7 +17,7 @@ pub enum DispatchSize {
 
 #[derive(Debug)]
 pub struct ComputeCmd {
-	pub compute_shader: ShaderHandle,
+	pub compute_shader: ShaderArgument,
 	pub dispatch_size: DispatchSize,
 	pub bindings: BindingDescription,
 }
@@ -30,7 +29,7 @@ impl From<ComputeCmd> for super::Command {
 }
 
 impl ComputeCmd {
-	pub fn new(compute_shader: ShaderHandle) -> ComputeCmd {
+	pub fn new(compute_shader: ShaderArgument) -> ComputeCmd {
 		ComputeCmd {
 			compute_shader,
 			dispatch_size: DispatchSize::Explicit(Vec3i::splat(1)),
@@ -39,7 +38,12 @@ impl ComputeCmd {
 	}
 
 	pub fn execute(&self, core: &mut Core, rm: &mut ResourceManager) {
-		let pipeline = rm.resolve_compute_pipeline(core, self.compute_shader);
+		let shader_handle = match self.compute_shader {
+			ShaderArgument::Handle(handle) => handle,
+			ShaderArgument::Common(shader) => rm.get_common_shader(shader),
+		};
+
+		let pipeline = rm.resolve_compute_pipeline(core, shader_handle);
 		core.bind_shader_pipeline(pipeline);
 
 		self.bindings.bind(core, rm);
@@ -75,7 +79,7 @@ impl ComputeCmd {
 					ImageArgument::Blank(image) => rm.get_blank_image(image),
 				};
 
-				let workgroup_size = rm.shaders.get_resource(self.compute_shader)
+				let workgroup_size = rm.shaders.get_resource(shader_handle)
 					.unwrap()
 					.workgroup_size
 					.expect("Compute shader resource missing workgroup size");

@@ -36,10 +36,9 @@ pub struct ResourceManager {
 	compile_shader_requests: ResourceRequestMap<CompileShaderRequest>,
 	pub shaders: ResourceStorage<ShaderResource>,
 
-	// TODO(pat.m): make Basic versions of these a la BlankImage and CommonSampler
-	pub standard_vs_shader: ShaderHandle,
-	pub fullscreen_vs_shader: ShaderHandle,
-	pub flat_fs_shader: ShaderHandle,
+	standard_vs_shader: ShaderHandle,
+	fullscreen_vs_shader: ShaderHandle,
+	flat_textured_fs_shader: ShaderHandle,
 
 	load_image_requests: ResourceRequestMap<LoadImageRequest>,
 	create_image_requests: ResourceRequestMap<CreateImageRequest>,
@@ -72,8 +71,8 @@ impl ResourceManager {
 		let fullscreen_vs_shader = compile_shader_requests.request_handle(&mut shaders,
 			CompileShaderRequest::vertex("fullscreen vs", shaders::FULLSCREEN_VS_SHADER_SOURCE));
 
-		let flat_fs_shader = compile_shader_requests.request_handle(&mut shaders,
-			CompileShaderRequest::fragment("flat fs", shaders::FLAT_FS_SHADER_SOURCE));
+		let flat_textured_fs_shader = compile_shader_requests.request_handle(&mut shaders,
+			CompileShaderRequest::fragment("flat textured fs", shaders::FLAT_TEXTURED_FS_SHADER_SOURCE));
 
 		let blank_white_image = {
 			let format = crate::ImageFormat::Rgba(crate::ComponentFormat::Unorm8);
@@ -116,7 +115,7 @@ impl ResourceManager {
 
 			standard_vs_shader,
 			fullscreen_vs_shader,
-			flat_fs_shader,
+			flat_textured_fs_shader,
 
 			load_image_requests: ResourceRequestMap::new(),
 			create_image_requests: ResourceRequestMap::new(),
@@ -266,6 +265,15 @@ impl ResourceManager {
 		match sampler {
 			CommonSampler::Linear => self.linear_sampler,
 			CommonSampler::Nearest => self.nearest_sampler,
+		}
+	}
+
+	pub fn get_common_shader(&self, shader: CommonShader) -> ShaderHandle {
+		match shader {
+			CommonShader::StandardVertex => self.standard_vs_shader,
+			CommonShader::FullscreenVertex => self.fullscreen_vs_shader,
+
+			CommonShader::FlatTexturedFragment => self.flat_textured_fs_shader,
 		}
 	}
 }
