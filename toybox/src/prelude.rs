@@ -22,6 +22,8 @@ pub use egui_backend::prelude::*;
 
 pub use anyhow;
 
+pub use log;
+
 pub use tracing;
 #[doc(hidden)]
 pub use tracing::instrument;
