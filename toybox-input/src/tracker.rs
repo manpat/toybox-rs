@@ -48,8 +48,10 @@ impl Tracker {
 				self.active_buttons.push(button);
 			}
 		} else {
-			self.active_buttons.retain(|active_button| *active_button != button);
-			self.up_buttons.push(button);
+			if self.active_buttons.contains(&button) {
+				self.active_buttons.retain(|active_button| *active_button != button);
+				self.up_buttons.push(button);
+			}
 		}
 	}
 
@@ -67,7 +69,7 @@ impl Tracker {
 	}
 
 	pub fn track_focus_lost(&mut self) {
-		self.active_buttons.clear();
+		self.up_buttons.append(&mut self.active_buttons);
 	}
 
 	pub fn track_focus_gained(&mut self) {

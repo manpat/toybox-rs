@@ -93,6 +93,7 @@ struct HostedApp<A: App> {
 impl<A: App> host::HostedApp for HostedApp<A> {
 	fn window_event(&mut self, _: &host::ActiveEventLoop, event: host::WindowEvent) {
 		if self.context.egui_integration.on_event(&event) {
+			self.context.input.tracker.track_focus_lost();
 			return
 		}
 
