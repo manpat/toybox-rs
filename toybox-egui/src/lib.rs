@@ -33,12 +33,13 @@ pub struct Integration {
 impl Integration {
 	pub fn new(ctx: egui::Context, window: Rc<Window>, gfx: &mut gfx::System) -> anyhow::Result<Integration> {
 		let theme = None;
+		let scale_factor = window.scale_factor() as f32;
 
 		let state = egui_winit::State::new(
 			ctx.clone(),
 			egui::ViewportId::ROOT,
 			&*window,
-			Some(window.scale_factor() as f32),
+			Some(scale_factor),
 			theme,
 			Some(gfx.core.capabilities().max_texture_size)
 		);
@@ -48,8 +49,11 @@ impl Integration {
 		//     dbg!(opts);
 		// });
 
-		let renderer = renderer::Renderer::new(gfx);
+		let mut renderer = renderer::Renderer::new(gfx);
+		renderer.scaling = scale_factor;
+
 		let texture_manager = textures::TextureManager::new(gfx);
+
 		Ok(Integration {
 			ctx, state, window,
 			renderer, texture_manager,
@@ -67,6 +71,10 @@ impl Integration {
 			&& !self.ctx.wants_pointer_input()
 		{
 			return false
+		}
+
+		if let WindowEvent::ScaleFactorChanged { scale_factor, .. } = event {
+			self.renderer.scaling = *scale_factor as f32;
 		}
 
 		self.state.on_window_event(&self.window, event).consumed

@@ -19,6 +19,8 @@ pub struct Renderer {
 	vertex_shader: ShaderHandle,
 	fragment_shader: ShaderHandle,
 	text_fragment_shader: ShaderHandle,
+
+	pub(crate) scaling: f32,
 }
 
 impl Renderer {
@@ -27,6 +29,8 @@ impl Renderer {
 			vertex_shader: gfx.resource_manager.request(CompileShaderRequest::vertex("egui vs", VERTEX_SOURCE)),
 			fragment_shader: gfx.resource_manager.request(CompileShaderRequest::fragment("egui fs", FRAGMENT_SOURCE)),
 			text_fragment_shader: gfx.resource_manager.request(CompileShaderRequest::fragment("egui text fs", TEXT_FRAGMENT_SOURCE)),
+
+			scaling: 1.0,
 		}
 	}
 
@@ -36,6 +40,9 @@ impl Renderer {
 		}
 
 		let backbuffer_size = gfx.backbuffer_size();
+
+		// TODO(pat.m): how make this not make egui huge on laptop :(
+		let logical_screen_size = (backbuffer_size.to_vec2() / self.scaling).to_vec2i();
 
 		let mut group = gfx.frame_encoder.command_group(gfx::FrameStage::DebugUi)
 			.annotate("Paint Egui");
@@ -57,10 +64,7 @@ impl Renderer {
 			alpha_function: gfx::BlendFunction::Add,
 		};
 
-
-		// TODO(pat.m): are egui coords in logical or physical coordinates?
-		// this might be incorrect with scaling
-		let transforms = group.upload(&[backbuffer_size]);
+		let transforms = group.upload(&[logical_screen_size]);
 
 		for ClippedPrimitive{clip_rect, primitive} in primitives {
 			let Primitive::Mesh(mesh) = primitive else { unimplemented!() };
