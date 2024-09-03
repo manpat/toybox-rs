@@ -1,4 +1,8 @@
+#![feature(let_chains)]
+
 use cpal::traits::*;
+
+use anyhow::Context as AnyhowContext;
 
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -33,48 +37,78 @@ pub fn init() -> anyhow::Result<System> {
 		device_lost: AtomicBool::new(false),
 	});
 
-	let (stream, current_configuration) = build_output_stream(&host, &shared)?;
+	match build_output_stream(&host, &shared) {
+		Ok(active_stream) => {
+			Ok(System {
+				active_stream: Some(active_stream),
+				host,
+				shared,
+			})
+		}
 
-	Ok(System {
-		host,
-		stream: Some(stream),
+		Err(error) => {
+			log::error!("Failed to create audio device: {error}");
 
-		current_configuration,
-		shared,
-	})
+			// Prevent system from trying again.
+			// TODO(pat.m): try on a time out? listen for audio device changes?
+			// TODO(pat.m): this definitely needs to be renamed
+			shared.device_lost.store(true, Ordering::Relaxed);
+
+			Ok(System {
+				active_stream: None,
+				host,
+				shared,
+			})
+		}
+	}
+
 }
 
 pub struct System {
 	host: cpal::Host,
-	stream: Option<cpal::Stream>,
-	current_configuration: Configuration,
-
 	shared: Arc<SharedState>,
+
+	active_stream: Option<ActiveStream>,
 }
 
 impl System {
 	pub fn update(&mut self) {
 		if self.shared.device_lost.load(Ordering::Relaxed) {
-			if self.stream.is_some() {
-				self.stream = None;
+			if self.active_stream.is_some() {
+				self.active_stream = None;
 			} else {
 				// If device_lost and there's no existing stream, then we've given up on creating a device for now
 				return;
 			}
 		}
 
-		if self.stream.is_some() {
+		if self.active_stream.is_some() {
 			return;
 		}
 
-		let Ok((stream, current_configuration)) = build_output_stream(&self.host, &self.shared) else {
-			println!("Failed to create audio device");
-			return;
-		};
+		// Try and build a new stream
+		match build_output_stream(&self.host, &self.shared) {
+			Ok(active_stream) => {
+				if let Ok(mut guard) = self.shared.provider.lock()
+					&& let Some(provider) = &mut *guard
+				{
+					provider.on_configuration_changed(Some(active_stream.configuration));
+				}
 
-		self.stream = Some(stream);
-		self.current_configuration = current_configuration;
-		self.shared.device_lost.store(false, Ordering::Relaxed);
+				self.active_stream = Some(active_stream);
+				self.shared.device_lost.store(false, Ordering::Relaxed);
+			}
+
+			Err(error) => {
+				log::error!("Failed to recreate audio device: {error}");
+
+				if let Ok(mut guard) = self.shared.provider.lock()
+					&& let Some(provider) = &mut *guard
+				{
+					provider.on_configuration_changed(None);
+				}
+			}
+		};
 	}
 }
 
@@ -85,8 +119,11 @@ impl System {
 		let mut shared_provider = self.shared.provider.lock().unwrap();
 
 		if let Some(mut provider) = provider.into() {
-			provider.on_configuration_changed(self.current_configuration);
+			let configuration = self.active_stream.as_ref().map(|active_stream| active_stream.configuration);
+			provider.on_configuration_changed(configuration);
+
 			*shared_provider = Some(Box::new(provider));
+
 		} else {
 			*shared_provider = None;
 		}
@@ -102,7 +139,7 @@ pub struct Configuration {
 }
 
 pub trait Provider : Send + 'static {
-	fn on_configuration_changed(&mut self, _: Configuration);
+	fn on_configuration_changed(&mut self, _: Option<Configuration>);
 	fn fill_buffer(&mut self, buffer: &mut [f32]);
 }
 
@@ -118,19 +155,19 @@ struct SharedState {
 // 	should be able to cope with different sample rates
 
 
-fn build_output_stream(host: &cpal::Host, shared: &Arc<SharedState>) -> anyhow::Result<(cpal::Stream, Configuration)> {
-	let device = host.default_output_device().expect("no output device available");
+fn build_output_stream(host: &cpal::Host, shared: &Arc<SharedState>) -> anyhow::Result<ActiveStream> {
+	let device = host.default_output_device().context("no output device available")?;
 
 	log::info!("Selected audio device: {}", device.name().unwrap_or_else(|_| String::from("<no name>")));
 
 	let supported_configs_range = device.supported_output_configs()
-		.expect("error while querying configs");
+		.context("error while querying configs")?;
 
 	// TODO(pat.m): support different sample formats
 	let supported_config = supported_configs_range
 		.filter(|config| config.sample_format().is_float())
 		.max_by(cpal::SupportedStreamConfigRange::cmp_default_heuristics)
-		.expect("no supported config?!");
+		.context("couldn't find a supported configuration")?;
 
 	let desired_sample_rate = 48000.clamp(supported_config.min_sample_rate().0, supported_config.max_sample_rate().0);
 	let supported_config = supported_config
@@ -173,5 +210,10 @@ fn build_output_stream(host: &cpal::Host, shared: &Arc<SharedState>) -> anyhow::
 		channels: config.channels as usize,
 	};
 
-	Ok((stream, configuration))
+	Ok(ActiveStream{stream, configuration})
+}
+
+struct ActiveStream {
+	stream: cpal::Stream,
+	configuration: Configuration,
 }
