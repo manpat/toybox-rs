@@ -210,10 +210,10 @@ fn build_output_stream(host: &cpal::Host, shared: &Arc<SharedState>) -> anyhow::
 		channels: config.channels as usize,
 	};
 
-	Ok(ActiveStream{stream, configuration})
+	Ok(ActiveStream{_stream: stream, configuration})
 }
 
 struct ActiveStream {
-	stream: cpal::Stream,
+	_stream: cpal::Stream,
 	configuration: Configuration,
 }
