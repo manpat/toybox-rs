@@ -41,7 +41,6 @@ impl Renderer {
 
 		let backbuffer_size = gfx.backbuffer_size();
 
-		// TODO(pat.m): how make this not make egui huge on laptop :(
 		let logical_screen_size = (backbuffer_size.to_vec2() / self.scaling).to_vec2i();
 
 		let mut group = gfx.frame_encoder.command_group(gfx::FrameStage::DebugUi)
