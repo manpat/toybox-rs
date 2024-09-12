@@ -39,16 +39,16 @@ impl StandardVertex {
 		}
 	}
 
-	pub fn from_pos(pos: Vec3) -> StandardVertex {
-		Self::new(pos, Vec2::zero(), Color::white())
+	pub fn from_pos(pos: impl Into<Vec3>) -> StandardVertex {
+		Self::new(pos.into(), Vec2::zero(), Color::white())
 	}
 
-	pub fn with_color(pos: Vec3, color: impl Into<Color>) -> StandardVertex {
-		Self::new(pos, Vec2::zero(), color)
+	pub fn with_color(pos: impl Into<Vec3>, color: impl Into<Color>) -> StandardVertex {
+		Self::new(pos.into(), Vec2::zero(), color)
 	}
 
-	pub fn with_uv(pos: Vec3, uv: Vec2) -> StandardVertex {
-		Self::new(pos, uv, Color::white())
+	pub fn with_uv(pos: impl Into<Vec3>, uv: Vec2) -> StandardVertex {
+		Self::new(pos.into(), uv, Color::white())
 	}
 }
 
