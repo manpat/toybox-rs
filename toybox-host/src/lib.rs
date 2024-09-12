@@ -245,7 +245,7 @@ impl BootstrapState {
 			.or_else(|| event_loop.available_monitors().next())
 		{
 			let PhysicalPosition{x, y} = monitor.position();
-			let PhysicalSize{width, height} = dbg!(monitor.size());
+			let PhysicalSize{width, height} = monitor.size();
 
 			self.window_attributes = self.window_attributes.with_inner_size(PhysicalSize{
 				width: width.checked_sub(100).unwrap_or(width),
