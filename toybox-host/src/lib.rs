@@ -241,9 +241,11 @@ struct BootstrapState {
 impl BootstrapState {
 	fn bootstrap(mut self, event_loop: &ActiveEventLoop) -> anyhow::Result<Host> {
 		// Try to fit window to monitor
-		if let Some(monitor) = event_loop.primary_monitor() {
+		if let Some(monitor) = event_loop.primary_monitor()
+			.or_else(|| event_loop.available_monitors().next())
+		{
 			let PhysicalPosition{x, y} = monitor.position();
-			let PhysicalSize{width, height} = monitor.size();
+			let PhysicalSize{width, height} = dbg!(monitor.size());
 
 			self.window_attributes = self.window_attributes.with_inner_size(PhysicalSize{
 				width: width.checked_sub(100).unwrap_or(width),
@@ -254,6 +256,8 @@ impl BootstrapState {
 				x: x + 50,
 				y: y + 30, // Fudged for window decorations lol
 			});
+		} else {
+			log::warn!("Couldn't get primary monitor - using default window size");
 		}
 
 		// Try to create our window and a config that describes a context we can create
