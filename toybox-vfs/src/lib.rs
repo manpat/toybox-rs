@@ -32,6 +32,39 @@ impl Vfs {
 
         self.resource_root.join(clean_path)
     }
+
+    pub fn load_resource_data(&self, virtual_path: impl AsRef<Path>) -> anyhow::Result<Vec<u8>> {
+        let path = self.resource_path(virtual_path);
+        std::fs::read(&path).map_err(Into::into)
+    }
+
+    pub fn save_resource_data(&self, virtual_path: impl AsRef<Path>, data: &[u8]) -> anyhow::Result<()> {
+        let path = self.resource_path(virtual_path);
+
+        if let Some(parent_path) = path.parent() {
+            std::fs::create_dir_all(parent_path)?;
+        }
+
+        std::fs::write(path, &data).map_err(Into::into)
+    }
+
+    pub fn load_json_resource<T>(&self, virtual_path: impl AsRef<Path>) -> anyhow::Result<T>
+        where T: for<'a> serde::Deserialize<'a>
+    {
+    	let data = self.load_resource_data(virtual_path)?;
+    	serde_json::from_slice(&data).map_err(Into::into)
+    }
+
+    pub fn save_json_resource<T>(&self, virtual_path: impl AsRef<Path>, data: &T) -> anyhow::Result<()>
+        where T: serde::Serialize
+    {
+        let data = match cfg!(debug_assertions) {
+            true => serde_json::to_vec_pretty(data)?,
+            false => serde_json::to_vec(data)?,
+        };
+
+        self.save_resource_data(virtual_path, &data)
+    }
 }
 
 
