@@ -5,6 +5,7 @@ edition.workspace = true
 authors.workspace = true
 
 [dependencies]
+log.workspace = true
 anyhow.workspace = true
 
 serde.workspace = true

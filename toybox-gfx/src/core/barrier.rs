@@ -91,8 +91,18 @@ impl BarrierTracker {
 			*needs_barrier_flags &= !barrier_flags;
 		}
 	}
+
+	pub fn giga_barrier(&mut self, gl: &gl::Gl) {
+		unsafe {
+			gl.MemoryBarrier(gl::ALL_BARRIER_BITS);	
+		}
+
+		self.next_barrier_flags = 0;
+	}
 }
 
 impl super::Core {
-
+	pub fn giga_barrier(&self) {
+		self.barrier_tracker().giga_barrier(&self.gl);
+	}
 }

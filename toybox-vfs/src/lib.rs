@@ -115,7 +115,7 @@ fn find_resource_folder() -> anyhow::Result<PathBuf> {
 fn try_find_resource_folder_from(search_dir: &Path, dirs_scanned: &mut Vec<PathBuf>) -> anyhow::Result<Option<PathBuf>> {
     // Try scanning the current search dir first, and then one directory above.
     for search_dir in search_dir.ancestors().take(2) {
-        // println!("Trying to scan {}", search_dir.display());
+        log::debug!("Trying to scan {}", search_dir.display());
 
         let Ok(children) = search_dir.read_dir() else {
             continue
@@ -130,7 +130,7 @@ fn try_find_resource_folder_from(search_dir: &Path, dirs_scanned: &mut Vec<PathB
             {
                 let dir_path = dir_entry.path();
 
-                // println!("=== Testing {}", dir_path.display());
+                log::debug!("=== Testing {}", dir_path.display());
                 if dir_path.ends_with("resource") {
                     return Ok(Some(dir_path))
                 }
@@ -153,7 +153,7 @@ fn try_find_resource_folder_from(search_dir: &Path, dirs_scanned: &mut Vec<PathB
 fn try_find_resource_folder_in(search_dir: &Path, dirs_scanned: &mut Vec<PathBuf>) -> anyhow::Result<Option<PathBuf>> {
     let path = search_dir.join("resource");
     dirs_scanned.push(path.clone());
-    // println!("=== Testing {}", path.display());
+    log::debug!("=== Testing {}", path.display());
 
     if path.try_exists()? {
         return Ok(Some(path))
