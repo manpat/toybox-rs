@@ -1,7 +1,7 @@
 use winit::window::{Window, CursorGrabMode};
 use winit::event::*;
 use winit::dpi::PhysicalPosition;
-use common::math::{Vec2, Vec2i};
+use common::*;
 
 use std::rc::Rc;
 
@@ -15,10 +15,17 @@ pub use tracker::*;
 pub use winit::event::{MouseButton};
 pub use winit::keyboard::{Key as LogicalKey, NamedKey as LogicalNamedKey, KeyCode as PhysicalKey};
 
+/// Maps mouse dots to a raw angle in radians. Based on constants used by quake and hl source.
+///
+/// https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/game/client/in_mouse.cpp#L88
+/// https://github.com/id-Software/Quake-III-Arena/blob/master/code/client/cl_main.c#L2331
+pub const ANGLE_PER_MOUSE_DOT: f32 = 0.022 * PI / 180.0;
 
 pub struct System {
 	pub tracker: Tracker,
 	// pub gil: gilrs::Gilrs,
+
+	pub mouse_sensitivity: f32,
 
 	window: Rc<Window>,
 	wants_capture: bool,
@@ -54,14 +61,19 @@ impl System {
 		})
 	}
 
+	/// Gives raw mouse delta - transformed such that moving the mouse forward gives a positive y delta, and moving
+	/// the mouse right gives a positive x delta.
+	/// Returns None if window doesn't have mouse focus or if no mouse events occured last frame.
 	pub fn mouse_delta_dots(&self) -> Option<Vec2> {
 		self.tracker.mouse_delta.map(|dpf| dpf * Vec2::new(1.0, -1.0))
 	}
 
-	pub fn mouse_delta(&self) -> Option<Vec2> {
-		// TODO(pat.m): should be configurable
-		let sensitivity = 800.0;
-		self.mouse_delta_dots().map(|dpf| dpf / sensitivity)
+	/// If available, gives mouse delta as an angle in radians based on ANGLE_PER_MOUSE_DOT and mouse_sensitivity.
+	/// Returns None if window doesn't have mouse focus or if no mouse events occured last frame.
+	///
+	/// https://github.com/id-Software/Quake-III-Arena/blob/master/code/client/cl_input.c#L420
+	pub fn mouse_delta_radians(&self) -> Option<Vec2> {
+		self.mouse_delta_dots().map(|dpf| dpf * self.mouse_sensitivity * ANGLE_PER_MOUSE_DOT)
 	}
 }
 
@@ -94,6 +106,11 @@ impl System {
 			// gil: gilrs::Gilrs::new().unwrap(),
 			window,
 			wants_capture: false,
+
+			// Default half way between quake and source sdk defaults
+			// https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/game/client/in_mouse.cpp#L85
+			// https://github.com/id-Software/Quake-III-Arena/blob/master/code/client/cl_main.c#L2308
+			mouse_sensitivity: 5.0,
 
 			window_size: Vec2i::splat(1),
 		}
