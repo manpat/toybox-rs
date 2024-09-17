@@ -23,23 +23,22 @@ impl Vfs {
         &self.resource_root
     }
 
-    pub fn resource_path(&self, virtual_path: impl AsRef<Path>) -> PathBuf {
+    pub fn resource_path(&self, virtual_path: impl AsRef<Path>) -> anyhow::Result<PathBuf> {
         let components = virtual_path.as_ref().components();
 
         let clean_path = clean_virtual_path(components)
-            .with_context(|| virtual_path.as_ref().display().to_string())
-            .expect("Failed to clean resource path");
+            .with_context(|| format!("Invalid path '{}'", virtual_path.as_ref().display()))?;
 
-        self.resource_root.join(clean_path)
+        Ok(self.resource_root.join(clean_path))
     }
 
     pub fn load_resource_data(&self, virtual_path: impl AsRef<Path>) -> anyhow::Result<Vec<u8>> {
-        let path = self.resource_path(virtual_path);
+        let path = self.resource_path(virtual_path)?;
         std::fs::read(&path).map_err(Into::into)
     }
 
     pub fn save_resource_data(&self, virtual_path: impl AsRef<Path>, data: &[u8]) -> anyhow::Result<()> {
-        let path = self.resource_path(virtual_path);
+        let path = self.resource_path(virtual_path)?;
 
         if let Some(parent_path) = path.parent() {
             std::fs::create_dir_all(parent_path)?;
@@ -79,7 +78,16 @@ fn clean_virtual_path(mut components: std::path::Components<'_>) -> anyhow::Resu
                 let _ = components.next();
             }
 
-            Component::Normal(_) | Component::CurDir => {}
+            Component::CurDir => {}
+
+            Component::Normal(text) => {
+                for byte in text.as_encoded_bytes() {
+                    let is_valid = byte.is_ascii_alphanumeric()
+                        || [b' ', b'_', b'-', b'.'].contains(&byte);
+
+                    anyhow::ensure!(is_valid, "Resource paths may only contain ascii alphanumeric characters or limited punctuation.");
+                }
+            }
 
             Component::ParentDir => anyhow::bail!("References to parent directories '..' in resource paths are not allowed."),
             Component::Prefix(prefix) => anyhow::bail!("Path prefixes (like {:?}) in resource paths are not allowed.", prefix.as_os_str()),

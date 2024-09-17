@@ -171,7 +171,7 @@ impl ResourceManager {
 
 		self.load_shader_requests.process_requests(&mut self.shaders, |def| {
 			let label = def.path.display().to_string();
-			let full_path = vfs.resource_path(&def.path);
+			let full_path = vfs.resource_path(&def.path)?;
 
 			ShaderResource::from_disk(core, def.shader_type, &full_path, &label)
 				.with_context(|| format!("Compiling shader '{}'", full_path.display()))
@@ -184,7 +184,7 @@ impl ResourceManager {
 
 		self.load_image_requests.process_requests(&mut self.images, |def| {
 			let label = def.path.display().to_string();
-			let full_path = vfs.resource_path(&def.path);
+			let full_path = vfs.resource_path(&def.path)?;
 			ImageResource::from_disk(core, &full_path, label)
 				.with_context(|| format!("Loading image '{}'", full_path.display()))
 		})?;
