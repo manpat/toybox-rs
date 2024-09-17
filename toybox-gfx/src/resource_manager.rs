@@ -166,15 +166,14 @@ impl ResourceManager {
 	}
 
 	/// Attempt to turn requested resources into committed GPU resources.
-	pub fn process_requests(&mut self, core: &mut core::Core, vfs: &toybox_vfs::Vfs) -> anyhow::Result<()> {
+	pub fn process_requests(&mut self, core: &mut core::Core, vfs: &vfs::Vfs) -> anyhow::Result<()> {
 		core.push_debug_group("Process Resource Requests");
 
 		self.load_shader_requests.process_requests(&mut self.shaders, |def| {
 			let label = def.path.display().to_string();
-			let full_path = vfs.resource_path(&def.path)?;
 
-			ShaderResource::from_disk(core, def.shader_type, &full_path, &label)
-				.with_context(|| format!("Compiling shader '{}'", full_path.display()))
+			ShaderResource::from_vfs(core, vfs, def.shader_type, &def.path, &label)
+				.with_context(|| format!("Compiling shader '{}'", def.path.display()))
 		})?;
 
 		self.compile_shader_requests.process_requests(&mut self.shaders, |def| {
@@ -184,9 +183,8 @@ impl ResourceManager {
 
 		self.load_image_requests.process_requests(&mut self.images, |def| {
 			let label = def.path.display().to_string();
-			let full_path = vfs.resource_path(&def.path)?;
-			ImageResource::from_disk(core, &full_path, label)
-				.with_context(|| format!("Loading image '{}'", full_path.display()))
+			ImageResource::from_vfs(core, vfs, &def.path, label)
+				.with_context(|| format!("Loading image '{}'", def.path.display()))
 		})?;
 
 		self.create_image_requests.process_requests(&mut self.images, |def| {

@@ -76,8 +76,10 @@ impl ShaderResource {
 		})
 	}
 
-	pub fn from_disk(core: &mut core::Core, shader_type: ShaderType, full_path: &Path, label: &str) -> anyhow::Result<ShaderResource> {
-		let data = std::fs::read_to_string(full_path)?;
+	pub fn from_vfs(core: &mut core::Core, vfs: &vfs::Vfs, shader_type: ShaderType, virtual_path: &Path, label: &str) -> anyhow::Result<ShaderResource> {
+		let data = vfs.load_resource_data(virtual_path)?;
+		let data = String::from_utf8(data)?;
+
 		Self::from_source(core, shader_type, &data, label)
 	}
 }

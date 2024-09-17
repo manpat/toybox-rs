@@ -23,6 +23,7 @@ pub mod prelude {
 	pub use crate::host::gl;
 	pub use crate::{ResourceName, BufferRangeExt};
 
+	pub use toybox_vfs as vfs;
 	pub use common::math::*;
 }
 
@@ -51,7 +52,7 @@ impl System {
 
 		let resource_manager = resource_manager::ResourceManager::new(&mut core)?;
 		let frame_encoder = frame_encoder::FrameEncoder::new(&mut core);
-		
+
 		unsafe {
 			core.gl.Enable(gl::PROGRAM_POINT_SIZE);
 			core.gl.Enable(gl::DEPTH_TEST);

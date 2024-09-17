@@ -61,8 +61,11 @@ impl super::Resource for ImageResource {
 }
 
 impl ImageResource {
-	pub fn from_disk(core: &mut Core, full_path: &Path, label: String) -> anyhow::Result<ImageResource> {
-		let image = ::image::open(full_path)?.flipv().into_rgba8();
+	pub fn from_vfs(core: &mut Core, vfs: &vfs::Vfs, virtual_path: &Path, label: String) -> anyhow::Result<ImageResource> {
+		// TODO(pat.m): use a BufReader instead so that image can read only what it needs
+		let data = vfs.load_resource_data(virtual_path)?;
+
+		let image = ::image::load_from_memory(&data)?.flipv().into_rgba8();
 		let (width, height) = image.dimensions();
 		let size = Vec2i::new(width as i32, height as i32);
 		let data = image.into_vec();
@@ -95,7 +98,7 @@ impl ImageResource {
 
 			_ => {}
 		}
-		
+
 		let name = core.create_image_from_info(image_info.clone());
 		core.set_debug_label(name, &req.label);
 
