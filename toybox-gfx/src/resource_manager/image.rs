@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::core::*;
 
@@ -73,6 +73,50 @@ impl ImageResource {
 		// TODO(pat.m): allow diff texel formats
 		let name = core.create_image_2d(ImageFormat::Srgba8, size);
 		core.upload_image(name, None, ImageFormat::Srgba8, &data);
+		core.set_debug_label(name, &label);
+
+		Ok(ImageResource {
+			name,
+			image_info: core.get_image_info(name).unwrap(),
+			resize_policy: ImageResizePolicy::Fixed,
+			clear_policy: ImageClearPolicy::Never,
+			label,
+		})
+	}
+
+	pub fn array_from_vfs(core: &mut Core, vfs: &vfs::Vfs, virtual_paths: &[PathBuf], label: String) -> anyhow::Result<ImageResource> {
+		if virtual_paths.is_empty() {
+			anyhow::bail!("Trying to create empty image array")
+		}
+
+		let mut image_data = Vec::new();
+
+		let mut common_size = None;
+
+		for virtual_path in virtual_paths {
+			// TODO(pat.m): use a BufReader instead so that image can read only what it needs
+			let file_data = vfs.load_resource_data(virtual_path)?;
+
+			let image = ::image::load_from_memory(&file_data)?.flipv().into_rgba8();
+			let size = image.dimensions();
+
+			if *common_size.get_or_insert(size) != size {
+				let (w, h) = common_size.unwrap();
+				let (w2, h2) = size;
+				let path = virtual_path.display();
+				anyhow::bail!("Size mismatch while loading image array '{label}'. Expected {w}x{h}, but {path} was {w2}x{h2}");
+			}
+
+			image_data.extend(image.into_vec());
+		}
+
+		let (width, height) = common_size.unwrap();
+		let num_layers = virtual_paths.len() as u32;
+		let size = Vec2i::new(width as i32, height as i32);
+
+		// TODO(pat.m): allow diff texel formats
+		let name = core.create_image_2d_array(ImageFormat::Srgba8, size, num_layers);
+		core.upload_image(name, None, ImageFormat::Srgba8, &image_data);
 		core.set_debug_label(name, &label);
 
 		Ok(ImageResource {

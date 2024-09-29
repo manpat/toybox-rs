@@ -37,6 +37,7 @@ pub struct ResourceManager {
 	pub shaders: ResourceStorage<ShaderResource>,
 
 	load_image_requests: ResourceRequestMap<LoadImageRequest>,
+	load_image_array_requests: ResourceRequestMap<LoadImageArrayRequest>,
 	create_image_requests: ResourceRequestMap<CreateImageRequest>,
 	pub images: ResourceStorage<ImageResource>,
 
@@ -135,6 +136,7 @@ impl ResourceManager {
 			shaders,
 
 			load_image_requests: ResourceRequestMap::new(),
+			load_image_array_requests: ResourceRequestMap::new(),
 			create_image_requests: ResourceRequestMap::new(),
 			images: ResourceStorage::new(),
 
@@ -208,6 +210,11 @@ impl ResourceManager {
 			let label = def.path.display().to_string();
 			ImageResource::from_vfs(core, vfs, &def.path, label)
 				.with_context(|| format!("Loading image '{}'", def.path.display()))
+		})?;
+
+		self.load_image_array_requests.process_requests(&mut self.images, |def| {
+			ImageResource::array_from_vfs(core, vfs, &def.paths, def.label.clone())
+				.with_context(|| format!("Loading image array '{}'", def.label))
 		})?;
 
 		self.create_image_requests.process_requests(&mut self.images, |def| {

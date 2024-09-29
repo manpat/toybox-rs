@@ -223,7 +223,7 @@ impl super::Core {
 
 		let ImageRange {offset, size} = range.into().unwrap_or(ImageRange::from_size(image_info.size));
 
-		let expected_size = format.texel_byte_size() * (size.x * size.y) as usize;
+		let expected_size = format.texel_byte_size() * (size.x * size.y * size.z) as usize;
 		assert_eq!(data_size, expected_size, "Core::upload_image_raw not passed expected amount of data");
 
 		// TODO(pat.m): assert that size + offset < image_info.size
