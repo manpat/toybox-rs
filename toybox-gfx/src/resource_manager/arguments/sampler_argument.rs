@@ -24,4 +24,6 @@ impl From<CommonSampler> for SamplerArgument {
 pub enum CommonSampler {
 	Nearest,
 	Linear,
+	NearestRepeat,
+	LinearRepeat,
 }

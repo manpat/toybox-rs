@@ -50,6 +50,9 @@ pub struct ResourceManager {
 	nearest_sampler: SamplerName,
 	linear_sampler: SamplerName,
 
+	nearest_sampler_repeat: SamplerName,
+	linear_sampler_repeat: SamplerName,
+
 	draw_pipelines: HashMap<(ShaderHandle, Option<ShaderHandle>), core::ShaderPipelineName>,
 	compute_pipelines: HashMap<ShaderHandle, core::ShaderPipelineName>,
 
@@ -108,6 +111,24 @@ impl ResourceManager {
 			sampler
 		};
 
+		let nearest_sampler_repeat = {
+			let sampler = core.create_sampler();
+			core.set_sampler_minify_filter(sampler, crate::FilterMode::Nearest, None);
+			core.set_sampler_magnify_filter(sampler, crate::FilterMode::Nearest);
+			core.set_sampler_addressing_mode(sampler, crate::AddressingMode::Repeat);
+			core.set_debug_label(sampler, "Nearest repeating sampler");
+			sampler
+		};
+
+		let linear_sampler_repeat = {
+			let sampler = core.create_sampler();
+			core.set_sampler_minify_filter(sampler, crate::FilterMode::Linear, None);
+			core.set_sampler_magnify_filter(sampler, crate::FilterMode::Linear);
+			core.set_sampler_addressing_mode(sampler, crate::AddressingMode::Repeat);
+			core.set_debug_label(sampler, "Linear repeating sampler");
+			sampler
+		};
+
 		Ok(ResourceManager {
 			load_shader_requests: ResourceRequestMap::new(),
 			compile_shader_requests,
@@ -126,6 +147,8 @@ impl ResourceManager {
 
 			nearest_sampler,
 			linear_sampler,
+			nearest_sampler_repeat,
+			linear_sampler_repeat,
 
 			draw_pipelines: HashMap::new(),
 			compute_pipelines: HashMap::new(),
@@ -263,6 +286,8 @@ impl ResourceManager {
 		match sampler {
 			CommonSampler::Linear => self.linear_sampler,
 			CommonSampler::Nearest => self.nearest_sampler,
+			CommonSampler::LinearRepeat => self.linear_sampler_repeat,
+			CommonSampler::NearestRepeat => self.nearest_sampler_repeat,
 		}
 	}
 
