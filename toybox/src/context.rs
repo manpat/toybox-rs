@@ -21,12 +21,14 @@ pub struct Context {
 
 impl Context {
 	// Called at the very beginning of the frame, before any events are processed.
+	#[instrument(skip_all, name="toybox prepare_frame")]
 	pub(crate) fn prepare_frame(&mut self) {
 		self.audio.update();
 		self.input.reset_tracker();
 	}
 
 	// Called after events are processed, immediately before control is passed to the app.
+	#[instrument(skip_all, name="toybox start_frame")]
 	pub(crate) fn start_frame(&mut self) {
 		self.gfx.start_frame();
 		self.input.process();
@@ -43,12 +45,14 @@ impl Context {
 		}
 	}
 
+	#[instrument(skip_all, name="toybox notify_resized")]
 	pub(crate) fn notify_resized(&mut self, new_size: Vec2i) {
 		self.gfx.resize(new_size);
 		self.input.on_resize(new_size);
 	}
 
 	// Called after app returns control, before the frame ends.
+	#[instrument(skip_all, name="toybox finalize_frame")]
 	pub(crate) fn finalize_frame(&mut self) {
 		self.egui_integration.end_frame(&mut self.gfx);
 

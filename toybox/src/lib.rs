@@ -31,6 +31,8 @@ pub fn run_with_settings<F, A>(settings: host::Settings<'_>, start_app: F) -> an
 	let app_name = settings.initial_title;
 
 	host::start(settings, move |host| {
+		let _span = tracing::info_span!("toybox start").entered();
+
 		let vfs = vfs::Vfs::new()
 			.context("Initialising Vfs")?;
 
@@ -118,11 +120,15 @@ impl<A: App> host::HostedApp for HostedApp<A> {
 		self.context.input.on_device_event(&event);
 	}
 
+	#[instrument(skip_all, name="toybox draw")]
 	fn draw(&mut self, event_loop: &host::ActiveEventLoop) {
 		self.context.start_frame();
 
 		debug::show_menu(&mut self.context, &mut self.app, &mut self.debug_menu_state);
-		self.app.present(&mut self.context);
+
+		tracing::info_span!("app present").in_scope(|| {
+			self.app.present(&mut self.context);
+		});
 
 		self.context.finalize_frame();
 

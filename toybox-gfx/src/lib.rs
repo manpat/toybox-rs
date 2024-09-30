@@ -2,6 +2,7 @@
 
 use toybox_host as host;
 use anyhow::Context;
+use tracing::instrument;
 
 pub mod bindings;
 pub mod command;
@@ -75,6 +76,7 @@ impl System {
 		}
 	}
 
+	#[instrument(skip_all, name="gfx start_frame")]
 	pub fn start_frame(&mut self) {
 		self.core.set_debugging_enabled(true);
 
@@ -82,6 +84,7 @@ impl System {
 		self.frame_encoder.start_frame();
 	}
 
+	#[instrument(skip_all, name="gfx execute_frame")]
 	pub fn execute_frame(&mut self, vfs: &toybox_vfs::Vfs) {
 		self.resource_manager.process_requests(&mut self.core, vfs)
 			.context("Error while processing resource requests")
@@ -194,6 +197,7 @@ impl System {
 		}
 	}
 
+	#[instrument(skip_all, name="gfx dispatch_commands")]
 	fn dispatch_commands(&mut self) {
 		use command::Command::*;
 

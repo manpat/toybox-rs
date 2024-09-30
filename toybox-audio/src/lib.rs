@@ -3,6 +3,7 @@
 use cpal::traits::*;
 
 use anyhow::Context as AnyhowContext;
+use tracing::instrument;
 
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -155,6 +156,7 @@ struct SharedState {
 // 	should be able to cope with different sample rates
 
 
+#[instrument(skip_all, name="audio build_output_stream")]
 fn build_output_stream(host: &cpal::Host, shared: &Arc<SharedState>) -> anyhow::Result<ActiveStream> {
 	let device = host.default_output_device().context("no output device available")?;
 
@@ -183,6 +185,8 @@ fn build_output_stream(host: &cpal::Host, shared: &Arc<SharedState>) -> anyhow::
 			let shared = Arc::clone(&shared);
 
 			move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+				let _span = tracing::trace_span!("audio provider callback").entered();
+
 				let mut provider_maybe = shared.provider.lock().unwrap();
 				if let Some(provider) = &mut *provider_maybe {
 					provider.fill_buffer(data);

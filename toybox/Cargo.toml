@@ -38,9 +38,6 @@ log.workspace = true
 # symphonia = "0.4"
 
 tracing.workspace = true
-tracing-subscriber = "0.3"
-tracing-tracy = { version = "0.8", optional = true }
-
 
 # [dependencies.image]
 # version = "0.24"
@@ -68,5 +65,5 @@ tracing-tracy = { version = "0.8", optional = true }
 
 
 [features]
-tracy = ["dep:tracing-tracy"]
+tracy = ["toybox-host/tracy"]
 gamepad = ["toybox-input/gamepad"]

@@ -4,6 +4,7 @@ use toybox_gfx as gfx;
 
 use egui_winit::winit::{self, event::WindowEvent, window::Window};
 use egui_winit::egui::{self, output::FullOutput};
+use tracing::instrument;
 use std::rc::Rc;
 
 mod renderer;
@@ -61,6 +62,7 @@ impl Integration {
 	}
 
 	// Returns whether or not egui wants to consume the event
+	#[instrument(skip_all, name="egui on_event")]
 	pub fn on_event(&mut self, event: &WindowEvent) -> bool {
 		use winit::keyboard::{Key, NamedKey};
 		use winit::event::KeyEvent;
@@ -80,12 +82,14 @@ impl Integration {
 		self.state.on_window_event(&self.window, event).consumed
 	}
 
+	#[instrument(skip_all, name="egui start_frame")]
 	pub fn start_frame(&mut self) -> egui::Context {
 		let input = self.state.take_egui_input(&self.window);
 		self.ctx.begin_frame(input);
 		self.ctx.clone()
 	}
 
+	#[instrument(skip_all, name="egui end_frame")]
 	pub fn end_frame(&mut self, gfx: &mut gfx::System) {
 		let FullOutput{platform_output, textures_delta, shapes, pixels_per_point, ..} = self.ctx.end_frame();
 		self.state.handle_platform_output(&self.window, platform_output);

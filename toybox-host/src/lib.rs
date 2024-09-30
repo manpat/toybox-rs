@@ -22,6 +22,8 @@ use glutin::surface::{WindowSurface, SwapInterval};
 
 use raw_window_handle::HasWindowHandle;
 
+use tracing::instrument;
+
 use std::num::NonZeroU32;
 
 pub mod prelude {
@@ -47,16 +49,10 @@ pub fn start<F, H>(settings: Settings<'_>, start_hostee: F) -> anyhow::Result<()
 	where F: FnOnce(&Host) -> anyhow::Result<H>
 		, H: HostedApp + 'static
 {
-	let mut log_builder = env_logger::builder();
-	log_builder.parse_default_env();
-	log_builder.format_timestamp_millis();
-	log_builder.format_indent(None);
+	init_logging();
 
-	if cfg!(debug_assertions) {
-		log_builder.filter_level(log::LevelFilter::Debug);
-	}
-
-	log_builder.init();
+	#[cfg(feature="tracy")]
+	init_tracy();
 
 	let event_loop = EventLoop::new()?;
 
@@ -66,7 +62,7 @@ pub fn start<F, H>(settings: Settings<'_>, start_hostee: F) -> anyhow::Result<()
 		.with_decorations(!settings.no_decorations)
 		.with_resizable(true)
 		.with_visible(false);
-	
+
 	let gl_config_template = ConfigTemplateBuilder::new()
 		.with_api(Api::OPENGL)
 		.with_stencil_size(8) // TODO(pat.m): don't rely on default backbuffer
@@ -106,6 +102,7 @@ impl<F, H> ApplicationHandler for ApplicationHost<F, H>
 	where F: FnOnce(&Host) -> anyhow::Result<H>
 		, H: HostedApp + 'static
 {
+	#[instrument(skip_all, name="host start")]
 	fn resumed(&mut self, event_loop: &ActiveEventLoop) {
 		let ApplicationHost::Bootstrap(state, start_hostee) = std::mem::take(self) else { return };
 
@@ -124,6 +121,8 @@ impl<F, H> ApplicationHandler for ApplicationHost<F, H>
 
 		host.window.pre_present_notify();
 		host.swap();
+
+		mark_tracy_frame();
 
 		host.window.set_visible(true);
 		host.window.request_redraw();
@@ -154,6 +153,8 @@ impl<F, H> ApplicationHandler for ApplicationHost<F, H>
 
 				host.window.pre_present_notify();
 				host.swap();
+
+				mark_tracy_frame();
 			}
 
 			event @ WindowEvent::Resized(physical_size) => {
@@ -239,6 +240,7 @@ struct BootstrapState {
 }
 
 impl BootstrapState {
+	#[instrument(skip_all, name="host bootstrap")]
 	fn bootstrap(mut self, event_loop: &ActiveEventLoop) -> anyhow::Result<Host> {
 		// Try to fit window to monitor
 		if let Some(monitor) = event_loop.primary_monitor()
@@ -370,5 +372,38 @@ impl Host {
 		if let Some((width, height)) = NonZeroU32::new(width).zip(NonZeroU32::new(height)) {
 			self.surface.resize(&self.context, width, height);
 		}
+	}
+}
+
+fn init_logging() {
+	let mut log_builder = env_logger::builder();
+	log_builder.parse_default_env();
+	log_builder.format_timestamp_millis();
+	log_builder.format_indent(None);
+
+	if cfg!(debug_assertions) {
+		log_builder.filter_level(log::LevelFilter::Debug);
+	}
+
+	log_builder.init();
+}
+
+#[cfg(feature="tracy")]
+fn init_tracy() {
+    use tracing_subscriber::layer::SubscriberExt;
+
+    let subscriber = tracing_subscriber::registry()
+        .with(tracing_tracy::TracyLayer::default());
+
+    tracing::subscriber::set_global_default(subscriber)
+    	.expect("set up the subscriber");
+
+	println!("tracy init");
+}
+
+fn mark_tracy_frame() {
+	#[cfg(feature="tracy")]
+	if let Some(client) = tracy_client::Client::running() {
+		client.frame_mark();
 	}
 }

@@ -2,6 +2,7 @@
 
 use std::path::{Path, PathBuf};
 use anyhow::Context;
+use tracing::instrument;
 
 pub mod prelude {}
 
@@ -32,11 +33,13 @@ impl Vfs {
         Ok(self.resource_root.join(clean_path))
     }
 
+    #[instrument(skip_all)]
     pub fn load_resource_data(&self, virtual_path: impl AsRef<Path>) -> anyhow::Result<Vec<u8>> {
         let path = self.resource_path(virtual_path)?;
         std::fs::read(&path).map_err(Into::into)
     }
 
+    #[instrument(skip_all)]
     pub fn save_resource_data(&self, virtual_path: impl AsRef<Path>, data: &[u8]) -> anyhow::Result<()> {
         let path = self.resource_path(virtual_path)?;
 
@@ -47,6 +50,7 @@ impl Vfs {
         std::fs::write(path, &data).map_err(Into::into)
     }
 
+    #[instrument(skip_all)]
     pub fn load_json_resource<T>(&self, virtual_path: impl AsRef<Path>) -> anyhow::Result<T>
         where T: for<'a> serde::Deserialize<'a>
     {
@@ -54,6 +58,7 @@ impl Vfs {
     	serde_json::from_slice(&data).map_err(Into::into)
     }
 
+    #[instrument(skip_all)]
     pub fn save_json_resource<T>(&self, virtual_path: impl AsRef<Path>, data: &T) -> anyhow::Result<()>
         where T: serde::Serialize
     {
@@ -99,6 +104,7 @@ fn clean_virtual_path(mut components: std::path::Components<'_>) -> anyhow::Resu
 
 
 
+#[instrument]
 fn find_resource_folder() -> anyhow::Result<PathBuf> {
     let mut dirs_scanned = Vec::new();
 
@@ -120,6 +126,7 @@ fn find_resource_folder() -> anyhow::Result<PathBuf> {
     anyhow::bail!("Couldn't find 'resource' folder in any directory above the executable path or working directory.\nScanned directories: {:?}", dirs_scanned)
 }
 
+#[instrument]
 fn try_find_resource_folder_from(search_dir: &Path, dirs_scanned: &mut Vec<PathBuf>) -> anyhow::Result<Option<PathBuf>> {
     // Try scanning the current search dir first, and then one directory above.
     for search_dir in search_dir.ancestors().take(2) {

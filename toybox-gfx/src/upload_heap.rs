@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use crate::core::{Core, BufferName, BufferRange};
+use tracing::instrument;
 
 pub const UPLOAD_BUFFER_SIZE: usize = 8<<20;
 
@@ -268,6 +269,7 @@ impl UploadStage {
 		upload.alignment = upload.alignment.max(new_aligment);
 	}
 
+	#[instrument(skip_all, name="gfx UploadStage::push_to_heap")]
 	pub fn push_to_heap(&mut self, core: &mut Core, upload_heap: &mut UploadHeap) {
 		core.push_debug_group("Push Upload Heap");
 
