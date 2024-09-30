@@ -83,10 +83,8 @@ impl System {
 
 		if capture {
 			if let Err(error) = self.window.set_cursor_grab(CursorGrabMode::Confined)
-				.or_else(|prev_error| match self.window.set_cursor_grab(CursorGrabMode::Locked) {
-					Err(winit::error::ExternalError::NotSupported(_)) => Err(prev_error),
-					x => x,
-				})
+				.inspect_err(|error| log::warn!("Failed to capture mouse with 'confined' mode - falling back to 'locked' mode. {error}"))
+				.or_else(|_| self.window.set_cursor_grab(CursorGrabMode::Locked))
 			{
 				log::error!("Failed to lock mouse: {error}");
 				return;
