@@ -65,7 +65,7 @@ impl super::Core {
 	// TODO(pat.m): make usage better
 	pub fn allocate_buffer_storage(&self, name: BufferName, size: usize, usage: u32) {
 		self.buffer_info.borrow_mut().insert(name, BufferInfo {size, usage});
-		
+
 		if size == 0 {
 			return
 		}

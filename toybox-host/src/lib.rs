@@ -12,7 +12,7 @@ use winit::{
 	dpi::{PhysicalPosition, PhysicalSize},
 };
 
-use glutin_winit::DisplayBuilder;
+use glutin_winit::{DisplayBuilder, ApiPreference};
 
 use glutin::prelude::*;
 use glutin::config::{ConfigTemplateBuilder, Api};
@@ -263,6 +263,7 @@ impl BootstrapState {
 		// Try to create our window and a config that describes a context we can create
 		let (maybe_window, gl_config) = DisplayBuilder::new()
 			.with_window_attributes(Some(self.window_attributes.clone()))
+			.with_preference(ApiPreference::PreferEgl)
 			.build(event_loop, self.gl_config_template, |configs| {
 				for config in configs {
 					// We require an sRGB capable backbuffer

@@ -94,7 +94,7 @@ impl BarrierTracker {
 
 	pub fn giga_barrier(&mut self, gl: &gl::Gl) {
 		unsafe {
-			gl.MemoryBarrier(gl::ALL_BARRIER_BITS);	
+			gl.MemoryBarrier(gl::ALL_BARRIER_BITS);
 		}
 
 		self.next_barrier_flags = 0;

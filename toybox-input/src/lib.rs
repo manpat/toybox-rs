@@ -82,15 +82,22 @@ impl System {
 		self.wants_capture = capture;
 
 		if capture {
-			self.window.set_cursor_grab(CursorGrabMode::Confined)
-				.or_else(|_e| self.window.set_cursor_grab(CursorGrabMode::Locked))
-				.expect("Failed to grab cursor");
+			if let Err(error) = self.window.set_cursor_grab(CursorGrabMode::Confined)
+				.or_else(|prev_error| match self.window.set_cursor_grab(CursorGrabMode::Locked) {
+					Err(winit::error::ExternalError::NotSupported(_)) => Err(prev_error),
+					x => x,
+				})
+			{
+				log::error!("Failed to lock mouse: {error}");
+				return;
+			}
 
 			self.window.set_cursor_visible(false);
 
 		} else {
-			self.window.set_cursor_grab(CursorGrabMode::None)
-				.expect("Failed to release cursor grab");
+			if let Err(error) = self.window.set_cursor_grab(CursorGrabMode::None) {
+				log::error!("Failed to release cursor grab: {error}");
+			}
 
 			self.window.set_cursor_visible(true);
 		}
