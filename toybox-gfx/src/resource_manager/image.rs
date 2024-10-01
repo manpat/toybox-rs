@@ -146,6 +146,13 @@ impl ImageResource {
 		let name = core.create_image_from_info(image_info.clone());
 		core.set_debug_label(name, &req.label);
 
+		match req.clear_policy {
+			ImageClearPolicy::Never => {}
+			ImageClearPolicy::DefaultAtFrameStart => {
+				core.clear_image_to_default(name);
+			}
+		}
+
 		ImageResource {
 			name,
 			image_info,

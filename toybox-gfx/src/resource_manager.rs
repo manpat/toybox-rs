@@ -183,11 +183,15 @@ impl ResourceManager {
 	pub fn start_frame(&mut self, core: &mut core::Core) {
 		self.handle_resize(core);
 
+		// TODO(pat.m): maybe this should happen _after_ request processing.
+		// otherwise images have to clear themselves on creation.
+		core.push_debug_group("Clear Image Resources");
 		for image in self.images.iter_mut() {
 			if image.clear_policy == ImageClearPolicy::DefaultAtFrameStart {
 				core.clear_image_to_default(image.name);
 			}
 		}
+		core.pop_debug_group();
 	}
 
 	/// Attempt to turn requested resources into committed GPU resources.
