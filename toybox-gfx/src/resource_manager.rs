@@ -198,6 +198,8 @@ impl ResourceManager {
 	pub fn process_requests(&mut self, core: &mut core::Core, vfs: &vfs::Vfs) -> anyhow::Result<()> {
 		core.push_debug_group("Process Resource Requests");
 
+		let _debug_group_guard = common::defer(|| core.pop_debug_group());
+
 		self.load_shader_requests.process_requests(&mut self.shaders, |def| {
 			let label = def.path.display().to_string();
 
@@ -224,10 +226,6 @@ impl ResourceManager {
 		self.create_image_requests.process_requests(&mut self.images, |def| {
 			Ok(ImageResource::from_create_request(core, def))
 		})?;
-
-		// TODO(pat.m): this will never be reached if the above fails, but if the above fails
-		// the whole engine is probably coming down anyway
-		core.pop_debug_group();
 
 		Ok(())
 	}

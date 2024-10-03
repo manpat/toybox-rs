@@ -61,7 +61,7 @@ impl super::Resource for ImageResource {
 }
 
 impl ImageResource {
-	pub fn from_vfs(core: &mut Core, vfs: &vfs::Vfs, virtual_path: &Path, label: String) -> anyhow::Result<ImageResource> {
+	pub fn from_vfs(core: &Core, vfs: &vfs::Vfs, virtual_path: &Path, label: String) -> anyhow::Result<ImageResource> {
 		// TODO(pat.m): use a BufReader instead so that image can read only what it needs
 		let data = vfs.load_resource_data(virtual_path)?;
 
@@ -84,7 +84,7 @@ impl ImageResource {
 		})
 	}
 
-	pub fn array_from_vfs(core: &mut Core, vfs: &vfs::Vfs, virtual_paths: &[PathBuf], label: String) -> anyhow::Result<ImageResource> {
+	pub fn array_from_vfs(core: &Core, vfs: &vfs::Vfs, virtual_paths: &[PathBuf], label: String) -> anyhow::Result<ImageResource> {
 		if virtual_paths.is_empty() {
 			anyhow::bail!("Trying to create empty image array")
 		}
@@ -128,7 +128,7 @@ impl ImageResource {
 		})
 	}
 
-	pub fn from_create_request(core: &mut Core, req: &CreateImageRequest) -> ImageResource {
+	pub fn from_create_request(core: &Core, req: &CreateImageRequest) -> ImageResource {
 		let mut image_info = req.image_info.clone();
 
 		match req.resize_policy {
@@ -162,7 +162,7 @@ impl ImageResource {
 		}
 	}
 
-	pub(crate) fn on_resize(&mut self, core: &mut Core) {
+	pub(crate) fn on_resize(&mut self, core: &Core) {
 		let size_2d = match self.resize_policy {
 			ImageResizePolicy::Fixed => return,
 			ImageResizePolicy::MatchBackbuffer => core.backbuffer_size(),
