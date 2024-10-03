@@ -235,7 +235,7 @@ impl ResourceManager {
 impl ResourceManager {
 	pub fn resolve_draw_pipeline(&mut self, core: &mut core::Core,
 		vertex_shader: shader::ShaderHandle, fragment_shader: impl Into<Option<shader::ShaderHandle>>)
-		-> crate::core::ShaderPipelineName
+		-> core::ShaderPipelineName
 	{
 		let fragment_shader = fragment_shader.into();
 		let key = (vertex_shader, fragment_shader);
@@ -262,7 +262,7 @@ impl ResourceManager {
 	}
 
 	pub fn resolve_compute_pipeline(&mut self, core: &mut core::Core, compute_shader: shader::ShaderHandle)
-		-> crate::core::ShaderPipelineName
+		-> core::ShaderPipelineName
 	{
 		if let Some(&name) = self.compute_pipelines.get(&compute_shader) {
 			return name;

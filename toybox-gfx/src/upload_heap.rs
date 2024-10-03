@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use crate::core::{Core, BufferName, BufferRange};
 use tracing::instrument;
+use std::collections::VecDeque;
 
 pub const UPLOAD_BUFFER_SIZE: usize = 8<<20;
 
@@ -13,7 +14,7 @@ pub struct UploadHeap {
 	buffer_usage_counter: usize,
 
 	frame_start_cursor: usize,
-	locked_ranges: Vec<LockedRange>,
+	locked_ranges: VecDeque<LockedRange>,
 
 	resolved_uploads: Vec<BufferRange>,
 }
@@ -38,7 +39,7 @@ impl UploadHeap {
 			buffer_usage_counter: 0,
 
 			frame_start_cursor: 0,
-			locked_ranges: Vec::new(),
+			locked_ranges: VecDeque::new(),
 
 			resolved_uploads: Vec::new(),
 		}
@@ -88,12 +89,12 @@ impl UploadHeap {
 		};
 
 		// Check if we need to wait for the earliest range to be used.
-		while let Some(locked_range) = self.locked_ranges.first()
+		while let Some(locked_range) = self.locked_ranges.front()
 			&& locked_range.contains_allocation(&allocation)
 		{
 			fn fence_ready(result: u32) -> bool { matches!(result, gl::ALREADY_SIGNALED | gl::CONDITION_SATISFIED) }
 
-			let range = self.locked_ranges.remove(0);
+			let range = self.locked_ranges.pop_front().unwrap();
 
 			unsafe {
 				let result = core.gl.ClientWaitSync(range.fence, gl::SYNC_FLUSH_COMMANDS_BIT, 0);
@@ -144,7 +145,7 @@ impl UploadHeap {
 		let range_size = self.buffer_cursor.checked_sub(self.frame_start_cursor)
 			.unwrap_or(UPLOAD_BUFFER_SIZE - self.frame_start_cursor + self.buffer_cursor);
 
-		self.locked_ranges.push(LockedRange {
+		self.locked_ranges.push_back(LockedRange {
 			fence,
 			start: self.frame_start_cursor,
 			size: range_size,

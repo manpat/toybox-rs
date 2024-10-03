@@ -94,7 +94,7 @@ fn reflect_workgroup_size(core: &core::Core, shader_name: ShaderName) -> Option<
 	let mut workgroup_size = [0i32; 3];
 
 	unsafe {
-		core.gl.GetProgramiv(shader_name.as_raw(), gl::COMPUTE_WORK_GROUP_SIZE, workgroup_size.as_mut_ptr() as *mut i32);
+		core.gl.GetProgramiv(shader_name.as_raw(), gl::COMPUTE_WORK_GROUP_SIZE, workgroup_size.as_mut_ptr());
 	}
 
 	Some(Vec3i::from(workgroup_size))
