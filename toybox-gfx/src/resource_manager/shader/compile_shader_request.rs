@@ -43,3 +43,18 @@ impl ResourceRequest for CompileShaderRequest {
 		rm.compile_shader_requests.request_handle(&mut rm.shaders, self)
 	}
 }
+
+
+impl ResourceManager {
+	pub fn compile_vertex_shader(&mut self, label: impl Into<String>, src: impl Into<String>) -> ShaderHandle {
+		self.request(CompileShaderRequest::vertex(label, src))
+	}
+
+	pub fn compile_fragment_shader(&mut self, label: impl Into<String>, src: impl Into<String>) -> ShaderHandle {
+		self.request(CompileShaderRequest::fragment(label, src))
+	}
+
+	pub fn compile_compute_shader(&mut self, label: impl Into<String>, src: impl Into<String>) -> ShaderHandle {
+		self.request(CompileShaderRequest::compute(label, src))
+	}
+}

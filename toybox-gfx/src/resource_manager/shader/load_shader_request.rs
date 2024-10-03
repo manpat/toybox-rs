@@ -66,3 +66,17 @@ impl ResourceRequest for LoadShaderRequest {
 		rm.load_shader_requests.request_handle(&mut rm.shaders, self)
 	}
 }
+
+impl ResourceManager {
+	pub fn load_vertex_shader(&mut self, path: impl Into<PathBuf>) -> ShaderHandle {
+		self.request(LoadShaderRequest::vertex(path))
+	}
+
+	pub fn load_fragment_shader(&mut self, path: impl Into<PathBuf>) -> ShaderHandle {
+		self.request(LoadShaderRequest::fragment(path))
+	}
+
+	pub fn load_compute_shader(&mut self, path: impl Into<PathBuf>) -> ShaderHandle {
+		self.request(LoadShaderRequest::compute(path))
+	}
+}

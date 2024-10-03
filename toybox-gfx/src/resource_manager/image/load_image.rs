@@ -48,3 +48,16 @@ impl ResourceRequest for LoadImageArrayRequest {
 		rm.load_image_array_requests.request_handle(&mut rm.images, self)
 	}
 }
+
+
+impl ResourceManager {
+	pub fn load_image(&mut self, path: impl Into<PathBuf>) -> ImageHandle {
+		self.request(LoadImageRequest::from(path))
+	}
+
+	pub fn load_image_array<P>(&mut self, label: impl Into<String>, paths: impl IntoIterator<Item=P>) -> ImageHandle
+		where P: Into<PathBuf>
+	{
+		self.request(LoadImageArrayRequest::from(label, paths))
+	}
+}

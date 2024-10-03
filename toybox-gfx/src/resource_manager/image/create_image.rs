@@ -41,7 +41,7 @@ impl CreateImageRequest {
 				levels: 1,
 				samples: 1,
 			},
-			
+
 			resize_policy: ImageResizePolicy::Fixed,
 			clear_policy: ImageClearPolicy::Never,
 			label: label.into(),
