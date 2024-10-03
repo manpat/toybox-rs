@@ -4,6 +4,7 @@ use std::hash::Hash;
 
 use std::collections::HashMap;
 use anyhow::Context;
+use tracing::instrument;
 
 use crate::prelude::*;
 use crate::upload_heap::UploadHeap;
@@ -169,6 +170,7 @@ impl ResourceManager {
 
 	/// Make sure all image names that will be invalidated on resize are
 	/// gone before client code has a chance to ask for them.
+	#[instrument(skip_all, name="gfx rm handle_resize")]
 	pub fn handle_resize(&mut self, core: &mut core::Core) {
 		if let Some(_size) = self.resize_request.take() {
 			// TODO(pat.m): recreate framebuffers etc
@@ -180,6 +182,7 @@ impl ResourceManager {
 		}
 	}
 
+	#[instrument(skip_all, name="gfx rm start_frame")]
 	pub fn start_frame(&mut self, core: &mut core::Core) {
 		self.handle_resize(core);
 
@@ -195,6 +198,7 @@ impl ResourceManager {
 	}
 
 	/// Attempt to turn requested resources into committed GPU resources.
+	#[instrument(skip_all, name="gfx rm process_requests")]
 	pub fn process_requests(&mut self, core: &mut core::Core, vfs: &vfs::Vfs) -> anyhow::Result<()> {
 		core.push_debug_group("Process Resource Requests");
 
@@ -233,6 +237,7 @@ impl ResourceManager {
 
 /// Execution api
 impl ResourceManager {
+	#[instrument(skip_all, name="gfx rm resolve_draw_pipeline")]
 	pub fn resolve_draw_pipeline(&mut self, core: &mut core::Core,
 		vertex_shader: shader::ShaderHandle, fragment_shader: impl Into<Option<shader::ShaderHandle>>)
 		-> core::ShaderPipelineName
@@ -261,6 +266,7 @@ impl ResourceManager {
 		pipeline
 	}
 
+	#[instrument(skip_all, name="gfx rm resolve_compute_pipeline")]
 	pub fn resolve_compute_pipeline(&mut self, core: &mut core::Core, compute_shader: shader::ShaderHandle)
 		-> core::ShaderPipelineName
 	{
@@ -278,6 +284,7 @@ impl ResourceManager {
 		pipeline
 	}
 
+	#[instrument(skip_all, name="gfx rm resolve_framebuffer")]
 	pub fn resolve_framebuffer(&mut self, core: &core::Core, desc: impl Into<FramebufferDescription>)
 		-> Option<core::FramebufferName>
 	{

@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use std::path::Path;
+use tracing::instrument;
 
 use crate::core::{
 	self,
@@ -36,6 +37,7 @@ impl super::Resource for ShaderResource {
 }
 
 impl ShaderResource {
+	#[instrument(skip_all, name="gfx ShaderResource::from_source")]
 	pub fn from_source(core: &core::Core, shader_type: ShaderType, data: &str, label: &str) -> anyhow::Result<ShaderResource> {
 		// TODO(pat.m): ugh
 		let uses_user_clipping = data.contains("gl_ClipDistance");
@@ -76,6 +78,7 @@ impl ShaderResource {
 		})
 	}
 
+	#[instrument(skip_all, name="gfx ShaderResource::from_vfs")]
 	pub fn from_vfs(core: &core::Core, vfs: &vfs::Vfs, shader_type: ShaderType, virtual_path: &Path, label: &str) -> anyhow::Result<ShaderResource> {
 		let data = vfs.load_resource_data(virtual_path)?;
 		let data = String::from_utf8(data)?;
@@ -86,6 +89,7 @@ impl ShaderResource {
 
 
 // TODO(pat.m): Could this be in core?
+#[instrument(skip_all)]
 fn reflect_workgroup_size(core: &core::Core, shader_name: ShaderName) -> Option<Vec3i> {
 	if shader_name.shader_type != ShaderType::Compute {
 		return None

@@ -41,7 +41,7 @@ impl Command {
 			_ => None
 		}
 	}
-	
+
 	pub fn bindings(&self) -> Option<&BindingDescription> {
 		use Command::*;
 

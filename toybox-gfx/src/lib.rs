@@ -76,7 +76,7 @@ impl System {
 		}
 	}
 
-	#[instrument(skip_all, name="gfx start_frame")]
+	#[instrument(skip_all, name="gfxsys start_frame")]
 	pub fn start_frame(&mut self) {
 		self.core.set_debugging_enabled(true);
 
@@ -84,7 +84,7 @@ impl System {
 		self.frame_encoder.start_frame();
 	}
 
-	#[instrument(skip_all, name="gfx execute_frame")]
+	#[instrument(skip_all, name="gfxsys execute_frame")]
 	pub fn execute_frame(&mut self, vfs: &toybox_vfs::Vfs) {
 		self.resource_manager.process_requests(&mut self.core, vfs)
 			.context("Error while processing resource requests")
@@ -133,6 +133,7 @@ impl System {
 		self.core.set_debugging_enabled(false);
 	}
 
+	#[instrument(skip_all, name="gfxsys resolve_named_bind_targets")]
 	fn resolve_named_bind_targets(&mut self) {
 		for command_group in self.frame_encoder.command_groups.iter_mut() {
 			for command in command_group.commands.iter_mut() {
@@ -143,6 +144,7 @@ impl System {
 		}
 	}
 
+	#[instrument(skip_all, name="gfxsys resolve_staged_buffer_alignments")]
 	fn resolve_staged_buffer_alignments(&mut self) {
 		let upload_stage = &mut self.frame_encoder.upload_stage;
 		let capabilities = self.core.capabilities();
@@ -158,6 +160,7 @@ impl System {
 		}
 	}
 
+	#[instrument(skip_all, name="gfxsys resolve_staged_bind_sources")]
 	fn resolve_staged_bind_sources(&mut self) {
 		let upload_heap = &mut self.resource_manager.upload_heap;
 
@@ -172,6 +175,7 @@ impl System {
 		}
 	}
 
+	#[instrument(skip_all, name="gfxsys resolve_image_bind_sources")]
 	fn resolve_image_bind_sources(&mut self) {
 		for command_group in self.frame_encoder.command_groups.iter_mut() {
 			for command in command_group.commands.iter_mut() {
@@ -185,6 +189,7 @@ impl System {
 	// TODO(pat.m): this sucks. it would be better for commands to 'pull' the bindings they need
 	// rather than bindings be 'pushed' like this - although a binding tracker may make this less bad.
 	// its still pretty wasteful though.
+	#[instrument(skip_all, name="gfxsys merge_bindings")]
 	fn merge_bindings(&mut self) {
 		for command_group in self.frame_encoder.command_groups.iter_mut() {
 			command_group.shared_bindings.merge_unspecified_from(&self.frame_encoder.global_bindings);
@@ -197,7 +202,7 @@ impl System {
 		}
 	}
 
-	#[instrument(skip_all, name="gfx dispatch_commands")]
+	#[instrument(skip_all, name="gfxsys dispatch_commands")]
 	fn dispatch_commands(&mut self) {
 		use command::Command::*;
 

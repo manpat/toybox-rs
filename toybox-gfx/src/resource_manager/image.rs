@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use std::path::{Path, PathBuf};
+use tracing::instrument;
 
 use crate::core::*;
 
@@ -61,6 +62,7 @@ impl super::Resource for ImageResource {
 }
 
 impl ImageResource {
+	#[instrument(skip_all, name="gfx ImageResource::from_vfs")]
 	pub fn from_vfs(core: &Core, vfs: &vfs::Vfs, virtual_path: &Path, label: String) -> anyhow::Result<ImageResource> {
 		// TODO(pat.m): use a BufReader instead so that image can read only what it needs
 		let data = vfs.load_resource_data(virtual_path)?;
@@ -84,6 +86,7 @@ impl ImageResource {
 		})
 	}
 
+	#[instrument(skip_all, name="gfx ImageResource::array_from_vfs")]
 	pub fn array_from_vfs(core: &Core, vfs: &vfs::Vfs, virtual_paths: &[PathBuf], label: String) -> anyhow::Result<ImageResource> {
 		if virtual_paths.is_empty() {
 			anyhow::bail!("Trying to create empty image array")
@@ -128,6 +131,7 @@ impl ImageResource {
 		})
 	}
 
+	#[instrument(skip_all, name="gfx ImageResource::from_create_request")]
 	pub fn from_create_request(core: &Core, req: &CreateImageRequest) -> ImageResource {
 		let mut image_info = req.image_info.clone();
 
