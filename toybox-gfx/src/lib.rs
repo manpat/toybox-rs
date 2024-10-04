@@ -48,6 +48,7 @@ impl System {
 }
 
 impl System {
+	#[instrument(skip_all, name="gfxsys System::new")]
 	pub fn new(mut core: core::Core) -> anyhow::Result<System> {
 		core.register_debug_hook();
 

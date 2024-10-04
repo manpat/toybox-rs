@@ -5,6 +5,7 @@ pub mod table;
 use table::{Table, Value};
 
 use std::path::{PathBuf};
+use tracing::instrument;
 
 
 /// Runtime representation of hierarchical key-value storage, intended for settings, command line config, etc.
@@ -27,6 +28,7 @@ pub struct Config {
 }
 
 impl Config {
+	#[instrument(skip_all, name="cfg Config::for_app_name")]
 	pub fn for_app_name(app_name: &str) -> anyhow::Result<Self> {
 		let mut config = Self::default();
 
@@ -47,11 +49,13 @@ impl Config {
 		Ok(config)
 	}
 
+	#[instrument(skip_all, name="cfg Config::save")]
 	pub fn save(&self) -> anyhow::Result<()> {
 		// TODO(pat.m): extra resolve? 
 		self.base.save_to_file(&self.save_path)
 	}
 
+	#[instrument(skip_all, name="cfg Config::commit")]
 	pub fn commit(&mut self) {
 		self.base.merge_from(&self.preview);
 		self.arguments.remove_values_in(&self.preview);
@@ -61,6 +65,7 @@ impl Config {
 		self.resolved = Table::new();
 	}
 
+	#[instrument(skip_all, name="cfg Config::revert")]
 	pub fn revert(&mut self) {
 		self.preview = Table::new();
 		self.resolved = Table::new();
@@ -96,6 +101,7 @@ impl Config {
 }
 
 
+#[instrument]
 pub fn config_path(app_name: &str) -> PathBuf {
 	let mut dir = dirs::preference_dir() 
 		.expect("Couldn't get preferences dir");

@@ -41,10 +41,10 @@ pub fn run_with_settings<F, A>(settings: host::Settings<'_>, start_app: F) -> an
 		let winit::dpi::PhysicalSize{width, height} = host.window.inner_size().cast::<i32>();
 		let backbuffer_size = Vec2i::new(width, height);
 
-		let mut gfx = {
+		let mut gfx = tracing::info_span!("init gfx").in_scope(|| {
 			let core = gfx::Core::new(host.gl.clone());
-			gfx::System::new(core)?
-		};
+			gfx::System::new(core)
+		})?;
 
 		gfx.resize(backbuffer_size);
 
@@ -71,7 +71,7 @@ pub fn run_with_settings<F, A>(settings: host::Settings<'_>, start_app: F) -> an
 			wants_quit: false,
 		};
 
-		let app = start_app(&mut context)?;
+		let app = tracing::info_span!("app start").in_scope(|| start_app(&mut context))?;
 
 		Ok(HostedApp {
 			context,

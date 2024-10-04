@@ -29,6 +29,7 @@ struct ManagedImage {
 
 
 impl TextureManager {
+	#[tracing::instrument(skip_all, name="egui TextureManager::new")]
 	pub fn new(gfx: &mut gfx::System) -> TextureManager {
 		let sampler = gfx.core.create_sampler();
 		gfx.core.set_sampler_minify_filter(sampler, FilterMode::Linear, None);

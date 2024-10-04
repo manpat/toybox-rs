@@ -14,10 +14,13 @@ pub mod prelude {
 }
 
 
+#[instrument(skip_all, name="audio init")]
 pub fn init() -> anyhow::Result<System> {
 	let host = cpal::default_host();
 
-	if true {
+	if false {
+		let _span = tracing::info_span!("enumerate audio devices").entered();
+
 		log::trace!("vvvvvvv Available audio devices vvvvvvvv");
 
 		for device in host.output_devices()? {

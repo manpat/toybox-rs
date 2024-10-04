@@ -32,6 +32,7 @@ pub struct Integration {
 }
 
 impl Integration {
+	#[instrument(skip_all, name="egui Integration::new")]
 	pub fn new(ctx: egui::Context, window: Rc<Window>, gfx: &mut gfx::System) -> anyhow::Result<Integration> {
 		let theme = None;
 		let scale_factor = window.scale_factor() as f32;

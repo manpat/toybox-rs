@@ -9,6 +9,7 @@ winit.workspace = true
 egui.workspace = true
 common.workspace = true
 log.workspace = true
+tracing.workspace = true
 
 
 gilrs = { version = "0.10.2", optional = true }

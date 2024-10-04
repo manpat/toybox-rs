@@ -10,4 +10,5 @@ edition.workspace = true
 dirs = "5.0.1"
 toml = "0.8.10"
 anyhow.workspace = true
+tracing.workspace = true
 log.workspace = true

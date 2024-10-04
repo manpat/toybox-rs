@@ -2,6 +2,7 @@ use crate::prelude::*;
 
 use toybox_host as host;
 use host::prelude::*;
+use tracing::instrument;
 
 pub mod capabilities;
 pub mod fbo;
@@ -55,6 +56,7 @@ pub struct Core {
 }
 
 impl Core {
+	#[instrument(skip_all, name="gfx Core::new")]
 	pub fn new(gl: gl::Gl) -> Core {
 		let capabilities = Capabilities::from(&gl);
 		let global_vao_name = Self::create_and_bind_global_vao(&gl);

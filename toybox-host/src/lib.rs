@@ -263,6 +263,8 @@ impl BootstrapState {
 		}
 
 		// Try to create our window and a config that describes a context we can create
+		let _span = tracing::info_span!("host build display").entered();
+
 		let (maybe_window, gl_config) = DisplayBuilder::new()
 			.with_window_attributes(Some(self.window_attributes.clone()))
 			.with_preference(ApiPreference::PreferEgl)
@@ -277,12 +279,16 @@ impl BootstrapState {
 			})
 			.map_err(|e| anyhow::format_err!("Failed to find suitable surface config: {e}"))?;
 
+		_span.exit();
+
 		log::info!("Display built with config: {gl_config:?}");
 
 		let maybe_raw_window_handle = maybe_window
 			.as_ref()
 			.and_then(|window| window.window_handle().ok())
 			.map(|handle| handle.as_raw());
+
+		let _span = tracing::info_span!("host create opengl context").entered();
 
 		let gl_context_attributes = self.gl_context_attributes.build(maybe_raw_window_handle);
 		let gl_display = gl_config.display();
@@ -292,17 +298,23 @@ impl BootstrapState {
 			gl_display.create_context(&gl_config, &gl_context_attributes)?
 		};
 
+		_span.exit();
+
 		log::info!("Context created with {gl_context_attributes:?}");
 
 		// Create our window for real if not already
 		let window = match maybe_window {
 			Some(window) => window,
-			None => glutin_winit::finalize_window(event_loop, self.window_attributes.clone(), &gl_config)?,
+			None => {
+				let _span = tracing::info_span!("host finalize window").entered();
+				glutin_winit::finalize_window(event_loop, self.window_attributes.clone(), &gl_config)?
+			}
 		};
 
 		let window = Rc::new(window);
 
 		// Create a surface
+		let _span = tracing::info_span!("host build surface").entered();
 		let (width, height): (u32, u32) = window.inner_size().into();
 		let surface_attributes = glutin::surface::SurfaceAttributesBuilder::<WindowSurface>::new()
 			.with_srgb(Some(true))
@@ -316,13 +328,15 @@ impl BootstrapState {
 			gl_display.create_window_surface(&gl_config, &surface_attributes)?
 		};
 
+		_span.exit();
+
 		// Finally make our context current
 		let gl_context = non_current_gl_context.make_current(&gl_surface)?;
 
-		let gl = gl::Gl::load_with(|symbol| {
+		let gl = tracing::info_span!("host load opengl").in_scope(|| gl::Gl::load_with(|symbol| {
 			let symbol = std::ffi::CString::new(symbol).unwrap();
 			gl_display.get_proc_address(symbol.as_c_str()).cast()
-		});
+		}));
 
 		Ok(Host {
 			context: gl_context,

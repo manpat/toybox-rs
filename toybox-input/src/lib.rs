@@ -1,6 +1,7 @@
 use winit::window::{Window, CursorGrabMode};
 use winit::event::*;
 use winit::dpi::PhysicalPosition;
+use tracing::instrument;
 use common::*;
 
 use std::rc::Rc;
@@ -78,6 +79,7 @@ impl System {
 }
 
 impl System {
+	#[instrument(skip_all, name="input System::set_capture_mouse")]
 	pub fn set_capture_mouse(&mut self, capture: bool) {
 		self.wants_capture = capture;
 
@@ -105,6 +107,7 @@ impl System {
 
 /// Internal. Will be called by core.
 impl System {
+	#[instrument(skip_all, name="input System::new")]
 	pub fn new(window: Rc<Window>) -> System {
 		System {
 			tracker: Tracker::default(),

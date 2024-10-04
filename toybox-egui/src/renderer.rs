@@ -24,6 +24,7 @@ pub struct Renderer {
 }
 
 impl Renderer {
+	#[tracing::instrument(skip_all, name="egui Renderer::new")]
 	pub fn new(gfx: &mut gfx::System) -> Renderer {
 		Renderer {
 			vertex_shader: gfx.resource_manager.request(CompileShaderRequest::vertex("egui vs", VERTEX_SOURCE)),
