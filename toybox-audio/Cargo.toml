@@ -7,7 +7,7 @@ edition.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cpal = "0.15.2"
+cpal = "0.15"
 anyhow.workspace = true
 log.workspace = true
 tracing.workspace = true

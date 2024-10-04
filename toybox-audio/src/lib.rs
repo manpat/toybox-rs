@@ -7,6 +7,7 @@ use tracing::instrument;
 
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread::{JoinHandle};
 
 
 pub mod prelude {
@@ -15,25 +16,9 @@ pub mod prelude {
 
 
 #[instrument(skip_all, name="audio init")]
-pub fn init() -> anyhow::Result<System> {
-	let host = cpal::default_host();
-
+pub fn init() -> System {
 	if false {
-		let _span = tracing::info_span!("enumerate audio devices").entered();
-
-		log::trace!("vvvvvvv Available audio devices vvvvvvvv");
-
-		for device in host.output_devices()? {
-			log::trace!("   => {}", device.name()?);
-			log::trace!("      => default output config: {:?}", device.default_output_config()?);
-			log::trace!("      => supported configs:");
-			for config in device.supported_output_configs()? {
-				log::trace!("         => {config:?}");
-			}
-			log::trace!("");
-		}
-
-		log::trace!("^^^^^^ Available audio devices ^^^^^^^");
+		std::thread::spawn(enumerate_audio_devices);
 	}
 
 	let shared = Arc::new(SharedState {
@@ -41,78 +26,76 @@ pub fn init() -> anyhow::Result<System> {
 		device_lost: AtomicBool::new(false),
 	});
 
-	match build_output_stream(&host, &shared) {
-		Ok(active_stream) => {
-			Ok(System {
-				active_stream: Some(active_stream),
-				host,
-				shared,
-			})
-		}
-
-		Err(error) => {
-			log::error!("Failed to create audio device: {error}");
-
-			// Prevent system from trying again.
-			// TODO(pat.m): try on a time out? listen for audio device changes?
-			// TODO(pat.m): this definitely needs to be renamed
-			shared.device_lost.store(true, Ordering::Relaxed);
-
-			Ok(System {
-				active_stream: None,
-				host,
-				shared,
-			})
-		}
+	System {
+		stream_state: StreamState::Pending(Some(start_stream_build(shared.clone()))),
+		shared,
 	}
-
 }
 
+#[instrument]
+fn enumerate_audio_devices() -> anyhow::Result<()> {
+	let host = cpal::default_host();
+
+	log::trace!("vvvvvvv Available audio devices vvvvvvvv");
+
+	for device in host.output_devices()? {
+		log::trace!("   => {}", device.name()?);
+		log::trace!("      => default output config: {:?}", device.default_output_config()?);
+		log::trace!("      => supported configs:");
+		for config in device.supported_output_configs()? {
+			log::trace!("         => {config:?}");
+		}
+		log::trace!("");
+	}
+
+	log::trace!("^^^^^^ Available audio devices ^^^^^^^");
+
+	Ok(())
+}
+
+
 pub struct System {
-	host: cpal::Host,
 	shared: Arc<SharedState>,
 
-	active_stream: Option<ActiveStream>,
+	stream_state: StreamState,
 }
 
 impl System {
 	pub fn update(&mut self) {
-		if self.shared.device_lost.load(Ordering::Relaxed) {
-			if self.active_stream.is_some() {
-				self.active_stream = None;
-			} else {
-				// If device_lost and there's no existing stream, then we've given up on creating a device for now
-				return;
-			}
-		}
-
-		if self.active_stream.is_some() {
-			return;
-		}
-
-		// Try and build a new stream
-		match build_output_stream(&self.host, &self.shared) {
-			Ok(active_stream) => {
-				if let Ok(mut guard) = self.shared.provider.lock()
-					&& let Some(provider) = &mut *guard
-				{
-					provider.on_configuration_changed(Some(active_stream.configuration));
-				}
-
-				self.active_stream = Some(active_stream);
-				self.shared.device_lost.store(false, Ordering::Relaxed);
-			}
-
-			Err(error) => {
-				log::error!("Failed to recreate audio device: {error}");
-
-				if let Ok(mut guard) = self.shared.provider.lock()
-					&& let Some(provider) = &mut *guard
-				{
-					provider.on_configuration_changed(None);
+		match &mut self.stream_state {
+			StreamState::Active(_) => {
+				if self.shared.device_lost.load(Ordering::Relaxed) {
+					self.stream_state = StreamState::Pending(Some(start_stream_build(self.shared.clone())));
 				}
 			}
-		};
+
+			StreamState::Pending(handle) => {
+				if !handle.as_ref().unwrap().is_finished() {
+					return;
+				}
+
+				match handle.take().unwrap().join() {
+					Ok(Ok(new_stream)) => {
+						self.stream_state = StreamState::Active(new_stream);
+						self.shared.device_lost.store(false, Ordering::Relaxed);
+					}
+
+					Ok(Err(error)) => {
+						log::error!("Failed to build audio stream: {error}");
+						self.stream_state = StreamState::InitFailure;
+					}
+
+					Err(panic_data) => {
+						log::error!("Panic during audio stream creation!");
+						self.stream_state = StreamState::InitFailure;
+
+						std::panic::resume_unwind(panic_data);
+					}
+				}
+			}
+
+			StreamState::InitFailure => {}
+		}
 	}
 }
 
@@ -123,7 +106,7 @@ impl System {
 		let mut shared_provider = self.shared.provider.lock().unwrap();
 
 		if let Some(mut provider) = provider.into() {
-			let configuration = self.active_stream.as_ref().map(|active_stream| active_stream.configuration);
+			let configuration = self.stream_state.as_active_stream().map(|active_stream| active_stream.configuration);
 			provider.on_configuration_changed(configuration);
 
 			*shared_provider = Some(Box::new(provider));
@@ -159,8 +142,27 @@ struct SharedState {
 // 	should be able to cope with different sample rates
 
 
+fn start_stream_build(shared: Arc<SharedState>) -> JoinHandle<anyhow::Result<ActiveStream>> {
+	std::thread::spawn(move || {
+		let host = cpal::default_host();
+		let result = build_output_stream(&host, shared.clone());
+
+		let new_configuration = result.as_ref().ok().map(|stream| stream.configuration);
+
+		// If there's a provider, notify of the configuration change
+		if let Ok(mut guard) = shared.provider.lock()
+			&& let Some(provider) = &mut *guard
+		{
+			provider.on_configuration_changed(new_configuration);
+		}
+
+		result
+	})
+}
+
+
 #[instrument(skip_all, name="audio build_output_stream")]
-fn build_output_stream(host: &cpal::Host, shared: &Arc<SharedState>) -> anyhow::Result<ActiveStream> {
+fn build_output_stream(host: &cpal::Host, shared: Arc<SharedState>) -> anyhow::Result<ActiveStream> {
 	let device = host.default_output_device().context("no output device available")?;
 
 	log::info!("Selected audio device: {}", device.name().unwrap_or_else(|_| String::from("<no name>")));
@@ -199,8 +201,6 @@ fn build_output_stream(host: &cpal::Host, shared: &Arc<SharedState>) -> anyhow::
 			}
 		},
 		{
-			let shared = Arc::clone(&shared);
-
 			move |err| {
 				// react to errors here.
 				log::warn!("audio device lost! {err}");
@@ -217,10 +217,31 @@ fn build_output_stream(host: &cpal::Host, shared: &Arc<SharedState>) -> anyhow::
 		channels: config.channels as usize,
 	};
 
-	Ok(ActiveStream{_stream: stream, configuration})
+	Ok(ActiveStream {
+		// We pass around the StreamInner so that we can avoid the !Sync/!Send bounds on Stream.
+		// Send/Sync are disabled because of android, but we don't care about that.
+		// https://docs.rs/cpal/latest/x86_64-pc-windows-msvc/src/cpal/platform/mod.rs.html#67
+		_stream: stream.into_inner(),
+		configuration
+	})
 }
 
 struct ActiveStream {
-	_stream: cpal::Stream,
+	_stream: cpal::platform::StreamInner,
 	configuration: Configuration,
+}
+
+enum StreamState {
+	Pending(Option<JoinHandle<anyhow::Result<ActiveStream>>>),
+	Active(ActiveStream),
+	InitFailure,
+}
+
+impl StreamState {
+	fn as_active_stream(&self) -> Option<&ActiveStream> {
+		match self {
+			StreamState::Active(active_stream) => Some(active_stream),
+			_ => None
+		}
+	}
 }

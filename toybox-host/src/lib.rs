@@ -22,8 +22,6 @@ use glutin::surface::{WindowSurface, SwapInterval};
 
 use raw_window_handle::HasWindowHandle;
 
-use tracing::instrument;
-
 use std::num::NonZeroU32;
 
 pub mod prelude {
@@ -49,10 +47,7 @@ pub fn start<F, H>(settings: Settings<'_>, start_hostee: F) -> anyhow::Result<()
 	where F: FnOnce(&Host) -> anyhow::Result<H>
 		, H: HostedApp + 'static
 {
-	init_logging();
-
-	#[cfg(feature="tracy")]
-	init_tracy();
+	let _span = tracing::info_span!("host start").entered();
 
 	let event_loop = EventLoop::new()?;
 
@@ -79,6 +74,8 @@ pub fn start<F, H>(settings: Settings<'_>, start_hostee: F) -> anyhow::Result<()
 		window_attributes,
 		gl_config_template,
 		gl_context_attributes,
+
+		_span,
 	};
 
 	let mut app_host = ApplicationHost::Bootstrap(bootstrap_state, start_hostee);
@@ -102,7 +99,6 @@ impl<F, H> ApplicationHandler for ApplicationHost<F, H>
 	where F: FnOnce(&Host) -> anyhow::Result<H>
 		, H: HostedApp + 'static
 {
-	#[instrument(skip_all, name="host start")]
 	fn resumed(&mut self, event_loop: &ActiveEventLoop) {
 		let ApplicationHost::Bootstrap(state, start_hostee) = std::mem::take(self) else { return };
 
@@ -237,10 +233,11 @@ struct BootstrapState {
 
 	gl_config_template: ConfigTemplateBuilder,
 	gl_context_attributes: ContextAttributesBuilder,
+
+	_span: tracing::span::EnteredSpan,
 }
 
 impl BootstrapState {
-	#[instrument(skip_all, name="host bootstrap")]
 	fn bootstrap(mut self, event_loop: &ActiveEventLoop) -> anyhow::Result<Host> {
 		// Try to fit window to monitor
 		if let Some(monitor) = event_loop.primary_monitor()
@@ -420,4 +417,13 @@ fn mark_tracy_frame() {
 	if let Some(client) = tracy_client::Client::running() {
 		client.frame_mark();
 	}
+}
+
+
+/// Initialise logging and profiling if configured. Must be called before anything else.
+pub fn init_environment() {
+	init_logging();
+
+	#[cfg(feature="tracy")]
+	init_tracy();
 }

@@ -28,15 +28,24 @@ pub fn run_with_settings<F, A>(settings: host::Settings<'_>, start_app: F) -> an
 	where A: App + 'static
 		, F: FnOnce(&mut Context) -> anyhow::Result<A>
 {
+	host::init_environment();
+
+	let _span = tracing::info_span!("toybox early start").entered();
+
 	let app_name = settings.initial_title;
+
+	let vfs = vfs::Vfs::new()
+		.context("Initialising Vfs")?;
+
+	log::info!("Resource Root Path: {}", vfs.resource_root().display());
+
+	let cfg = cfg::Config::for_app_name(app_name)?;
+	let audio = audio::init();
+
+	_span.exit();
 
 	host::start(settings, move |host| {
 		let _span = tracing::info_span!("toybox start").entered();
-
-		let vfs = vfs::Vfs::new()
-			.context("Initialising Vfs")?;
-
-		log::info!("Resource Root Path: {}", vfs.resource_root().display());
 
 		let winit::dpi::PhysicalSize{width, height} = host.window.inner_size().cast::<i32>();
 		let backbuffer_size = Vec2i::new(width, height);
@@ -48,13 +57,10 @@ pub fn run_with_settings<F, A>(settings: host::Settings<'_>, start_app: F) -> an
 
 		gfx.resize(backbuffer_size);
 
-		let audio = audio::init()?;
 		let input = input::System::new(host.window.clone());
 
 		let egui = egui::Context::default();
 		let egui_integration = egui_backend::Integration::new(egui.clone(), host.window.clone(), &mut gfx)?;
-
-		let cfg = cfg::Config::for_app_name(app_name)?;
 
 		let mut context = context::Context {
 			gfx,
