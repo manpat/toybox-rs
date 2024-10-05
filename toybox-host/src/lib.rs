@@ -67,7 +67,7 @@ pub fn start<F, H>(settings: Settings<'_>, start_hostee: F) -> anyhow::Result<()
 		.with_debug(true)
 		.with_profile(GlProfile::Core)
 		.with_robustness(Robustness::RobustLoseContextOnReset)
-		.with_context_api(ContextApi::OpenGl(Some(Version::new(4, 5))));
+		.with_context_api(ContextApi::OpenGl(Some(Version::new(4, 6))));
 
 
 	let bootstrap_state = BootstrapState {
@@ -112,6 +112,8 @@ impl<F, H> ApplicationHandler for ApplicationHost<F, H>
 		let mut hosted_app = start_hostee(&host)
 			.expect("Failed to start hosted app");
 
+		mark_tracy_frame();
+
 		// Draw before making the window visisble
 		hosted_app.draw(event_loop);
 
@@ -121,7 +123,7 @@ impl<F, H> ApplicationHandler for ApplicationHost<F, H>
 		mark_tracy_frame();
 
 		host.window.set_visible(true);
-		host.window.request_redraw();
+		log::info!("Window made visible");
 
 		*self = ApplicationHost::Hosting(host, hosted_app);
 	}
@@ -397,6 +399,8 @@ fn init_logging() {
 	}
 
 	log_builder.init();
+
+	log::info!("Logger initialized");
 }
 
 #[cfg(feature="tracy")]
@@ -409,7 +413,7 @@ fn init_tracy() {
     tracing::subscriber::set_global_default(subscriber)
     	.expect("set up the subscriber");
 
-	println!("tracy init");
+	log::info!("Tracy initialized");
 }
 
 fn mark_tracy_frame() {

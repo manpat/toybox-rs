@@ -18,6 +18,8 @@ pub struct Capabilities {
 	pub max_samples: usize,
 
 	pub max_ubo_size: usize,
+
+	pub parallel_shader_compilation_supported: bool,
 }
 
 impl Capabilities {
@@ -80,6 +82,7 @@ impl Capabilities {
 			max_texture_size: max_texture_size as usize,
 			max_samples: min_max_samples as usize,
 			max_ubo_size: max_ubo_size as usize,
+			parallel_shader_compilation_supported: gl.MaxShaderCompilerThreadsARB.is_loaded(),
 		}
 	}
 }
