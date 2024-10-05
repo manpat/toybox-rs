@@ -73,6 +73,13 @@ impl Core {
 
 		log::info!("OpenGL {capabilities:#?}");
 
+		// TODO(pat.m): this doesn't really do much atm - but doesn't hurt lol
+		if capabilities.parallel_shader_compilation_supported {
+			unsafe {
+				gl.MaxShaderCompilerThreadsARB(2);
+			}
+		}
+
 		Core {
 			gl,
 			capabilities,

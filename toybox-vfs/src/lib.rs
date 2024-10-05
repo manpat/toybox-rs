@@ -12,12 +12,15 @@ pub struct Vfs {
 }
 
 impl Vfs {
+    #[instrument(name="vfs init")]
     pub fn new() -> anyhow::Result<Vfs> {
-        Ok(Vfs {
-            resource_root: find_resource_folder()
-                .context("Can't find resource directory")?
-                .into_boxed_path()
-        })
+        let resource_root = find_resource_folder()
+            .context("Can't find resource directory")?
+            .into_boxed_path();
+
+        log::info!("Resource Root Path: {}", resource_root.display());
+
+        Ok(Vfs { resource_root })
     }
 
     pub fn resource_root(&self) -> &Path {
@@ -130,7 +133,7 @@ fn find_resource_folder() -> anyhow::Result<PathBuf> {
 fn try_find_resource_folder_from(search_dir: &Path, dirs_scanned: &mut Vec<PathBuf>) -> anyhow::Result<Option<PathBuf>> {
     // Try scanning the current search dir first, and then one directory above.
     for search_dir in search_dir.ancestors().take(2) {
-        log::debug!("Trying to scan {}", search_dir.display());
+        log::trace!("Trying to scan {}", search_dir.display());
 
         let Ok(children) = search_dir.read_dir() else {
             continue
@@ -145,7 +148,7 @@ fn try_find_resource_folder_from(search_dir: &Path, dirs_scanned: &mut Vec<PathB
             {
                 let dir_path = dir_entry.path();
 
-                log::debug!("=== Testing {}", dir_path.display());
+                log::trace!("=== Testing {}", dir_path.display());
                 if dir_path.ends_with("resource") {
                     return Ok(Some(dir_path))
                 }
@@ -168,7 +171,7 @@ fn try_find_resource_folder_from(search_dir: &Path, dirs_scanned: &mut Vec<PathB
 fn try_find_resource_folder_in(search_dir: &Path, dirs_scanned: &mut Vec<PathBuf>) -> anyhow::Result<Option<PathBuf>> {
     let path = search_dir.join("resource");
     dirs_scanned.push(path.clone());
-    log::debug!("=== Testing {}", path.display());
+    log::trace!("=== Testing {}", path.display());
 
     if path.try_exists()? {
         return Ok(Some(path))

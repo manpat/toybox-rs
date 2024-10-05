@@ -29,7 +29,12 @@ pub struct System {
 	pub mouse_sensitivity: f32,
 
 	window: Rc<Window>,
+
 	wants_capture: bool,
+	occluded: bool,
+	has_focus: bool,
+
+	is_mouse_captured: bool,
 
 	window_size: Vec2i,
 }
@@ -83,6 +88,16 @@ impl System {
 	pub fn set_capture_mouse(&mut self, capture: bool) {
 		self.wants_capture = capture;
 
+		let should_capture = self.should_capture();
+		if self.is_mouse_captured != should_capture {
+			self.try_capture_mouse_internal(should_capture);
+		}
+	}
+
+	#[instrument(skip_all, name="input System::try_capture_mouse_internal")]
+	fn try_capture_mouse_internal(&mut self, capture: bool) {
+		log::info!("try_capture_mouse_internal({capture})");
+
 		if capture {
 			if let Err(error) = self.window.set_cursor_grab(CursorGrabMode::Confined)
 				.inspect_err(|error| log::warn!("Failed to capture mouse with 'confined' mode - falling back to 'locked' mode. {error}"))
@@ -93,6 +108,7 @@ impl System {
 			}
 
 			self.window.set_cursor_visible(false);
+			self.is_mouse_captured = true;
 
 		} else {
 			if let Err(error) = self.window.set_cursor_grab(CursorGrabMode::None) {
@@ -100,7 +116,12 @@ impl System {
 			}
 
 			self.window.set_cursor_visible(true);
+			self.is_mouse_captured = false;
 		}
+	}
+
+	fn should_capture(&self) -> bool {
+		self.wants_capture && !self.occluded && self.has_focus
 	}
 }
 
@@ -109,11 +130,17 @@ impl System {
 impl System {
 	#[instrument(skip_all, name="input System::new")]
 	pub fn new(window: Rc<Window>) -> System {
+		let has_focus = window.has_focus();
+
 		System {
 			tracker: Tracker::default(),
 			// gil: gilrs::Gilrs::new().unwrap(),
 			window,
+
 			wants_capture: false,
+			occluded: false,
+			has_focus,
+			is_mouse_captured: false,
 
 			// Default half way between quake and source sdk defaults
 			// https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/game/client/in_mouse.cpp#L85
@@ -126,14 +153,23 @@ impl System {
 
 	// Clear any 'this frame' state in the tracker and prepare for recieving new inputs
 	pub fn reset_tracker(&mut self) {
+		if self.should_capture() != self.is_mouse_captured {
+			self.try_capture_mouse_internal(self.should_capture());
+		}
+		
+		self.window.set_cursor_visible(!self.is_mouse_captured);
+
 		self.tracker.reset();
 	}
 
 	/// Called when something (e.g., egui) changes its mind about whether or not it wants to claim input.
 	/// We're assuming that when we become _not_ occluded we can safely manage things without interference.
 	pub fn set_occluded(&mut self, occluded: bool) {
-		if !occluded {
-			self.set_capture_mouse(self.wants_capture);
+		self.occluded = occluded;
+
+		let should_capture = self.should_capture();
+		if self.is_mouse_captured != should_capture {
+			self.try_capture_mouse_internal(should_capture);
 		}
 	}
 
@@ -164,8 +200,19 @@ impl System {
 
 			WindowEvent::CursorLeft{..} => self.tracker.track_mouse_left(),
 
-			WindowEvent::Focused(false) => self.tracker.track_focus_lost(),
-			WindowEvent::Focused(true) => self.tracker.track_focus_gained(),
+			WindowEvent::Focused(false) => {
+				self.has_focus = false;
+				self.tracker.track_focus_lost();
+
+				self.try_capture_mouse_internal(self.should_capture());
+			}
+
+			WindowEvent::Focused(true) => {
+				self.has_focus = true;
+				self.tracker.track_focus_gained();
+
+				self.try_capture_mouse_internal(self.should_capture());
+			}
 
 			// TODO(pat.m): track dpi
 

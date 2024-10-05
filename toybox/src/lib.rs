@@ -37,8 +37,6 @@ pub fn run_with_settings<F, A>(settings: host::Settings<'_>, start_app: F) -> an
 	let vfs = vfs::Vfs::new()
 		.context("Initialising Vfs")?;
 
-	log::info!("Resource Root Path: {}", vfs.resource_root().display());
-
 	let cfg = cfg::Config::for_app_name(app_name)?;
 	let audio = audio::init();
 
