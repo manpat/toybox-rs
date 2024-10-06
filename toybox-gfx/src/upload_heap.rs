@@ -137,8 +137,10 @@ impl UploadHeap {
 			.expect("Invalid staged upload id")
 	}
 
+	#[instrument(skip_all, name="UploadHeap::create_end_frame_fence")]
 	pub fn create_end_frame_fence(&mut self, core: &mut Core) {
 		let fence = unsafe {
+			let _span = tracing::info_span!("glFenceSync").entered();
 			core.gl.FenceSync(gl::SYNC_GPU_COMMANDS_COMPLETE, 0)
 		};
 

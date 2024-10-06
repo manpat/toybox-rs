@@ -166,6 +166,7 @@ impl Core {
 		}
 	}
 
+	#[instrument(skip_all, name="gfx Core::set_debugging_enabled")]
 	pub fn set_debugging_enabled(&self, enabled: bool) {
 		unsafe {
 			match enabled {

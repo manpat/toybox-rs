@@ -91,15 +91,24 @@ impl System {
 			.context("Error while processing resource requests")
 			.unwrap();
 
-		self.frame_encoder.command_groups.sort_by_key(|cg| cg.stage);
+		{
+			let _span = tracing::info_span!("sort command groups").entered();
+			self.frame_encoder.command_groups.sort_by_key(|cg| cg.stage);
+		}
+
+		// TODO(pat.m): replace clear with just invalidate? may be better to just always render to an fbo and blit
+		// clearing the framebuffer seems useless for any mildly involved rendering
 
 		let clear_color = self.frame_encoder.backbuffer_clear_color;
 		let clear_depth = 1.0; // 1.0 is the default clear depth for opengl
 		let clear_stencil = 0;
 
-		let backbuffer_handle = FramebufferName::backbuffer();
-		self.core.clear_framebuffer_color_buffer(backbuffer_handle, 0, clear_color);
-		self.core.clear_framebuffer_depth_stencil(backbuffer_handle, clear_depth, clear_stencil);
+		{
+			let _span = tracing::info_span!("clear backbuffer").entered();
+			let backbuffer_handle = FramebufferName::backbuffer();
+			self.core.clear_framebuffer_color_buffer(backbuffer_handle, 0, clear_color);
+			self.core.clear_framebuffer_depth_stencil(backbuffer_handle, clear_depth, clear_stencil);
+		}
 
 		let backbuffer_size = self.core.backbuffer_size();
 		self.core.set_viewport(backbuffer_size);
