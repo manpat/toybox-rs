@@ -76,6 +76,8 @@ impl System {
 
 				match handle.take().unwrap().join() {
 					Ok(Ok(new_stream)) => {
+						log::info!("Output stream active");
+
 						self.stream_state = StreamState::Active(new_stream);
 						self.shared.device_lost.store(false, Ordering::Relaxed);
 					}
@@ -88,10 +90,13 @@ impl System {
 					Err(panic_data) => {
 						log::error!("Panic during audio stream creation!");
 						self.stream_state = StreamState::InitFailure;
+						self.try_update_provider_config();
 
 						std::panic::resume_unwind(panic_data);
 					}
 				}
+
+				self.try_update_provider_config();
 			}
 
 			StreamState::InitFailure => {}
@@ -107,6 +112,8 @@ impl System {
 
 		if let Some(mut provider) = provider.into() {
 			let configuration = self.stream_state.as_active_stream().map(|active_stream| active_stream.configuration);
+
+			log::info!("Setting initial provider configuration: {configuration:?}");
 			provider.on_configuration_changed(configuration);
 
 			*shared_provider = Some(Box::new(provider));
@@ -116,6 +123,18 @@ impl System {
 		}
 
 		Ok(())
+	}
+
+	fn try_update_provider_config(&mut self) {
+		if let Ok(mut guard) = self.shared.provider.lock()
+			&& let Some(provider) = &mut *guard
+		{
+			let configuration = self.stream_state.as_active_stream()
+				.map(|active_stream| active_stream.configuration);
+
+			log::info!("Update provider configuration: {configuration:?}");
+			provider.on_configuration_changed(configuration);
+		}
 	}
 }
 
@@ -145,18 +164,7 @@ struct SharedState {
 fn start_stream_build(shared: Arc<SharedState>) -> JoinHandle<anyhow::Result<ActiveStream>> {
 	std::thread::spawn(move || {
 		let host = cpal::default_host();
-		let result = build_output_stream(&host, shared.clone());
-
-		let new_configuration = result.as_ref().ok().map(|stream| stream.configuration);
-
-		// If there's a provider, notify of the configuration change
-		if let Ok(mut guard) = shared.provider.lock()
-			&& let Some(provider) = &mut *guard
-		{
-			provider.on_configuration_changed(new_configuration);
-		}
-
-		result
+		build_output_stream(&host, shared.clone())
 	})
 }
 
