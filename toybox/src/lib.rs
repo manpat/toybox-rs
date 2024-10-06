@@ -75,8 +75,8 @@ pub fn run_with_settings<F, A>(settings: host::Settings<'_>, start_app: F) -> an
 			wants_quit: false,
 		};
 
+		// Required since we now call this at the end of frames rather than the beginning.
 		context.prepare_frame();
-		context.start_frame();
 
 		let app = tracing::info_span!("app start").in_scope(|| start_app(&mut context))?;
 
