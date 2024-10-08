@@ -14,7 +14,7 @@ pub struct Context {
 
 	// TODO(pat.m): might want to be able to disable this.
 	/// Whether or not to show the built in debug menu.
-	/// Can be toggled by F10.
+	/// Can be toggled by F1.
 	pub show_debug_menu: bool,
 	pub wants_quit: bool,
 }
@@ -34,7 +34,7 @@ impl Context {
 		self.input.process();
 		self.egui = self.egui_integration.start_frame();
 
-		if self.input.button_just_down(input::keys::F10) {
+		if self.input.button_just_down(input::keys::F1) {
 			self.show_debug_menu = !self.show_debug_menu;
 		}
 
