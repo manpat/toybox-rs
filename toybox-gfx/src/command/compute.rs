@@ -37,6 +37,7 @@ impl ComputeCmd {
 		}
 	}
 
+	#[tracing::instrument(skip_all, name="ComputeCmd::execute")]
 	pub fn execute(&self, core: &mut Core, rm: &mut ResourceManager) {
 		let shader_handle = match self.compute_shader {
 			ShaderArgument::Handle(handle) => handle,

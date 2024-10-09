@@ -90,6 +90,7 @@ impl DrawCmd {
 		}
 	}
 
+	#[tracing::instrument(skip_all, name="DrawCmd::execute")]
 	pub fn execute(&self, core: &mut Core, rm: &mut ResourceManager) {
 		let vertex_shader_handle = match self.vertex_shader {
 			ShaderArgument::Handle(name) => name,

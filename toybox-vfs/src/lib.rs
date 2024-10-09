@@ -27,7 +27,7 @@ impl Vfs {
         &self.resource_root
     }
 
-    pub fn resource_path(&self, virtual_path: impl AsRef<Path>) -> anyhow::Result<PathBuf> {
+    fn resource_path(&self, virtual_path: impl AsRef<Path>) -> anyhow::Result<PathBuf> {
         let components = virtual_path.as_ref().components();
 
         let clean_path = clean_virtual_path(components)

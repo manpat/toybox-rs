@@ -53,7 +53,7 @@ pub fn tracker_ui(ui: &mut egui::Ui, input: &mut System) {
 
 	ui.label("Press F9 to toggle mouse capture");
 
-	if input.button_just_down(LogicalNamedKey::F9) {
+	if input.button_just_down(keys::F9) {
 		state.wants_capture = !state.wants_capture;
 		input.set_capture_mouse(state.wants_capture);
 	}
