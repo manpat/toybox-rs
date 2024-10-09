@@ -23,10 +23,8 @@ pub enum ImageFormat {
 
 
 impl ImageFormat {
-	pub fn color() -> Self { ImageFormat::Rgba(ComponentFormat::Unorm8) }
-	pub fn hdr_color() -> Self { ImageFormat::Rgba(ComponentFormat::F16) }
-	pub fn srgb() -> Self { ImageFormat::Srgb8 }
-	pub fn srgba() -> Self { ImageFormat::Srgba8 }
+	pub fn rgba8() -> Self { ImageFormat::Rgba(ComponentFormat::Unorm8) }
+	pub fn rgba16f() -> Self { ImageFormat::Rgba(ComponentFormat::F16) }
 
 	pub fn unorm8() -> Self { ImageFormat::Red(ComponentFormat::Unorm8) }
 
