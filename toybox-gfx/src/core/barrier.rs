@@ -21,6 +21,9 @@ pub struct BarrierTracker {
 	buffers: HashMap<BufferName, u32>,
 	images: HashMap<ImageName, u32>,
 
+	written_buffers: Vec<BufferName>,
+	written_images: Vec<ImageName>,
+
 	next_barrier_flags: u32,
 }
 
@@ -32,10 +35,8 @@ impl BarrierTracker {
 	pub fn read_buffer(&mut self, name: BufferName, read_usage_bits: u32) {
 		// If a buffer has been written to and a barrier matching read_usage_bits has not yet been emitted
 		// then we need to emit one before it gets read.
-		if let Some(needs_barrier_flags) = self.buffers.get(&name)
-			&& *needs_barrier_flags & read_usage_bits != 0
-		{
-			self.next_barrier_flags |= read_usage_bits;
+		if let Some(needs_barrier_flags) = self.buffers.get(&name) {
+			self.next_barrier_flags |= *needs_barrier_flags & read_usage_bits;
 		}
 	}
 
@@ -47,16 +48,14 @@ impl BarrierTracker {
 		// Any reads from this buffer after the next draw call will require a barrier of the right type.
 		// Since barriers apply for _all_ buffers, keep track of which barriers we are yet to emit for any
 		// given buffer.
-		self.buffers.insert(name, ALL_BUFFER_BARRIER_BITS);
+		self.written_buffers.push(name);
 	}
 
 	pub fn read_image(&mut self, name: ImageName, read_usage_bits: u32) {
 		// If a image has been written to and a barrier matching read_usage_bits has not yet been emitted
 		// then we need to emit one before it gets read.
-		if let Some(needs_barrier_flags) = self.images.get(&name)
-			&& *needs_barrier_flags & read_usage_bits != 0
-		{
-			self.next_barrier_flags |= read_usage_bits;
+		if let Some(needs_barrier_flags) = self.images.get(&name) {
+			self.next_barrier_flags |= *needs_barrier_flags & read_usage_bits;
 		}
 	}
 
@@ -68,7 +67,7 @@ impl BarrierTracker {
 		// Any reads from this image after the next draw call will require a barrier of the right type.
 		// Since barriers apply for _all_ images, keep track of which barriers we are yet to emit for any
 		// given image.
-		self.images.insert(name, ALL_IMAGE_BARRIER_BITS);
+		self.written_images.push(name);
 	}
 
 	/// Inserts any barriers required for the next draw call to be well defined, assuming appropriate calls to
@@ -89,6 +88,14 @@ impl BarrierTracker {
 
 		for needs_barrier_flags in self.images.values_mut() {
 			*needs_barrier_flags &= !barrier_flags;
+		}
+
+		for buffer in self.written_buffers.drain(..) {
+			self.buffers.insert(buffer, ALL_BUFFER_BARRIER_BITS);
+		}
+
+		for image in self.written_images.drain(..) {
+			self.images.insert(image, ALL_IMAGE_BARRIER_BITS);
 		}
 	}
 
