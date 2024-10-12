@@ -1,10 +1,9 @@
 
 pub mod prelude {}
 
-pub mod table;
-use table::{Table, Value};
+mod table;
+use toml::{Table, Value};
 
-use std::path::{PathBuf};
 use tracing::instrument;
 
 use toybox_vfs::{Vfs, PathKind};
@@ -27,8 +26,6 @@ pub struct Config {
 	/// Combined config with overrides applied.
 	// TODO(pat.m): this is basically a cache but maybe I don't need this
 	resolved: Table,
-
-	save_path: PathBuf,
 }
 
 impl Config {
@@ -38,14 +35,15 @@ impl Config {
 		let mut config = Self::default();
 
 		if vfs.path_exists(PathKind::Config, "config.toml") {
-			config.base = Table::from_file(vfs, PathKind::Config, "config.toml")?;
+			config.base = table::load_from_vfs(vfs, PathKind::Config, "config.toml")?;
+
 		} else {
-			log::info!("Couldn't load config - writing defaults to {}", config.save_path.display());
+			log::info!("Couldn't load config - writing defaults to '{}'", vfs.local_data_root().display());
 			// TODO(pat.m): defaults?
-			config.base.save_to_file(vfs, PathKind::Config, "config.toml")?;
+			table::save_to_vfs(&config.base, vfs, PathKind::Config, "config.toml")?;
 		}
 
-		config.arguments = Table::from_cli()?;
+		config.arguments = table::load_from_cli()?;
 
 		// TODO(pat.m): resolve
 
@@ -57,17 +55,19 @@ impl Config {
 	#[instrument(skip_all, name="cfg Config::save")]
 	pub fn save(&self, vfs: &Vfs) -> anyhow::Result<()> {
 		// TODO(pat.m): extra resolve? 
-		self.base.save_to_file(vfs, PathKind::Config, "config.toml")
+		table::save_to_vfs(&self.base, vfs, PathKind::Config, "config.toml")
 	}
 
 	#[instrument(skip_all, name="cfg Config::commit")]
 	pub fn commit(&mut self) {
-		self.base.merge_from(&self.preview);
-		self.arguments.remove_values_in(&self.preview);
+		// self.base.merge_from(&self.preview);
+		// self.arguments.remove_values_in(&self.preview);
 
 		// TODO(pat.m): this may not be needed if preview config is automatically added to resolved
 		self.preview = Table::new();
 		self.resolved = Table::new();
+
+		todo!();
 	}
 
 	#[instrument(skip_all, name="cfg Config::revert")]
@@ -83,22 +83,32 @@ impl Config {
 		// 	return Some(value)
 		// }
 
-		if let Some(value) = self.preview.get_value(key) {
+		if let Some(value) = table::get_value(&self.preview, key) {
 			// self.resolved.set_value(key, value.clone());
 			return Some(value)
 		}
 
-		if let Some(value) = self.arguments.get_value(key) {
+		if let Some(value) = table::get_value(&self.arguments, key) {
 			// self.resolved.set_value(key, value.clone());
 			return Some(value)
 		}
 
-		if let Some(value) = self.base.get_value(key) {
+		if let Some(value) = table::get_value(&self.base, key) {
 			// self.resolved.set_value(key, value.clone());
 			return Some(value)
 		}
 
 		None
+	}
+
+	pub fn get_bool(&self, key: &str) -> Option<bool> {
+		self.get_value(key)
+			.and_then(Value::as_bool)
+	}
+
+	pub fn get_string(&self, key: &str) -> Option<&str> {
+		self.get_value(key)
+			.and_then(Value::as_str)
 	}
 
 	// pub fn get_value_or(&mut self, key: &str, default: impl Into<Value>) -> &Value {
