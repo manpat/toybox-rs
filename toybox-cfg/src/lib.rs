@@ -7,6 +7,10 @@ use table::{Table, Value};
 use std::path::{PathBuf};
 use tracing::instrument;
 
+use toybox_vfs::{Vfs, PathKind};
+
+// TODO(pat.m): this should maybe become a _system_ rather than a normal object
+
 
 /// Runtime representation of hierarchical key-value storage, intended for settings, command line config, etc.
 #[derive(Debug, Clone, Default)]
@@ -28,16 +32,17 @@ pub struct Config {
 }
 
 impl Config {
-	#[instrument(skip_all, name="cfg Config::for_app_name")]
-	pub fn for_app_name(app_name: &str) -> anyhow::Result<Self> {
+	// TODO(pat.m): this whole function is jank as shit
+	#[instrument(skip_all, name="cfg Config::from_vfs")]
+	pub fn from_vfs(vfs: &Vfs) -> anyhow::Result<Self> {
 		let mut config = Self::default();
 
-		config.save_path = config_path(app_name);
-		if config.save_path.exists() {
-			config.base = Table::from_file(&config.save_path)?;
+		if vfs.path_exists(PathKind::Config, "config.toml") {
+			config.base = Table::from_file(vfs, PathKind::Config, "config.toml")?;
 		} else {
+			log::info!("Couldn't load config - writing defaults to {}", config.save_path.display());
 			// TODO(pat.m): defaults?
-			config.base.save_to_file(&config.save_path)?;
+			config.base.save_to_file(vfs, PathKind::Config, "config.toml")?;
 		}
 
 		config.arguments = Table::from_cli()?;
@@ -50,9 +55,9 @@ impl Config {
 	}
 
 	#[instrument(skip_all, name="cfg Config::save")]
-	pub fn save(&self) -> anyhow::Result<()> {
+	pub fn save(&self, vfs: &Vfs) -> anyhow::Result<()> {
 		// TODO(pat.m): extra resolve? 
-		self.base.save_to_file(&self.save_path)
+		self.base.save_to_file(vfs, PathKind::Config, "config.toml")
 	}
 
 	#[instrument(skip_all, name="cfg Config::commit")]
@@ -100,15 +105,3 @@ impl Config {
 	// }
 }
 
-
-#[instrument]
-pub fn config_path(app_name: &str) -> PathBuf {
-	let mut dir = dirs::preference_dir() 
-		.expect("Couldn't get preferences dir");
-
-	dir.push("toybox");
-	dir.push(app_name);
-	dir.push("config.toml");
-
-	dir
-}

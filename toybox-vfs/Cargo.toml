@@ -5,6 +5,7 @@ edition.workspace = true
 authors.workspace = true
 
 [dependencies]
+dirs = "5.0.1"
 log.workspace = true
 tracing.workspace = true
 anyhow.workspace = true

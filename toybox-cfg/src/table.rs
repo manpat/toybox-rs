@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use toybox_vfs::{Vfs, PathKind};
 
 
 #[derive(Debug, Clone, Default)]
@@ -14,8 +15,8 @@ impl Table {
 		Table::default()
 	}
 
-	pub fn from_file(path: impl AsRef<Path>) -> anyhow::Result<Table> {
-		let data = std::fs::read_to_string(path)?;
+	pub fn from_file(vfs: &Vfs, kind: PathKind, path: impl AsRef<Path>) -> anyhow::Result<Table> {
+		let data = vfs.load_string(kind, path)?;
 		let raw: toml::Table = toml::from_str(&data)?;
 		let _ = dbg!(raw);
 
@@ -31,12 +32,10 @@ impl Table {
 		Ok(Table::default())
 	}
 
-	pub fn save_to_file(&self, path: impl AsRef<Path>) -> anyhow::Result<()> {
+	pub fn save_to_file(&self, vfs: &Vfs, kind: PathKind, path: impl AsRef<Path>) -> anyhow::Result<()> {
 		let toml = self.to_toml();
 		let string = toml::to_string_pretty(&toml)?;
-		std::fs::create_dir_all(path.as_ref().parent().unwrap())?;
-		std::fs::write(path, string)?;
-		Ok(())
+		vfs.save_data(kind, path, &string)
 	}
 
 	/// Copy or replace values present in `other`

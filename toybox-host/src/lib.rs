@@ -52,7 +52,7 @@ pub fn start<F, H>(settings: Settings<'_>, start_hostee: F) -> anyhow::Result<()
 	let event_loop = EventLoop::new()?;
 
 	let window_attributes = Window::default_attributes()
-		.with_title(settings.initial_title)
+		.with_title(settings.app_name)
 		.with_transparent(settings.transparent)
 		.with_decorations(!settings.no_decorations)
 		.with_resizable(true)
@@ -202,15 +202,15 @@ pub trait HostedApp {
 
 
 pub struct Settings<'title> {
-	pub initial_title: &'title str,
+	pub app_name: &'title str,
 	pub transparent: bool,
 	pub no_decorations: bool,
 }
 
 impl<'title> Settings<'title> {
-	pub fn new(initial_title: &'title str) -> Self {
+	pub fn new(app_name: &'title str) -> Self {
 		Settings {
-			initial_title,
+			app_name,
 			transparent: false,
 			no_decorations: false,
 		}

@@ -16,11 +16,11 @@ pub trait App {
 }
 
 
-pub fn run<F, A>(title: &str, start_app: F) -> anyhow::Result<()>
+pub fn run<F, A>(app_name: &str, start_app: F) -> anyhow::Result<()>
 	where A: App + 'static
 		, F: FnOnce(&mut Context) -> anyhow::Result<A>
 {
-	run_with_settings(host::Settings::new(title), start_app)
+	run_with_settings(host::Settings::new(app_name), start_app)
 }
 
 
@@ -32,12 +32,10 @@ pub fn run_with_settings<F, A>(settings: host::Settings<'_>, start_app: F) -> an
 
 	let _span = tracing::info_span!("toybox early start").entered();
 
-	let app_name = settings.initial_title;
-
-	let vfs = vfs::Vfs::new()
+	let vfs = vfs::Vfs::new(settings.app_name)
 		.context("Initialising Vfs")?;
 
-	let cfg = cfg::Config::for_app_name(app_name)?;
+	let cfg = cfg::Config::from_vfs(&vfs)?;
 	let audio = audio::init();
 
 	_span.exit();
