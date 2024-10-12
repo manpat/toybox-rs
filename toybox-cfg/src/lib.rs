@@ -17,7 +17,7 @@ pub struct Config {
 	/// Config loaded and saved to disk.
 	base: Table,
 
-	/// Any config overrided by CLI args.
+	/// Any config overriden by CLI args.
 	arguments: Table,
 
 	/// Config set during runtime that can be either committed to base or reverted.
