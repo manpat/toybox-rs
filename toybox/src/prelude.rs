@@ -10,7 +10,7 @@ pub use toybox_audio as audio;
 pub use toybox_input as input;
 pub use toybox_egui as egui_backend;
 pub use toybox_vfs as vfs;
-pub use toybox_msg as msg;
+pub use toybox_bus as bus;
 
 pub use host::prelude::*;
 pub use gfx::prelude::*;

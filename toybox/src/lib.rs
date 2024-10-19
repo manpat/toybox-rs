@@ -53,6 +53,7 @@ pub fn run_with_settings<F, A>(settings: host::Settings<'_>, start_app: F) -> an
 
 		gfx.resize(backbuffer_size);
 
+		let bus = bus::MessageBus::new();
 		let input = input::System::new(host.window.clone());
 
 		let egui = egui::Context::default();
@@ -65,6 +66,7 @@ pub fn run_with_settings<F, A>(settings: host::Settings<'_>, start_app: F) -> an
 			egui,
 			cfg,
 			vfs,
+			bus,
 
 			egui_integration,
 			egui_claiming_input_gate: Gate::new(),

@@ -3,14 +3,14 @@ resolver = "2"
 members = [
 	"gl",
 	"toybox",
-	"toybox-host",
-	"toybox-gfx",
 	"toybox-audio",
-	"toybox-input",
-	"toybox-egui",
+	"toybox-bus",
 	"toybox-cfg",
+	"toybox-egui",
+	"toybox-gfx",
+	"toybox-host",
+	"toybox-input",
 	"toybox-vfs",
-	"toybox-msg",
 ]
 
 [workspace.package]
@@ -37,7 +37,7 @@ toybox-input = { path = "toybox-input" }
 toybox-egui = { path = "toybox-egui" }
 toybox-cfg = { path = "toybox-cfg" }
 toybox-vfs = { path = "toybox-vfs" }
-toybox-msg = { path = "toybox-msg" }
+toybox-bus = { path = "toybox-bus" }
 
 gl = { path = "gl" }
 

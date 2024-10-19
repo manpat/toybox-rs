@@ -7,6 +7,7 @@ pub struct Context {
 	pub egui: egui::Context,
 	pub cfg: cfg::Config,
 	pub vfs: vfs::Vfs,
+	pub bus: bus::MessageBus,
 
 	pub(super) egui_integration: egui_backend::Integration,
 
@@ -25,6 +26,7 @@ impl Context {
 	pub(crate) fn prepare_frame(&mut self) {
 		self.audio.update();
 		self.input.reset_tracker();
+		self.bus.garbage_collect();
 	}
 
 	// Called after events are processed, immediately before control is passed to the app.

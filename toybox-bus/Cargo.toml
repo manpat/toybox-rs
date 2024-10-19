@@ -1,5 +1,5 @@
 [package]
-name = "toybox-msg"
+name = "toybox-bus"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

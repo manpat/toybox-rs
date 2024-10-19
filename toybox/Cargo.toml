@@ -13,7 +13,7 @@ toybox-input.workspace = true
 toybox-egui.workspace = true
 toybox-cfg.workspace = true
 toybox-vfs.workspace = true
-toybox-msg.workspace = true
+toybox-bus.workspace = true
 
 
 common.workspace = true

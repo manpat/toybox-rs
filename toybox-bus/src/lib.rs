@@ -49,7 +49,7 @@ impl MessageBus {
         self.count(subscription) > 0
     }
 
-    pub fn poll<T: Clone + 'static>(&self, subscription: &Subscription<T>) -> impl Iterator<Item=T> + use<'_, T> {
+    pub fn poll<'sub, T: Clone + 'static>(&self, subscription: &'sub Subscription<T>) -> impl Iterator<Item=T> + use<'sub, T> {
         struct Iter<'s, T: Clone + 'static> {
             subscription: Rc<SubscriptionInner>,
             queue: *mut TypedMessageQueue<T>,
@@ -86,11 +86,11 @@ impl MessageBus {
             subscription: subscription.inner.clone(),
             queue,
             _lock: MessageQueuePollLock::lock(queue),
-            _phantom: PhantomData,
+            _phantom: PhantomData::<&'sub ()>,
         }
     }
 
-    pub fn poll_consume<T: 'static>(&self, subscription: &Subscription<T>) -> impl Iterator<Item=T> + use<'_, T> {
+    pub fn poll_consume<'sub, T: 'static>(&self, subscription: &'sub Subscription<T>) -> impl Iterator<Item=T> + use<'sub, T> {
         struct Iter<'s, T: 'static> {
             subscription: Rc<SubscriptionInner>,
             queue: *mut TypedMessageQueue<T>,
@@ -130,7 +130,7 @@ impl MessageBus {
             subscription: subscription.inner.clone(),
             queue,
             lock: MessageQueuePollLock::lock(queue),
-            _phantom: PhantomData,
+            _phantom: PhantomData::<&'sub ()>,
         }
     }
 
