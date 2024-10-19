@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+	"gl",
 	"toybox",
 	"toybox-host",
 	"toybox-gfx",
@@ -9,7 +10,7 @@ members = [
 	"toybox-egui",
 	"toybox-cfg",
 	"toybox-vfs",
-	"gl"
+	"toybox-msg",
 ]
 
 [workspace.package]
@@ -36,6 +37,7 @@ toybox-input = { path = "toybox-input" }
 toybox-egui = { path = "toybox-egui" }
 toybox-cfg = { path = "toybox-cfg" }
 toybox-vfs = { path = "toybox-vfs" }
+toybox-msg = { path = "toybox-msg" }
 
 gl = { path = "gl" }
 
