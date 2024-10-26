@@ -73,10 +73,10 @@ impl Core {
 
 		log::info!("OpenGL {capabilities:#?}");
 
-		// TODO(pat.m): this doesn't really do much atm - but doesn't hurt lol
+		// This effectively only speeds up the first draw, but whatever.
 		if capabilities.parallel_shader_compilation_supported {
 			unsafe {
-				gl.MaxShaderCompilerThreadsARB(2);
+				gl.MaxShaderCompilerThreadsARB(4);
 			}
 		}
 

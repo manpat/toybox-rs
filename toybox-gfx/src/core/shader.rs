@@ -24,6 +24,7 @@ pub enum ShaderType {
 
 /// Shaders
 impl super::Core {
+	#[tracing::instrument(skip_all, name="gfx Core::create_shader")]
 	pub fn create_shader(&self, shader_type: ShaderType, src_chunks: &[&str]) -> anyhow::Result<ShaderName> {
 		use std::ffi::CString;
 
@@ -44,7 +45,6 @@ impl super::Core {
 		if program_name == 0 {
 			anyhow::bail!("Failed to compile shader")
 		}
-
 
 		let mut status = 0;
 		unsafe {
