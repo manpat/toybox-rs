@@ -10,7 +10,7 @@ pub mod prelude {}
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 pub enum PathKind {
 	Resource,
-	LocalData,
+	UserData,
 
 	Config,
 }
@@ -21,7 +21,7 @@ pub struct Vfs {
 	resource_root: Box<Path>,
 
 	// All inter-session data - game saves, user config, etc
-	local_data_root: Box<Path>,
+	user_data_root: Box<Path>,
 }
 
 impl Vfs {
@@ -31,33 +31,33 @@ impl Vfs {
 			.context("Can't find resource directory")?
 			.into_boxed_path();
 
-		let mut local_data_root = dirs::data_dir()
+		let mut user_data_root = dirs::data_dir()
 			.context("Can't find local data directory")?;
 
-		local_data_root.push("toybox");
-		local_data_root.push(app_name);
+		user_data_root.push("toybox");
+		user_data_root.push(app_name);
 
-		let local_data_root = local_data_root.into_boxed_path();
+		let user_data_root = user_data_root.into_boxed_path();
 
 		log::info!("Resource Root Path: {}", resource_root.display());
-		log::info!("Data Root Path: {}", local_data_root.display());
+		log::info!("Data Root Path: {}", user_data_root.display());
 
-		Ok(Vfs { resource_root, local_data_root })
+		Ok(Vfs { resource_root, user_data_root })
 	}
 
 	pub fn resource_root(&self) -> &Path {
 		&self.resource_root
 	}
 
-	pub fn local_data_root(&self) -> &Path {
-		&self.local_data_root
+	pub fn user_data_root(&self) -> &Path {
+		&self.user_data_root
 	}
 
 	fn resolve_root(&self, kind: PathKind) -> &Path {
 		match kind {
 			PathKind::Resource => &self.resource_root,
-			PathKind::LocalData => &self.local_data_root,
-			PathKind::Config => &self.local_data_root,
+			PathKind::UserData => &self.user_data_root,
+			PathKind::Config => &self.user_data_root,
 		}
 	}
 

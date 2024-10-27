@@ -38,7 +38,7 @@ impl Config {
 			config.base = table::load_from_vfs(vfs, PathKind::Config, "config.toml")?;
 
 		} else {
-			log::info!("Couldn't load config - writing defaults to '{}'", vfs.local_data_root().display());
+			log::info!("Couldn't load config - writing defaults to '{}'", vfs.user_data_root().display());
 			// TODO(pat.m): defaults?
 			table::save_to_vfs(&config.base, vfs, PathKind::Config, "config.toml")?;
 		}
