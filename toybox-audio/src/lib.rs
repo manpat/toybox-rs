@@ -17,6 +17,18 @@ pub mod prelude {
 }
 
 
+#[derive(Debug, Copy, Clone)]
+pub struct Configuration {
+	pub sample_rate: u32,
+	pub channels: usize,
+}
+
+pub trait Provider : Send + 'static {
+	fn on_configuration_changed(&mut self, _: Option<Configuration>);
+	fn fill_buffer(&mut self, buffer: &mut [f32]);
+}
+
+
 pub struct System {
 	stream_shared: Arc<SharedStreamState>,
 	stream_state: StreamState,
@@ -114,15 +126,4 @@ impl System {
 			provider.on_configuration_changed(configuration);
 		}
 	}
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct Configuration {
-	pub sample_rate: u32,
-	pub channels: usize,
-}
-
-pub trait Provider : Send + 'static {
-	fn on_configuration_changed(&mut self, _: Option<Configuration>);
-	fn fill_buffer(&mut self, buffer: &mut [f32]);
 }
