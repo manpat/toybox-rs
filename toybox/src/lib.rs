@@ -36,7 +36,7 @@ pub fn run_with_settings<F, A>(settings: host::Settings<'_>, start_app: F) -> an
 		.context("Initialising Vfs")?;
 
 	let cfg = cfg::Config::from_vfs(&vfs)?;
-	let audio = audio::init();
+	let audio = audio::System::init();
 
 	_span.exit();
 
