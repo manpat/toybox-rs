@@ -3,7 +3,7 @@ use crate::core::{Core, BufferName, BufferRange};
 use tracing::instrument;
 use std::collections::VecDeque;
 
-pub const UPLOAD_BUFFER_SIZE: usize = 8<<20;
+pub const UPLOAD_BUFFER_SIZE: usize = 100<<20;
 
 pub struct UploadHeap {
 	buffer_name: BufferName,
