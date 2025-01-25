@@ -73,6 +73,7 @@ impl BarrierTracker {
 	/// Inserts any barriers required for the next draw call to be well defined, assuming appropriate calls to
 	/// read/write_* have been made for each resource bound.
 	/// Must be called immediately before any draw call/command that may read from or write to a resource.
+	#[tracing::instrument(skip_all, name="BarrierTracker::emit_barriers")]
 	pub fn emit_barriers(&mut self, gl: &gl::Gl) {
 		let barrier_flags = std::mem::replace(&mut self.next_barrier_flags, 0);
 

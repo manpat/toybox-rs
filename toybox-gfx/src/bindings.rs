@@ -167,6 +167,7 @@ impl BindingDescription {
 	// TODO(pat.m): not sure if I want to do this here.
 	// It does limit things a bit if I want to look things up in a per-pass BindingDescription.
 	// Also binding should probably be done through a bindings tracker.
+	#[tracing::instrument(skip_all, name="BindingDescription::bind")]
 	pub fn bind(&self, core: &mut Core, resource_manager: &mut ResourceManager) {
 		let mut barrier_tracker = core.barrier_tracker();
 
