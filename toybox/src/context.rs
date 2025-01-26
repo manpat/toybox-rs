@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 pub struct Context {
-	pub gfx: gfx::System,
+	pub gfx: Box<gfx::System>,
 	pub audio: audio::System,
 	pub input: input::System,
 	pub egui: egui::Context,

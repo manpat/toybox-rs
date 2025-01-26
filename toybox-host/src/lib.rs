@@ -44,7 +44,7 @@ pub type GlContext = glutin::context::PossiblyCurrentContext;
 
 
 pub fn start<F, H>(settings: Settings<'_>, start_hostee: F) -> anyhow::Result<()>
-	where F: FnOnce(&Host) -> anyhow::Result<H>
+	where F: FnOnce(&Host) -> anyhow::Result<Box<H>>
 		, H: HostedApp + 'static
 {
 	let _span = tracing::info_span!("host start").entered();
@@ -78,8 +78,8 @@ pub fn start<F, H>(settings: Settings<'_>, start_hostee: F) -> anyhow::Result<()
 		_span,
 	};
 
-	let mut app_host = ApplicationHost::Bootstrap(bootstrap_state, start_hostee);
-
+	// NOTE: Box to avoid issues with stack sizes if hostee is too large.
+	let mut app_host = Box::new(ApplicationHost::Bootstrap(bootstrap_state, start_hostee));
 	event_loop.run_app(&mut app_host)?;
 
 	Ok(())
@@ -92,11 +92,11 @@ enum ApplicationHost<F, H> {
 	#[default]
 	Empty,
 	Bootstrap(BootstrapState, F),
-	Hosting(Host, H),
+	Hosting(Host, Box<H>),
 }
 
 impl<F, H> ApplicationHandler for ApplicationHost<F, H>
-	where F: FnOnce(&Host) -> anyhow::Result<H>
+	where F: FnOnce(&Host) -> anyhow::Result<Box<H>>
 		, H: HostedApp + 'static
 {
 	fn resumed(&mut self, event_loop: &ActiveEventLoop) {

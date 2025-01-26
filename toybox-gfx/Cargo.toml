@@ -9,6 +9,7 @@ anyhow.workspace = true
 common.workspace = true
 log.workspace = true
 tracing.workspace = true
+smallvec.workspace = true
 
 toybox-host.workspace = true
 toybox-vfs.workspace = true

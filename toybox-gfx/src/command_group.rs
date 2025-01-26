@@ -1,3 +1,4 @@
+use crate::prelude::*;
 use crate::bindings::*;
 use crate::command::{Command, compute, draw};
 use crate::resource_manager::{ShaderHandle, arguments::*};
@@ -33,7 +34,7 @@ pub enum FrameStage {
 pub struct CommandGroup {
 	pub stage: FrameStage,
 
-	pub commands: Vec<Command>,
+	pub commands: SmallVec<[Command; 16]>,
 
 	pub shared_bindings: BindingDescription,
 }
@@ -42,7 +43,7 @@ impl CommandGroup {
 	pub(crate) fn new(stage: FrameStage) -> CommandGroup {
 		CommandGroup {
 			stage,
-			commands: Vec::new(),
+			commands: SmallVec::new(),
 			shared_bindings: BindingDescription::new(),
 		}
 	}

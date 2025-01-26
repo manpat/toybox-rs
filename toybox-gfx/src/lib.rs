@@ -24,6 +24,8 @@ pub mod prelude {
 	pub use crate::host::gl;
 	pub use crate::{ResourceName, BufferRangeExt};
 
+	pub use smallvec::SmallVec;
+
 	pub use toybox_vfs as vfs;
 	pub use common::math::*;
 }
@@ -49,7 +51,7 @@ impl System {
 
 impl System {
 	#[instrument(skip_all, name="gfxsys System::new")]
-	pub fn new(mut core: core::Core) -> anyhow::Result<System> {
+	pub fn new(mut core: core::Core) -> anyhow::Result<Box<System>> {
 		core.register_debug_hook();
 
 		let resource_manager = resource_manager::ResourceManager::new(&mut core)?;
@@ -63,11 +65,11 @@ impl System {
 			core.gl.Enable(gl::FRAMEBUFFER_SRGB);
 		}
 
-		Ok(System {
+		Ok(Box::new(System {
 			core,
 			resource_manager,
 			frame_encoder,
-		})
+		}))
 	}
 
 	pub fn resize(&mut self, new_size: common::Vec2i) {

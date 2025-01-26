@@ -80,11 +80,11 @@ pub fn run_with_settings<F, A>(settings: host::Settings<'_>, start_app: F) -> an
 
 		let app = tracing::info_span!("app start").in_scope(|| start_app(&mut context))?;
 
-		Ok(HostedApp {
+		Ok(Box::new(HostedApp {
 			context,
 			debug_menu_state: debug::MenuState::default(),
 			app,
-		})
+		}))
 	})
 }
 

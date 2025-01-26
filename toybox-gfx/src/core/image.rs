@@ -33,7 +33,7 @@ pub enum ImageType {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(in crate::core) struct ImageInfoInternal {
 	info: ImageInfo,
-	views: Vec<(ImageFormat, u32)>,
+	views: SmallVec<[(ImageFormat, u32); 2]>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

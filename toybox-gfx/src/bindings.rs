@@ -56,8 +56,8 @@ pub struct ImageBindDesc {
 #[derive(Debug, Default)]
 pub struct BindingDescription {
 	// TODO(pat.m): store unresolved named targets separately to resolved/explicit targets to simplify usage 
-	pub buffer_bindings: Vec<BufferBindDesc>,
-	pub image_bindings: Vec<ImageBindDesc>,
+	pub buffer_bindings: SmallVec<[BufferBindDesc; 4]>,
+	pub image_bindings: SmallVec<[ImageBindDesc; 4]>,
 
 	pub framebuffer: Option<FramebufferArgument>,
 }
@@ -171,79 +171,92 @@ impl BindingDescription {
 	pub fn bind(&self, core: &mut Core, resource_manager: &mut ResourceManager) {
 		let mut barrier_tracker = core.barrier_tracker();
 
-		for BufferBindDesc{target, source} in self.buffer_bindings.iter() {
-			let BufferArgument::Name{name, range} = *source
-				else { panic!("Unresolved buffer bind source") };
+		{
+			let _span = tracing::info_span!("bind buffers").entered();
 
-			let Some((index, indexed_target)) = target.to_raw_index().zip(target.to_indexed_buffer_target())
-				else { panic!("Unresolved buffer target") };
+			for BufferBindDesc{target, source} in self.buffer_bindings.iter() {
+				let BufferArgument::Name{name, range} = *source
+					else { panic!("Unresolved buffer bind source") };
 
-			match indexed_target {
-				// TODO(pat.m): this is pessimistic - but we need shader reflection to guarantee that an ssbo is bound
-				// as readonly.
-				IndexedBufferTarget::ShaderStorage => barrier_tracker.write_buffer(name, gl::SHADER_STORAGE_BARRIER_BIT),
-				IndexedBufferTarget::Uniform => barrier_tracker.read_buffer(name, gl::UNIFORM_BARRIER_BIT),
-			}
+				let Some((index, indexed_target)) = target.to_raw_index().zip(target.to_indexed_buffer_target())
+					else { panic!("Unresolved buffer target") };
 
-			core.bind_indexed_buffer(indexed_target, index, name, range);
-		}
-
-		for ImageBindDesc{target, source, sampler} in self.image_bindings.iter() {
-			let ImageArgument::Name(image_name) = *source
-				else { panic!("Unresolved image bind source") };
-
-			match *target {
-				ImageBindTarget::Sampled(unit) => {
-					barrier_tracker.read_image(image_name, gl::TEXTURE_FETCH_BARRIER_BIT);
-
-					// TODO(pat.m): use default instead of panicking
-					let sampler_name = match sampler.expect("Sampled bind target missing sampler") {
-						SamplerArgument::Name(name) => name,
-						SamplerArgument::Common(sampler) => resource_manager.get_common_sampler(sampler),
-					};
-
-					core.bind_sampler(unit, sampler_name);
-					core.bind_sampled_image(unit, image_name);
+				match indexed_target {
+					// TODO(pat.m): this is pessimistic - but we need shader reflection to guarantee that an ssbo is bound
+					// as readonly.
+					IndexedBufferTarget::ShaderStorage => barrier_tracker.write_buffer(name, gl::SHADER_STORAGE_BARRIER_BIT),
+					IndexedBufferTarget::Uniform => barrier_tracker.read_buffer(name, gl::UNIFORM_BARRIER_BIT),
 				}
 
-				ImageBindTarget::ReadonlyImage(unit) => {
-					barrier_tracker.read_image(image_name, gl::SHADER_IMAGE_ACCESS_BARRIER_BIT);
-					core.bind_image(unit, image_name);
-				}
-
-				ImageBindTarget::ReadWriteImage(unit) => {
-					barrier_tracker.write_image(image_name, gl::SHADER_IMAGE_ACCESS_BARRIER_BIT);
-					core.bind_image_rw(unit, image_name);
-				}
-
-				_ => panic!("Unresolved image bind target"),
+				core.bind_indexed_buffer(indexed_target, index, name, range);
 			}
 		}
 
-		// TODO(pat.m): the following should only be done for the Draw command really.
-		// it doesn't make sense to bind or emit barriers for e.g., Compute.
+		{
+			let _span = tracing::info_span!("bind images").entered();
 
-		// Framebuffer should _ALWAYS_ be defined by this point.
-		// The global BindingDescription should specify Default
-		let framebuffer = self.framebuffer.as_ref()
-			.expect("Unresolved framebuffer")
-			.resolve_name(core, resource_manager);
+			for ImageBindDesc{target, source, sampler} in self.image_bindings.iter() {
+				let ImageArgument::Name(image_name) = *source
+					else { panic!("Unresolved image bind source") };
 
-		if let Some(framebuffer_name) = framebuffer {
-			let framebuffer_info = core.get_framebuffer_info(framebuffer_name);
-			for attachment_image in framebuffer_info.attachments.values() {
-				// NOTE: only a read barrier since framebuffer writes are implicitly synchronised with later draw calls.
-				// We only need to make sure that if an image is _modified_ that a barrier is inserted before rendering to it.
-				barrier_tracker.read_image(*attachment_image, gl::FRAMEBUFFER_BARRIER_BIT);
+				match *target {
+					ImageBindTarget::Sampled(unit) => {
+						barrier_tracker.read_image(image_name, gl::TEXTURE_FETCH_BARRIER_BIT);
+
+						// TODO(pat.m): use default instead of panicking
+						let sampler_name = match sampler.expect("Sampled bind target missing sampler") {
+							SamplerArgument::Name(name) => name,
+							SamplerArgument::Common(sampler) => resource_manager.get_common_sampler(sampler),
+						};
+
+						core.bind_sampler(unit, sampler_name);
+						core.bind_sampled_image(unit, image_name);
+					}
+
+					ImageBindTarget::ReadonlyImage(unit) => {
+						barrier_tracker.read_image(image_name, gl::SHADER_IMAGE_ACCESS_BARRIER_BIT);
+						core.bind_image(unit, image_name);
+					}
+
+					ImageBindTarget::ReadWriteImage(unit) => {
+						barrier_tracker.write_image(image_name, gl::SHADER_IMAGE_ACCESS_BARRIER_BIT);
+						core.bind_image_rw(unit, image_name);
+					}
+
+					_ => panic!("Unresolved image bind target"),
+				}
 			}
-
-			let framebuffer_size = core.get_framebuffer_size(framebuffer_name);
-			core.set_viewport(framebuffer_size);
-		} else {
-			core.set_viewport(core.backbuffer_size());
 		}
 
-		core.bind_framebuffer(framebuffer);
+
+		{
+			let _span = tracing::info_span!("bind framebuffer").entered();
+
+			// TODO(pat.m): the following should only be done for the Draw command really.
+			// it doesn't make sense to bind or emit barriers for e.g., Compute.
+
+			// Framebuffer should _ALWAYS_ be defined by this point.
+			// The global BindingDescription should specify Default
+			let framebuffer = self.framebuffer.as_ref()
+				.expect("Unresolved framebuffer")
+				.resolve_name(core, resource_manager);
+
+			if let Some(framebuffer_name) = framebuffer {
+				let framebuffer_info = core.get_framebuffer_info(framebuffer_name);
+				for attachment_image in framebuffer_info.attachments.values() {
+					// NOTE: only a read barrier since framebuffer writes are implicitly synchronised with later draw calls.
+					// We only need to make sure that if an image is _modified_ that a barrier is inserted before rendering to it.
+					barrier_tracker.read_image(*attachment_image, gl::FRAMEBUFFER_BARRIER_BIT);
+				}
+
+				let framebuffer_size = core.get_framebuffer_size(framebuffer_name);
+				core.set_viewport(framebuffer_size);
+			} else {
+				core.set_viewport(core.backbuffer_size());
+			}
+
+			core.bind_framebuffer(framebuffer);
+		}
 	}
 }
 
