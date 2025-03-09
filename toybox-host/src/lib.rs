@@ -389,18 +389,31 @@ impl Host {
 }
 
 fn init_logging() {
-	let mut log_builder = env_logger::builder();
-	log_builder.parse_default_env();
-	log_builder.format_timestamp_millis();
-	log_builder.format_indent(None);
+	use simplelog::*;
+	use std::fs::File;
 
-	if cfg!(debug_assertions) {
-		log_builder.filter_level(log::LevelFilter::Debug);
-	}
+	let file_config = ConfigBuilder::new()
+		.add_filter_ignore_str("calloop")
+		.add_filter_ignore_str("sctk")
+		.build();
 
-	log_builder.init();
+	let color_choice = match cfg!(windows) {
+		false => ColorChoice::Auto,
+		true => ColorChoice::Never,
+	};
+
+	CombinedLogger::init(vec![
+		TermLogger::new(LevelFilter::Info, Config::default(), TerminalMode::Mixed, color_choice),
+		WriteLogger::new(LevelFilter::Trace, file_config, File::create("toybox.log").unwrap()),
+	]).unwrap();
+
+	log_panics::init();
 
 	log::info!("Logger initialized");
+
+	for (key, value) in std::env::vars() {
+		log::info!("Environment: {key} = {value}");
+	}
 }
 
 #[cfg(feature="tracy")]

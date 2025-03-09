@@ -290,6 +290,15 @@ impl<T> AsStageableSlice for Vec<T>
 	}
 }
 
+impl<T, const N: usize> AsStageableSlice for SmallVec<[T; N]>
+	where T: Copy + Sized + 'static
+{
+	type Target = T;
+	fn as_slice(&self) -> &[T] {
+		self
+	}
+}
+
 
 
 // TODO(pat.m): move somewhere else
