@@ -21,24 +21,23 @@ pub enum PrimitiveType {
 
 #[derive(Debug)]
 pub struct DrawCmd {
-	pub bindings: BindingDescription,
+	pub(super) bindings: BindingDescription,
+	pub(super) index_buffer: Option<BufferArgument>,
 
 	vertex_shader: ShaderArgument,
 	fragment_shader: Option<ShaderArgument>,
 
-	pub primitive_type: PrimitiveType,
+	primitive_type: PrimitiveType,
 
-	pub num_elements: u32,
-	pub num_instances: u32,
+	num_elements: u32,
+	num_instances: u32,
 
-	pub index_buffer: Option<BufferArgument>,
+	// Offset added to each element before fetching vertices.
+	base_vertex: u32,
 
-	// TODO(pat.m): different name?
-	pub base_vertex: u32,
-
-	pub blend_mode: Option<BlendMode>,
-	pub depth_test: bool,
-	pub depth_write: bool,
+	blend_mode: Option<BlendMode>,
+	depth_test: bool,
+	depth_write: bool,
 }
 
 impl From<DrawCmd> for super::Command {
