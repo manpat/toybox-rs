@@ -1,5 +1,3 @@
-#![feature(let_chains)]
-
 use std::path::{Path, PathBuf};
 use anyhow::Context;
 use tracing::instrument;

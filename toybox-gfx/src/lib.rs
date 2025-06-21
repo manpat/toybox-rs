@@ -1,5 +1,3 @@
-#![feature(let_chains)]
-
 use toybox_host as host;
 use anyhow::Context;
 use tracing::instrument;

@@ -1,5 +1,3 @@
-#![feature(let_chains)]
-
 use cpal::traits::*;
 
 use anyhow::Context as AnyhowContext;

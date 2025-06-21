@@ -1,5 +1,4 @@
 #![doc = include_str!("../README.md")]
-// #![feature(let_chains)]
 
 pub mod prelude;
 pub use crate::prelude::*;

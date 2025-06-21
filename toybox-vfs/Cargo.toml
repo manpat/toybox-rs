@@ -3,6 +3,7 @@ name = "toybox-vfs"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 dirs = "5.0.1"
