@@ -71,7 +71,7 @@ impl<'g> CommandGroupEncoder<'g> {
 		self.group.commands.push(command.into());
 	}
 
-	pub fn upload(&mut self, data: &impl crate::AsStageableSlice) -> StagedUploadId {
+	pub fn upload(&mut self, data: &(impl crate::AsStageableSlice + ?Sized)) -> StagedUploadId {
 		self.upload_stage.stage_data(data.as_slice())
 	}
 
