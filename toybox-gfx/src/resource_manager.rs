@@ -66,7 +66,7 @@ pub struct ResourceManager {
 }
 
 impl ResourceManager {
-	pub fn new(core: &mut core::Core) -> anyhow::Result<ResourceManager> {
+	pub(crate) fn new(core: &mut core::Core) -> anyhow::Result<ResourceManager> {
 		let mut compile_shader_requests = ResourceRequestMap::new();
 		let mut shaders = ResourceStorage::<ShaderResource>::new();
 
@@ -164,14 +164,14 @@ impl ResourceManager {
 		})
 	}
 
-	pub fn request_resize(&mut self, new_size: common::Vec2i) {
+	pub(crate) fn request_resize(&mut self, new_size: common::Vec2i) {
 		self.resize_request = Some(new_size);
 	}
 
 	/// Make sure all image names that will be invalidated on resize are
 	/// gone before client code has a chance to ask for them.
 	#[instrument(skip_all, name="gfx rm handle_resize")]
-	pub fn handle_resize(&mut self, core: &mut core::Core) {
+	pub(crate) fn handle_resize(&mut self, core: &mut core::Core) {
 		if let Some(_size) = self.resize_request.take() {
 			// TODO(pat.m): recreate framebuffers etc
 			for image in self.images.iter_mut() {
@@ -183,7 +183,7 @@ impl ResourceManager {
 	}
 
 	#[instrument(skip_all, name="gfx rm start_frame")]
-	pub fn start_frame(&mut self, core: &mut core::Core) {
+	pub(crate) fn start_frame(&mut self, core: &mut core::Core) {
 		self.handle_resize(core);
 
 		// TODO(pat.m): maybe this should happen _after_ request processing.
@@ -199,7 +199,7 @@ impl ResourceManager {
 
 	/// Attempt to turn requested resources into committed GPU resources.
 	#[instrument(skip_all, name="gfx rm process_requests")]
-	pub fn process_requests(&mut self, core: &mut core::Core, vfs: &vfs::Vfs) -> anyhow::Result<()> {
+	pub(crate) fn process_requests(&mut self, core: &mut core::Core, vfs: &vfs::Vfs) -> anyhow::Result<()> {
 		core.push_debug_group("Process Resource Requests");
 
 		let _debug_group_guard = common::defer(|| core.pop_debug_group());
