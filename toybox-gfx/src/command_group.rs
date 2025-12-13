@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use crate::bindings::*;
+use crate::core::{BlendMode};
 use crate::command::{Command, compute, draw};
 use crate::resources::{ShaderHandle, arguments::*};
 use crate::upload_heap::{UploadStage, StagedUploadId};
@@ -36,7 +37,8 @@ pub struct CommandGroup {
 
 	pub commands: SmallVec<[Command; 16]>,
 
-	pub shared_bindings: BindingDescription,
+	pub bindings: BindingDescription,
+	pub blend_mode: BlendMode,
 }
 
 impl CommandGroup {
@@ -44,13 +46,15 @@ impl CommandGroup {
 		CommandGroup {
 			stage,
 			commands: SmallVec::new(),
-			shared_bindings: BindingDescription::new(),
+			bindings: BindingDescription::new(),
+			blend_mode: BlendMode::PREMULTIPLIED_ALPHA,
 		}
 	}
 
 	pub(crate) fn reset(&mut self) {
 		self.commands.clear();
-		self.shared_bindings.clear();
+		self.bindings.clear();
+		self.blend_mode = BlendMode::PREMULTIPLIED_ALPHA;
 	}
 }
 
@@ -94,7 +98,7 @@ impl<'g> CommandGroupEncoder<'g> {
 /// Bindings shared between all commands in the group.
 impl<'g> CommandGroupEncoder<'g> {
 	pub fn bind_shared_buffer(&mut self, target: impl Into<BufferBindTarget>, buffer: impl IntoBufferArgument) {
-		self.group.shared_bindings.bind_buffer(target, buffer.into_buffer_argument(self.upload_stage));
+		self.group.bindings.bind_buffer(target, buffer.into_buffer_argument(self.upload_stage));
 	}
 
 	pub fn bind_shared_ubo(&mut self, index: u32, buffer: impl IntoBufferArgument) {
@@ -106,20 +110,27 @@ impl<'g> CommandGroupEncoder<'g> {
 	}
 
 	pub fn bind_shared_sampled_image(&mut self, unit: u32, image: impl Into<ImageArgument>, sampler: impl Into<SamplerArgument>) {
-		self.group.shared_bindings.bind_sampled_image(ImageBindTarget::Sampled(unit), image, sampler);
+		self.group.bindings.bind_sampled_image(ImageBindTarget::Sampled(unit), image, sampler);
 	}
 
 	pub fn bind_shared_image(&mut self, unit: u32, image: impl Into<ImageArgument>) {
-		self.group.shared_bindings.bind_image(ImageBindTarget::ReadonlyImage(unit), image);
+		self.group.bindings.bind_image(ImageBindTarget::ReadonlyImage(unit), image);
 	}
 
 	// TODO(pat.m): do I want RW to be explicit?
 	pub fn bind_shared_image_rw(&mut self, unit: u32, image: impl Into<ImageArgument>) {
-		self.group.shared_bindings.bind_image(ImageBindTarget::ReadWriteImage(unit), image);
+		self.group.bindings.bind_image(ImageBindTarget::ReadWriteImage(unit), image);
 	}
 
 	pub fn bind_rendertargets(&mut self, rts: impl Into<FramebufferArgument>)  {
-		self.group.shared_bindings.bind_framebuffer(rts);
+		self.group.bindings.bind_framebuffer(rts);
+	}
+}
+
+/// Pipeline state fallbacks for all commands in the group.
+impl<'g> CommandGroupEncoder<'g> {
+	pub fn set_blend_mode(&mut self, blend_mode: BlendMode) {
+		self.group.blend_mode = blend_mode;
 	}
 }
 

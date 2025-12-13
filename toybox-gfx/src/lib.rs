@@ -162,7 +162,7 @@ impl System {
 		// self.frame.global_bindings.imbue_staged_buffer_alignments(upload_stage, capabilities);
 
 		for command_group in self.frame.command_groups.iter() {
-			// command_group.shared_bindings.imbue_staged_buffer_alignments(upload_stage, capabilities);
+			// command_group.bindings.imbue_staged_buffer_alignments(upload_stage, capabilities);
 
 			for command in command_group.commands.iter() {
 				command.resolve_staged_buffer_alignments(upload_stage, capabilities);
@@ -177,7 +177,7 @@ impl System {
 		// self.frame.global_bindings.resolve_staged_bind_sources(upload_heap);
 
 		for command_group in self.frame.command_groups.iter_mut() {
-			// command_group.shared_bindings.resolve_staged_bind_sources(upload_heap);
+			// command_group.bindings.resolve_staged_bind_sources(upload_heap);
 
 			for command in command_group.commands.iter_mut() {
 				command.resolve_staged_bind_sources(upload_heap);
@@ -202,11 +202,11 @@ impl System {
 	#[instrument(skip_all, name="gfxsys merge_bindings")]
 	fn merge_bindings(&mut self) {
 		for command_group in self.frame.command_groups.iter_mut() {
-			command_group.shared_bindings.merge_unspecified_from(&self.frame.global_bindings);
+			command_group.bindings.merge_unspecified_from(&self.frame.global_bindings);
 
 			for command in command_group.commands.iter_mut() {
 				if let Some(bindings) = command.bindings_mut() {
-					bindings.merge_unspecified_from(&command_group.shared_bindings);
+					bindings.merge_unspecified_from(&command_group.bindings);
 				}
 			}
 		}

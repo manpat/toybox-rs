@@ -21,7 +21,8 @@ pub enum PrimitiveType {
 
 #[derive(Debug)]
 enum ElementCount {
-	Fixed(u32),
+	Implicit(u32),
+	Explicit(u32),
 	FromIndexBuffer,
 }
 
@@ -62,7 +63,7 @@ impl DrawCmd {
 
 			primitive_type: PrimitiveType::Triangles,
 
-			element_count: ElementCount::Fixed(3),
+			element_count: ElementCount::Implicit(3),
 			instance_count: 1,
 
 			index_buffer: None,
@@ -83,7 +84,7 @@ impl DrawCmd {
 
 			primitive_type: PrimitiveType::Triangles,
 
-			element_count: ElementCount::Fixed(6),
+			element_count: ElementCount::Implicit(6),
 			instance_count: 1,
 
 			index_buffer: None,
@@ -136,7 +137,7 @@ impl DrawCmd {
 			let base_vertex = self.base_vertex as i32;
 
 			let element_count = match self.element_count {
-				ElementCount::Fixed(fixed) => fixed,
+				ElementCount::Explicit(fixed) | ElementCount::Implicit(fixed) => fixed,
 				ElementCount::FromIndexBuffer => match range {
 					Some(BufferRange{ size, .. }) => (size / 4) as u32,
 					None => {
@@ -159,7 +160,7 @@ impl DrawCmd {
 		} else {
 			barrier_tracker.emit_barriers(&core.gl);
 
-			let ElementCount::Fixed(element_count) = self.element_count
+			let (ElementCount::Explicit(element_count) | ElementCount::Implicit(element_count)) = self.element_count
 				else { panic!("Taking element count from index buffer but none bound") };
 
 			unsafe {
@@ -177,11 +178,11 @@ pub struct DrawCmdBuilder<'cg> {
 
 impl<'cg> DrawCmdBuilder<'cg> {
 	pub fn element_count(&mut self, element_count: u32) -> &mut Self {
-		self.cmd.element_count = ElementCount::Fixed(element_count);
+		self.cmd.element_count = ElementCount::Explicit(element_count);
 		self
 	}
 
-	pub fn instances(&mut self, instance_count: u32) -> &mut Self {
+	pub fn instance_count(&mut self, instance_count: u32) -> &mut Self {
 		self.cmd.instance_count = instance_count;
 		self
 	}
@@ -194,7 +195,12 @@ impl<'cg> DrawCmdBuilder<'cg> {
 	pub fn indexed(&mut self, buffer: impl IntoBufferArgument) -> &mut Self {
 		let buffer_argument = buffer.into_buffer_argument(self.upload_stage);
 		self.cmd.index_buffer = Some(buffer_argument);
-		self.cmd.element_count = ElementCount::FromIndexBuffer;
+
+		// Don't allow calls to indexed to override calls to element_count
+		if !matches!(self.cmd.element_count, ElementCount::Explicit(_)) {
+			self.cmd.element_count = ElementCount::FromIndexBuffer;
+		}
+
 		self
 	}
 
