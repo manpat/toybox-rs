@@ -5,6 +5,7 @@ use crate::{
 	Core, Resources,
 	ShaderArgument,
 	BlendMode,
+	core::BufferRange,
 	upload_heap::UploadStage,
 	arguments::*,
 };
@@ -18,6 +19,11 @@ pub enum PrimitiveType {
 	Triangles = gl::TRIANGLES,
 }
 
+#[derive(Debug)]
+enum ElementCount {
+	Fixed(u32),
+	FromIndexBuffer,
+}
 
 #[derive(Debug)]
 pub struct DrawCmd {
@@ -29,8 +35,8 @@ pub struct DrawCmd {
 
 	primitive_type: PrimitiveType,
 
-	num_elements: u32,
-	num_instances: u32,
+	element_count: ElementCount,
+	instance_count: u32,
 
 	// Offset added to each element before fetching vertices.
 	base_vertex: u32,
@@ -56,8 +62,8 @@ impl DrawCmd {
 
 			primitive_type: PrimitiveType::Triangles,
 
-			num_elements: 3,
-			num_instances: 1,
+			element_count: ElementCount::Fixed(3),
+			instance_count: 1,
 
 			index_buffer: None,
 			base_vertex: 0,
@@ -77,8 +83,8 @@ impl DrawCmd {
 
 			primitive_type: PrimitiveType::Triangles,
 
-			num_elements: 6,
-			num_instances: 1,
+			element_count: ElementCount::Fixed(6),
+			instance_count: 1,
 
 			index_buffer: None,
 			base_vertex: 0,
@@ -116,8 +122,8 @@ impl DrawCmd {
 		self.bindings.bind(core, rm);
 
 		let primitive_type = self.primitive_type as u32;
-		let num_elements = self.num_elements as i32;
-		let num_instances = self.num_instances as i32;
+		// let element_count = self.element_count as i32;
+		let instance_count = self.instance_count as i32;
 
 		let mut barrier_tracker = core.barrier_tracker();
 
@@ -130,21 +136,35 @@ impl DrawCmd {
 			let offset_ptr = range.map_or(0, |r| r.offset) as *const _;
 			let base_vertex = self.base_vertex as i32;
 
+			let element_count = match self.element_count {
+				ElementCount::Fixed(fixed) => fixed,
+				ElementCount::FromIndexBuffer => match range {
+					Some(BufferRange{ size, .. }) => (size / 4) as u32,
+					None => {
+						let buffer_info = core.get_buffer_info(name).expect("Couldn't get info for index buffer");
+						(buffer_info.size / 4) as u32
+					}
+				}
+			};
+
 			core.bind_index_buffer(name);
 
 			barrier_tracker.read_buffer(name, gl::ELEMENT_ARRAY_BARRIER_BIT);
 			barrier_tracker.emit_barriers(&core.gl);
 
 			unsafe {
-				core.gl.DrawElementsInstancedBaseVertex(primitive_type, num_elements, index_type,
-					offset_ptr, num_instances, base_vertex);
+				core.gl.DrawElementsInstancedBaseVertex(primitive_type, element_count as i32, index_type,
+					offset_ptr, instance_count, base_vertex);
 			}
 
 		} else {
 			barrier_tracker.emit_barriers(&core.gl);
 
+			let ElementCount::Fixed(element_count) = self.element_count
+				else { panic!("Taking element count from index buffer but none bound") };
+
 			unsafe {
-				core.gl.DrawArraysInstanced(primitive_type, 0, num_elements, num_instances);
+				core.gl.DrawArraysInstanced(primitive_type, 0, element_count as i32, instance_count);
 			}
 		}
 	}
@@ -157,17 +177,17 @@ pub struct DrawCmdBuilder<'cg> {
 }
 
 impl<'cg> DrawCmdBuilder<'cg> {
-	pub fn elements(&mut self, num_elements: u32) -> &mut Self {
-		self.cmd.num_elements = num_elements;
+	pub fn elements(&mut self, element_count: u32) -> &mut Self {
+		self.cmd.element_count = ElementCount::Fixed(element_count);
 		self
 	}
 
-	pub fn instances(&mut self, num_instances: u32) -> &mut Self {
-		self.cmd.num_instances = num_instances;
+	pub fn instances(&mut self, instance_count: u32) -> &mut Self {
+		self.cmd.instance_count = instance_count;
 		self
 	}
 
-	pub fn primitive(&mut self, ty: PrimitiveType) -> &mut Self {
+	pub fn primitive_type(&mut self, ty: PrimitiveType) -> &mut Self {
 		self.cmd.primitive_type = ty;
 		self
 	}
@@ -175,6 +195,7 @@ impl<'cg> DrawCmdBuilder<'cg> {
 	pub fn indexed(&mut self, buffer: impl IntoBufferArgument) -> &mut Self {
 		let buffer_argument = buffer.into_buffer_argument(self.upload_stage);
 		self.cmd.index_buffer = Some(buffer_argument);
+		self.cmd.element_count = ElementCount::FromIndexBuffer;
 		self
 	}
 
