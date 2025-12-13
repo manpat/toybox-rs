@@ -105,7 +105,6 @@ impl Renderer {
 			};
 
 			group.draw(self.vertex_shader, fragment_shader)
-				.elements(mesh.indices.len() as u32)
 				.indexed(&mesh.indices)
 				.ssbo(0, vertices)
 				.ubo(0, transforms)

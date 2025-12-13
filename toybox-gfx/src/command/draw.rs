@@ -122,7 +122,6 @@ impl DrawCmd {
 		self.bindings.bind(core, rm);
 
 		let primitive_type = self.primitive_type as u32;
-		// let element_count = self.element_count as i32;
 		let instance_count = self.instance_count as i32;
 
 		let mut barrier_tracker = core.barrier_tracker();
@@ -177,7 +176,7 @@ pub struct DrawCmdBuilder<'cg> {
 }
 
 impl<'cg> DrawCmdBuilder<'cg> {
-	pub fn elements(&mut self, element_count: u32) -> &mut Self {
+	pub fn element_count(&mut self, element_count: u32) -> &mut Self {
 		self.cmd.element_count = ElementCount::Fixed(element_count);
 		self
 	}
