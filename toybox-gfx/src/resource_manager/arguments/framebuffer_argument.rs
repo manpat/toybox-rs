@@ -4,8 +4,9 @@ use crate::{
 	FramebufferDescription,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub enum FramebufferArgument {
+	#[default]
 	Default,
 	Name(FramebufferName),
 	Description(FramebufferDescription),

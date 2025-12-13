@@ -3,7 +3,8 @@ use crate::prelude::*;
 
 pub const STANDARD_VS_SHADER_SOURCE: &str = include_str!("shaders/standard.vs.glsl");
 pub const FULLSCREEN_VS_SHADER_SOURCE: &str = include_str!("shaders/fullscreen.vs.glsl");
-pub const FLAT_TEXTURED_FS_SHADER_SOURCE: &str = include_str!("shaders/flat.fs.glsl");
+pub const FLAT_UNTEXTURED_FS_SHADER_SOURCE: &str = include_str!("shaders/flat_untextured.fs.glsl");
+pub const FLAT_TEXTURED_FS_SHADER_SOURCE: &str = include_str!("shaders/flat_textured.fs.glsl");
 
 
 

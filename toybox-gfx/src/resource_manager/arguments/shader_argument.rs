@@ -27,6 +27,7 @@ pub enum CommonShader {
 	StandardVertex,
 	FullscreenVertex,
 
+	FlatUntexturedFragment,
 	FlatTexturedFragment,
 }
 

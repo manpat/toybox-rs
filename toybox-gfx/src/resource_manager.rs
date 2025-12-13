@@ -44,6 +44,7 @@ pub struct ResourceManager {
 
 	standard_vs_shader: ShaderHandle,
 	fullscreen_vs_shader: ShaderHandle,
+	flat_untextured_fs_shader: ShaderHandle,
 	flat_textured_fs_shader: ShaderHandle,
 
 	blank_white_image: ImageName,
@@ -75,6 +76,9 @@ impl ResourceManager {
 
 		let fullscreen_vs_shader = compile_shader_requests.request_handle(&mut shaders,
 			CompileShaderRequest::vertex("fullscreen vs", shaders::FULLSCREEN_VS_SHADER_SOURCE));
+
+		let flat_untextured_fs_shader = compile_shader_requests.request_handle(&mut shaders,
+			CompileShaderRequest::fragment("flat untextured fs", shaders::FLAT_UNTEXTURED_FS_SHADER_SOURCE));
 
 		let flat_textured_fs_shader = compile_shader_requests.request_handle(&mut shaders,
 			CompileShaderRequest::fragment("flat textured fs", shaders::FLAT_TEXTURED_FS_SHADER_SOURCE));
@@ -143,6 +147,7 @@ impl ResourceManager {
 
 			standard_vs_shader,
 			fullscreen_vs_shader,
+			flat_untextured_fs_shader,
 			flat_textured_fs_shader,
 
 			blank_white_image,
@@ -312,6 +317,7 @@ impl ResourceManager {
 			CommonShader::StandardVertex => self.standard_vs_shader,
 			CommonShader::FullscreenVertex => self.fullscreen_vs_shader,
 
+			CommonShader::FlatUntexturedFragment => self.flat_untextured_fs_shader,
 			CommonShader::FlatTexturedFragment => self.flat_textured_fs_shader,
 		}
 	}

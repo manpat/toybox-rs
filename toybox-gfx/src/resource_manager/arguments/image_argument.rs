@@ -11,6 +11,12 @@ pub enum ImageArgument {
 	Blank(BlankImage),
 }
 
+impl Default for ImageArgument {
+	fn default() -> Self {
+		ImageArgument::Blank(BlankImage::White)
+	}
+}
+
 impl From<ImageName> for ImageArgument {
 	fn from(name: ImageName) -> Self {
 		Self::Name(name)

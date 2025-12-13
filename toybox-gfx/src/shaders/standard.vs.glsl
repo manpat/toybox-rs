@@ -26,11 +26,12 @@ void main() {
 	Vertex vertex = s_vertices[gl_VertexID];
 
 	gl_Position = u_projection_view * vec4(vertex.pos.xyz, 1.0);
+	gl_PointSize = 6.0;
 
 	v_color = vec4(
 		unpackUnorm2x16(vertex.color_packed.x),
 		unpackUnorm2x16(vertex.color_packed.y)
 	);
-	
+
 	v_uv = unpackUnorm2x16(vertex.uv_packed);
 }

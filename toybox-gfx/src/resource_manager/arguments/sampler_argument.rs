@@ -7,6 +7,12 @@ pub enum SamplerArgument {
 	Common(CommonSampler),
 }
 
+impl Default for SamplerArgument {
+	fn default() -> Self {
+		SamplerArgument::Common(CommonSampler::Nearest)
+	}
+}
+
 impl From<SamplerName> for SamplerArgument {
 	fn from(name: SamplerName) -> Self {
 		Self::Name(name)

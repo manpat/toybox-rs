@@ -49,6 +49,12 @@ pub fn start<F, H>(settings: Settings<'_>, start_hostee: F) -> anyhow::Result<()
 {
 	let _span = tracing::info_span!("host start").entered();
 
+	if cfg!(debug_assertions) {
+		unsafe {
+		    std::env::set_var("RUST_BACKTRACE", "1");
+		}
+	}
+
 	let event_loop = EventLoop::new()?;
 
 	let window_attributes = Window::default_attributes()
