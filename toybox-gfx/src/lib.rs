@@ -14,7 +14,7 @@ pub mod upload_heap;
 pub use crate::core::*;
 pub use resources::*;
 pub use frame::*;
-pub use command::PrimitiveType;
+pub use command::{PrimitiveType, Command};
 pub use command_group::*;
 pub use shaders::*;
 
@@ -116,6 +116,7 @@ impl System {
 		// TODO(pat.m): doing this first may mean duplicate bindings per bind target after name resolution.
 		// moving from binding merging to a hierarchical lookup, or to a just-in-time lookup might improve this
 		self.merge_bindings();
+		self.merge_pipeline_state();
 
 		self.resolve_named_bind_targets();
 		self.resolve_image_bind_sources();
@@ -207,6 +208,19 @@ impl System {
 			for command in command_group.commands.iter_mut() {
 				if let Some(bindings) = command.bindings_mut() {
 					bindings.merge_unspecified_from(&command_group.bindings);
+				}
+			}
+		}
+	}
+
+	#[instrument(skip_all, name="gfxsys merge_pipeline_state")]
+	fn merge_pipeline_state(&mut self) {
+		for command_group in self.frame.command_groups.iter_mut() {
+			for command in command_group.commands.iter_mut() {
+				if let Command::Draw(draw_cmd) = command
+					&& draw_cmd.blend_mode.is_none()
+				{
+					draw_cmd.blend_mode = Some(command_group.blend_mode);
 				}
 			}
 		}

@@ -42,7 +42,7 @@ pub struct DrawCmd {
 	// Offset added to each element before fetching vertices.
 	base_vertex: u32,
 
-	blend_mode: Option<BlendMode>,
+	pub(crate) blend_mode: Option<BlendMode>,
 	depth_test: bool,
 	depth_write: bool,
 }
