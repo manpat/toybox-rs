@@ -18,12 +18,12 @@ pub struct StandardVertex {
 }
 
 impl StandardVertex {
-	pub fn new(pos: Vec3, uv: Vec2, color: impl Into<Color>) -> StandardVertex {
-		let [u, v] = uv.into();
+	pub fn new(pos: impl Into<Vec3>, uv: impl Into<Vec2>, color: impl Into<Color>) -> StandardVertex {
+		let [u, v] = uv.into().into();
 		let [r, g, b, a] = color.into().to_array();
 
 		StandardVertex {
-			pos,
+			pos: pos.into(),
 			uv_packed: [
 				unorm_to_u16(u),
 				unorm_to_u16(v),
@@ -41,15 +41,15 @@ impl StandardVertex {
 	}
 
 	pub fn from_pos(pos: impl Into<Vec3>) -> StandardVertex {
-		Self::new(pos.into(), Vec2::zero(), Color::white())
+		Self::new(pos, Vec2::zero(), Color::white())
 	}
 
 	pub fn with_color(pos: impl Into<Vec3>, color: impl Into<Color>) -> StandardVertex {
-		Self::new(pos.into(), Vec2::zero(), color)
+		Self::new(pos, Vec2::zero(), color)
 	}
 
 	pub fn with_uv(pos: impl Into<Vec3>, uv: Vec2) -> StandardVertex {
-		Self::new(pos.into(), uv, Color::white())
+		Self::new(pos, uv, Color::white())
 	}
 }
 
