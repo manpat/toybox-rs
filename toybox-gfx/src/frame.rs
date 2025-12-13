@@ -61,7 +61,7 @@ impl Frame {
 		self.upload_stage.stage_data_iter(iter)
 	}
 
-	pub fn command_group<'g>(&'g mut self, stage: FrameStage) -> CommandGroupEncoder<'g> {
+	pub fn group<'g>(&'g mut self, stage: FrameStage) -> CommandGroupEncoder<'g> {
 		let group_index = match self.command_groups.iter()
 			.position(|group| group.stage == stage)
 		{
@@ -73,6 +73,10 @@ impl Frame {
 		};
 
 		CommandGroupEncoder::new(&mut self.command_groups[group_index], &mut self.upload_stage)
+	}
+
+	pub fn annotated_group<'g>(&'g mut self, stage: FrameStage, label: impl Into<String>) -> AnnotatedCommandGroupEncoder<'g> {
+		self.group(stage).annotate(label.into())
 	}
 }
 

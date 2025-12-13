@@ -44,8 +44,7 @@ impl Renderer {
 
 		let logical_screen_size = (backbuffer_size.to_vec2() / self.scaling).to_vec2i();
 
-		let mut group = gfx.frame.command_group(gfx::FrameStage::DebugUi)
-			.annotate("Paint Egui");
+		let mut group = gfx.frame.annotated_group(gfx::FrameStage::DebugUi, "Paint Egui");
 
 		group.execute(|core, _| {
 			unsafe {
