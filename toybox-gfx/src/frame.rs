@@ -45,7 +45,7 @@ impl Frame {
 
 
 impl Frame {
-	pub fn backbuffer_color(&mut self, color: impl Into<Color>) {
+	pub fn set_backbuffer_color(&mut self, color: impl Into<Color>) {
 		self.backbuffer_clear_color = color.into();
 	}
 
