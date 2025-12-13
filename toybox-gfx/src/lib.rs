@@ -6,14 +6,14 @@ pub mod bindings;
 pub mod command;
 pub mod command_group;
 pub mod core;
-pub mod frame_encoder;
-pub mod resource_manager;
+pub mod frame;
+pub mod resources;
 pub mod shaders;
 pub mod upload_heap;
 
 pub use crate::core::*;
-pub use resource_manager::*;
-pub use frame_encoder::*;
+pub use resources::*;
+pub use frame::*;
 pub use command::PrimitiveType;
 pub use command_group::*;
 pub use shaders::*;
@@ -33,8 +33,8 @@ pub use prelude::*;
 
 pub struct System {
 	pub core: core::Core,
-	pub resource_manager: resource_manager::ResourceManager,
-	pub frame_encoder: frame_encoder::FrameEncoder,
+	pub resources: resources::Resources,
+	pub frame: frame::Frame,
 }
 
 impl System {
@@ -52,8 +52,8 @@ impl System {
 	pub fn new(mut core: core::Core) -> anyhow::Result<Box<System>> {
 		core.register_debug_hook();
 
-		let resource_manager = resource_manager::ResourceManager::new(&mut core)?;
-		let frame_encoder = frame_encoder::FrameEncoder::new(&mut core);
+		let resources = resources::Resources::new(&mut core)?;
+		let frame = frame::Frame::new(&mut core);
 
 		unsafe {
 			core.gl.Enable(gl::PROGRAM_POINT_SIZE);
@@ -65,15 +65,15 @@ impl System {
 
 		Ok(Box::new(System {
 			core,
-			resource_manager,
-			frame_encoder,
+			resources,
+			frame,
 		}))
 	}
 
 	pub fn resize(&mut self, new_size: common::Vec2i) {
 		if self.core.backbuffer_size() != new_size {
 			self.core.set_backbuffer_size(new_size);
-			self.resource_manager.request_resize(new_size);
+			self.resources.request_resize(new_size);
 		}
 	}
 
@@ -81,25 +81,25 @@ impl System {
 	pub fn start_frame(&mut self) {
 		self.core.set_debugging_enabled(true);
 
-		self.resource_manager.start_frame(&mut self.core);
-		self.frame_encoder.start_frame();
+		self.resources.start_frame(&mut self.core);
+		self.frame.start_frame();
 	}
 
 	#[instrument(skip_all, name="gfxsys execute_frame")]
 	pub fn execute_frame(&mut self, vfs: &toybox_vfs::Vfs) {
-		self.resource_manager.process_requests(&mut self.core, vfs)
+		self.resources.process_requests(&mut self.core, vfs)
 			.context("Error while processing resource requests")
 			.unwrap();
 
 		{
 			let _span = tracing::info_span!("sort command groups").entered();
-			self.frame_encoder.command_groups.sort_by_key(|cg| cg.stage);
+			self.frame.command_groups.sort_by_key(|cg| cg.stage);
 		}
 
 		// TODO(pat.m): replace clear with just invalidate? may be better to just always render to an fbo and blit
 		// clearing the framebuffer seems useless for any mildly involved rendering
 
-		let clear_color = self.frame_encoder.backbuffer_clear_color;
+		let clear_color = self.frame.backbuffer_clear_color;
 		let clear_depth = 1.0; // 1.0 is the default clear depth for opengl
 		let clear_stencil = 0;
 
@@ -124,7 +124,7 @@ impl System {
 		self.resolve_staged_buffer_alignments();
 
 		// Upload everything
-		self.frame_encoder.upload_stage.push_to_heap(&mut self.core, &mut self.resource_manager.upload_heap);
+		self.frame.upload_stage.push_to_heap(&mut self.core, &mut self.resources.upload_heap);
 
 		// Resolve all staged bind sources to concrete names and ranges
 		self.resolve_staged_bind_sources();
@@ -132,10 +132,10 @@ impl System {
 		// Dispatch commands to GPU
 		self.dispatch_commands();
 
-        self.resource_manager.upload_heap.create_end_frame_fence(&mut self.core);
+        self.resources.upload_heap.create_end_frame_fence(&mut self.core);
 
-		self.frame_encoder.end_frame();
-        self.resource_manager.upload_heap.reset();
+		self.frame.end_frame();
+        self.resources.upload_heap.reset();
 
 		// HACK: For some reason capturing the app with discord (and I suspect other window capture apps)
 		// causes swap_buffers to emit GL_INVALID_ENUM on my machine, which panics ofc.
@@ -145,7 +145,7 @@ impl System {
 
 	#[instrument(skip_all, name="gfxsys resolve_named_bind_targets")]
 	fn resolve_named_bind_targets(&mut self) {
-		for command_group in self.frame_encoder.command_groups.iter_mut() {
+		for command_group in self.frame.command_groups.iter_mut() {
 			for command in command_group.commands.iter_mut() {
 				if let Some(bindings) = command.bindings_mut() {
 					bindings.resolve_named_bind_targets(/*shaders, resource manager*/);
@@ -156,12 +156,12 @@ impl System {
 
 	#[instrument(skip_all, name="gfxsys resolve_staged_buffer_alignments")]
 	fn resolve_staged_buffer_alignments(&mut self) {
-		let upload_stage = &mut self.frame_encoder.upload_stage;
+		let upload_stage = &mut self.frame.upload_stage;
 		let capabilities = self.core.capabilities();
 
-		// self.frame_encoder.global_bindings.imbue_staged_buffer_alignments(upload_stage, capabilities);
+		// self.frame.global_bindings.imbue_staged_buffer_alignments(upload_stage, capabilities);
 
-		for command_group in self.frame_encoder.command_groups.iter() {
+		for command_group in self.frame.command_groups.iter() {
 			// command_group.shared_bindings.imbue_staged_buffer_alignments(upload_stage, capabilities);
 
 			for command in command_group.commands.iter() {
@@ -172,11 +172,11 @@ impl System {
 
 	#[instrument(skip_all, name="gfxsys resolve_staged_bind_sources")]
 	fn resolve_staged_bind_sources(&mut self) {
-		let upload_heap = &mut self.resource_manager.upload_heap;
+		let upload_heap = &mut self.resources.upload_heap;
 
-		// self.frame_encoder.global_bindings.resolve_staged_bind_sources(upload_heap);
+		// self.frame.global_bindings.resolve_staged_bind_sources(upload_heap);
 
-		for command_group in self.frame_encoder.command_groups.iter_mut() {
+		for command_group in self.frame.command_groups.iter_mut() {
 			// command_group.shared_bindings.resolve_staged_bind_sources(upload_heap);
 
 			for command in command_group.commands.iter_mut() {
@@ -187,10 +187,10 @@ impl System {
 
 	#[instrument(skip_all, name="gfxsys resolve_image_bind_sources")]
 	fn resolve_image_bind_sources(&mut self) {
-		for command_group in self.frame_encoder.command_groups.iter_mut() {
+		for command_group in self.frame.command_groups.iter_mut() {
 			for command in command_group.commands.iter_mut() {
 				if let Some(bindings) = command.bindings_mut() {
-					bindings.resolve_image_bind_sources(&mut self.resource_manager);
+					bindings.resolve_image_bind_sources(&mut self.resources);
 				}
 			}
 		}
@@ -201,8 +201,8 @@ impl System {
 	// its still pretty wasteful though.
 	#[instrument(skip_all, name="gfxsys merge_bindings")]
 	fn merge_bindings(&mut self) {
-		for command_group in self.frame_encoder.command_groups.iter_mut() {
-			command_group.shared_bindings.merge_unspecified_from(&self.frame_encoder.global_bindings);
+		for command_group in self.frame.command_groups.iter_mut() {
+			command_group.shared_bindings.merge_unspecified_from(&self.frame.global_bindings);
 
 			for command in command_group.commands.iter_mut() {
 				if let Some(bindings) = command.bindings_mut() {
@@ -217,9 +217,9 @@ impl System {
 		use command::Command::*;
 
 		let core = &mut self.core;
-		let resource_manager = &mut self.resource_manager;
+		let resources = &mut self.resources;
 
-		for command_group in self.frame_encoder.command_groups.iter_mut() {
+		for command_group in self.frame.command_groups.iter_mut() {
 			if command_group.commands.is_empty() {
 				continue
 			}
@@ -240,10 +240,10 @@ impl System {
 						core.pop_debug_group();
 					}
 
-					Callback(callback) => callback(core, resource_manager),
+					Callback(callback) => callback(core, resources),
 
-					Draw(cmd) => cmd.execute(core, resource_manager),
-					Compute(cmd) => cmd.execute(core, resource_manager),
+					Draw(cmd) => cmd.execute(core, resources),
+					Compute(cmd) => cmd.execute(core, resources),
 
 					_ => unimplemented!(),
 				}

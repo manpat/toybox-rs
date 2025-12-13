@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use crate::core::*;
-use crate::resource_manager::{ResourceManager, arguments::*};
+use crate::resources::{Resources, arguments::*};
 use crate::upload_heap::{UploadStage, UploadHeap};
 
 
@@ -129,7 +129,7 @@ impl BindingDescription {
 		}
 	}
 
-	pub fn resolve_image_bind_sources(&mut self, rm: &mut ResourceManager) {
+	pub fn resolve_image_bind_sources(&mut self, rm: &mut Resources) {
 		for ImageBindDesc{source, ..} in self.image_bindings.iter_mut() {
 			let name = match *source {
 				ImageArgument::Handle(handle) => rm.images.get_name(handle).expect("Failed to resolve image handle"),
@@ -168,7 +168,7 @@ impl BindingDescription {
 	// It does limit things a bit if I want to look things up in a per-pass BindingDescription.
 	// Also binding should probably be done through a bindings tracker.
 	#[tracing::instrument(skip_all, name="BindingDescription::bind")]
-	pub fn bind(&self, core: &mut Core, resource_manager: &mut ResourceManager) {
+	pub fn bind(&self, core: &mut Core, resources: &mut Resources) {
 		let mut barrier_tracker = core.barrier_tracker();
 
 		{
@@ -206,7 +206,7 @@ impl BindingDescription {
 						// TODO(pat.m): use default instead of panicking
 						let sampler_name = match sampler.expect("Sampled bind target missing sampler") {
 							SamplerArgument::Name(name) => name,
-							SamplerArgument::Common(sampler) => resource_manager.get_common_sampler(sampler),
+							SamplerArgument::Common(sampler) => resources.get_common_sampler(sampler),
 						};
 
 						core.bind_sampler(unit, sampler_name);
@@ -239,7 +239,7 @@ impl BindingDescription {
 			// The global BindingDescription should specify Default
 			let framebuffer = self.framebuffer.as_ref()
 				.expect("Unresolved framebuffer")
-				.resolve_name(core, resource_manager);
+				.resolve_name(core, resources);
 
 			if let Some(framebuffer_name) = framebuffer {
 				let framebuffer_info = core.get_framebuffer_info(framebuffer_name);

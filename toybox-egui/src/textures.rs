@@ -6,7 +6,7 @@ use egui::TextureId;
 use epaint::image::{ImageDelta, ImageData};
 
 use gfx::core::*;
-use gfx::resource_manager::*;
+use gfx::resources::*;
 
 use std::collections::HashMap;
 
@@ -54,7 +54,7 @@ impl TextureManager {
 		self.sampler
 	}
 
-	pub fn image_from_texture_id(&self, resource_manager: &gfx::ResourceManager, id: TextureId) -> ImageName {
+	pub fn image_from_texture_id(&self, resources: &gfx::Resources, id: TextureId) -> ImageName {
 		if let TextureId::User(id) = id {
 			let value = (id & 0xffff_ffff) as u32;
 			let is_image_handle = (id & IMAGE_HANDLE_BIT) != 0;
@@ -67,7 +67,7 @@ impl TextureManager {
 
 				true => {
 					let handle = gfx::ImageHandle::from_raw(value);
-					resource_manager.images.get_name(handle)
+					resources.images.get_name(handle)
 						.unwrap_or(self.default_image)
 				}
 			}

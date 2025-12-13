@@ -4,7 +4,7 @@ use super::*;
 pub trait ResourceRequest : PartialEq + Eq + Hash {
 	type Resource : Resource;
 
-	fn register(self, rm: &mut ResourceManager) -> <Self::Resource as Resource>::Handle;
+	fn register(self, rm: &mut Resources) -> <Self::Resource as Resource>::Handle;
 
 	// fn process(&self, ctx: &mut ResourceRequestContext<'_, '_>) -> 
 }

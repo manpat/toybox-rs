@@ -1,4 +1,4 @@
-use crate::resource_manager::*;
+use crate::resources::*;
 use std::path::PathBuf;
 
 #[derive(Hash, Clone, Debug, Eq, PartialEq)]
@@ -17,7 +17,7 @@ impl LoadImageRequest {
 impl ResourceRequest for LoadImageRequest {
 	type Resource = ImageResource;
 
-	fn register(self, rm: &mut ResourceManager) -> ImageHandle {
+	fn register(self, rm: &mut Resources) -> ImageHandle {
 		rm.load_image_requests.request_handle(&mut rm.images, self)
 	}
 }
@@ -44,13 +44,13 @@ impl LoadImageArrayRequest {
 impl ResourceRequest for LoadImageArrayRequest {
 	type Resource = ImageResource;
 
-	fn register(self, rm: &mut ResourceManager) -> ImageHandle {
+	fn register(self, rm: &mut Resources) -> ImageHandle {
 		rm.load_image_array_requests.request_handle(&mut rm.images, self)
 	}
 }
 
 
-impl ResourceManager {
+impl Resources {
 	pub fn load_image(&mut self, path: impl Into<PathBuf>) -> ImageHandle {
 		self.request(LoadImageRequest::from(path))
 	}

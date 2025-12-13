@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use crate::bindings::*;
 use crate::command::{Command, compute, draw};
-use crate::resource_manager::{ShaderHandle, arguments::*};
+use crate::resources::{ShaderHandle, arguments::*};
 use crate::upload_heap::{UploadStage, StagedUploadId};
 
 use std::ops::{Deref, DerefMut};
@@ -131,7 +131,7 @@ impl<'g> CommandGroupEncoder<'g> {
 		});
 	}
 
-	pub fn execute(&mut self, cb: impl FnOnce(&mut crate::Core, &mut crate::ResourceManager) + 'static) {
+	pub fn execute(&mut self, cb: impl FnOnce(&mut crate::Core, &mut crate::Resources) + 'static) {
 		self.add(Command::Callback(Box::new(cb)));
 	}
 
@@ -143,8 +143,8 @@ impl<'g> CommandGroupEncoder<'g> {
 
 	// TODO(pat.m): draw_depth_only
 
-	/// Same as draw() except uses standard fullscreen vertex shader [gfx::ResourceManager::fullscreen_vs_shader].
-	/// If no fragment shader is provided, uses texture only [gfx::ResourceManager::flat_fs_shader]. 
+	/// Same as draw() except uses standard fullscreen vertex shader [gfx::Resources::fullscreen_vs_shader].
+	/// If no fragment shader is provided, uses texture only [gfx::Resources::flat_fs_shader]. 
 	pub fn draw_fullscreen(&mut self, fragment_shader: impl Into<Option<ShaderHandle>>) -> draw::DrawCmdBuilder<'_> {
 		let fragment_shader = fragment_shader.into()
 			.map_or(CommonShader::FlatTexturedFragment.into(), |handle| handle.into());

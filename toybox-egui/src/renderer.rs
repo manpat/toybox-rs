@@ -5,7 +5,7 @@ use gfx::prelude::*;
 use egui::ClippedPrimitive;
 use epaint::Primitive;
 
-use gfx::resource_manager::*;
+use gfx::resources::*;
 
 use crate::textures::TextureManager;
 
@@ -27,9 +27,9 @@ impl Renderer {
 	#[tracing::instrument(skip_all, name="egui Renderer::new")]
 	pub fn new(gfx: &mut gfx::System) -> Renderer {
 		Renderer {
-			vertex_shader: gfx.resource_manager.request(CompileShaderRequest::vertex("egui vs", VERTEX_SOURCE)),
-			fragment_shader: gfx.resource_manager.request(CompileShaderRequest::fragment("egui fs", FRAGMENT_SOURCE)),
-			text_fragment_shader: gfx.resource_manager.request(CompileShaderRequest::fragment("egui text fs", TEXT_FRAGMENT_SOURCE)),
+			vertex_shader: gfx.resources.request(CompileShaderRequest::vertex("egui vs", VERTEX_SOURCE)),
+			fragment_shader: gfx.resources.request(CompileShaderRequest::fragment("egui fs", FRAGMENT_SOURCE)),
+			text_fragment_shader: gfx.resources.request(CompileShaderRequest::fragment("egui text fs", TEXT_FRAGMENT_SOURCE)),
 
 			scaling: 1.0,
 		}
@@ -44,7 +44,7 @@ impl Renderer {
 
 		let logical_screen_size = (backbuffer_size.to_vec2() / self.scaling).to_vec2i();
 
-		let mut group = gfx.frame_encoder.command_group(gfx::FrameStage::DebugUi)
+		let mut group = gfx.frame.command_group(gfx::FrameStage::DebugUi)
 			.annotate("Paint Egui");
 
 		group.execute(|core, _| {
@@ -98,7 +98,7 @@ impl Renderer {
 					clip_rect,
 				}));
 
-			let image_name = texture_manager.image_from_texture_id(&gfx.resource_manager, mesh.texture_id);
+			let image_name = texture_manager.image_from_texture_id(&gfx.resources, mesh.texture_id);
 
 			let fragment_shader = match texture_manager.is_font_image(mesh.texture_id) {
 				true => self.text_fragment_shader,

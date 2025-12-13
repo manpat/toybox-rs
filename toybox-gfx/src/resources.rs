@@ -32,7 +32,7 @@ pub use framebuffer::*;
 //  - cache of images for use as single-frame image resources -  fixed size
 //  - cache of FBOs for render passes
 // Shader cache
-pub struct ResourceManager {
+pub struct Resources {
 	load_shader_requests: ResourceRequestMap<LoadShaderRequest>,
 	compile_shader_requests: ResourceRequestMap<CompileShaderRequest>,
 	pub shaders: ResourceStorage<ShaderResource>,
@@ -66,8 +66,8 @@ pub struct ResourceManager {
 	resize_request: Option<common::Vec2i>,
 }
 
-impl ResourceManager {
-	pub fn new(core: &mut core::Core) -> anyhow::Result<ResourceManager> {
+impl Resources {
+	pub fn new(core: &mut core::Core) -> anyhow::Result<Resources> {
 		let mut compile_shader_requests = ResourceRequestMap::new();
 		let mut shaders = ResourceStorage::<ShaderResource>::new();
 
@@ -135,7 +135,7 @@ impl ResourceManager {
 			sampler
 		};
 
-		Ok(ResourceManager {
+		Ok(Resources {
 			load_shader_requests: ResourceRequestMap::new(),
 			compile_shader_requests,
 			shaders,
@@ -241,7 +241,7 @@ impl ResourceManager {
 }
 
 /// Execution api
-impl ResourceManager {
+impl Resources {
 	#[instrument(skip_all, name="gfx rm resolve_draw_pipeline")]
 	pub fn resolve_draw_pipeline(&mut self, core: &mut core::Core,
 		vertex_shader: shader::ShaderHandle, fragment_shader: impl Into<Option<shader::ShaderHandle>>)
@@ -325,7 +325,7 @@ impl ResourceManager {
 
 
 /// Request api
-impl ResourceManager {
+impl Resources {
 	pub fn request<R: ResourceRequest>(&mut self, request: R) -> <R::Resource as Resource>::Handle {
 		request.register(self)
 	}

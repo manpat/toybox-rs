@@ -1,5 +1,5 @@
 use crate::core::*;
-use crate::resource_manager::*;
+use crate::resources::*;
 
 #[derive(Hash, Clone, Debug, Eq, PartialEq)]
 pub struct CreateImageRequest {
@@ -71,7 +71,7 @@ impl CreateImageRequest {
 impl ResourceRequest for CreateImageRequest {
 	type Resource = ImageResource;
 
-	fn register(self, rm: &mut ResourceManager) -> ImageHandle {
+	fn register(self, rm: &mut Resources) -> ImageHandle {
 		rm.create_image_requests.request_handle(&mut rm.images, self)
 	}
 }

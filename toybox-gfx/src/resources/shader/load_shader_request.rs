@@ -1,5 +1,5 @@
 use crate::core::ShaderType;
-use crate::resource_manager::*;
+use crate::resources::*;
 use std::path::PathBuf;
 
 
@@ -62,12 +62,12 @@ impl LoadShaderRequest {
 impl ResourceRequest for LoadShaderRequest {
 	type Resource = ShaderResource;
 
-	fn register(self, rm: &mut ResourceManager) -> ShaderHandle {
+	fn register(self, rm: &mut Resources) -> ShaderHandle {
 		rm.load_shader_requests.request_handle(&mut rm.shaders, self)
 	}
 }
 
-impl ResourceManager {
+impl Resources {
 	pub fn load_vertex_shader(&mut self, path: impl Into<PathBuf>) -> ShaderHandle {
 		self.request(LoadShaderRequest::vertex(path))
 	}

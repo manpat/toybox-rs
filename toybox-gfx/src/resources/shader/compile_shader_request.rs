@@ -1,5 +1,5 @@
 use crate::core::ShaderType;
-use crate::resource_manager::*;
+use crate::resources::*;
 
 #[derive(Hash, Clone, Debug, Eq, PartialEq)]
 pub struct CompileShaderRequest {
@@ -39,13 +39,13 @@ impl CompileShaderRequest {
 impl ResourceRequest for CompileShaderRequest {
 	type Resource = ShaderResource;
 
-	fn register(self, rm: &mut ResourceManager) -> ShaderHandle {
+	fn register(self, rm: &mut Resources) -> ShaderHandle {
 		rm.compile_shader_requests.request_handle(&mut rm.shaders, self)
 	}
 }
 
 
-impl ResourceManager {
+impl Resources {
 	pub fn compile_vertex_shader(&mut self, label: impl Into<String>, src: impl Into<String>) -> ShaderHandle {
 		self.request(CompileShaderRequest::vertex(label, src))
 	}

@@ -1,5 +1,5 @@
 use crate::{
-	Core, ResourceManager,
+	Core, Resources,
 	FramebufferName,
 	FramebufferDescription,
 };
@@ -29,11 +29,11 @@ impl From<FramebufferName> for FramebufferArgument {
 }
 
 impl FramebufferArgument {
-	pub fn resolve_name(&self, core: &Core, resource_manager: &mut ResourceManager) -> Option<FramebufferName> {
+	pub fn resolve_name(&self, core: &Core, resources: &mut Resources) -> Option<FramebufferName> {
 		match self {
 			FramebufferArgument::Default => None,
 			FramebufferArgument::Name(name) => Some(*name),
-			FramebufferArgument::Description(desc) => resource_manager.resolve_framebuffer(core, desc.clone()),
+			FramebufferArgument::Description(desc) => resources.resolve_framebuffer(core, desc.clone()),
 		}
 	}
 }

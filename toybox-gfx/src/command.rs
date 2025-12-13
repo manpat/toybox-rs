@@ -27,7 +27,7 @@ pub enum Command {
 	PushDebugGroup { label: String, },
 	PopDebugGroup,
 
-	Callback(Box<dyn FnOnce(&mut crate::Core, &mut crate::ResourceManager) + 'static>),
+	Callback(Box<dyn FnOnce(&mut crate::Core, &mut crate::Resources) + 'static>),
 }
 
 

@@ -2,7 +2,7 @@ use crate::prelude::*;
 use crate::bindings::*;
 
 use crate::{
-	Core, ResourceManager,
+	Core, Resources,
 	ShaderArgument,
 	BlendMode,
 	upload_heap::UploadStage,
@@ -90,7 +90,7 @@ impl DrawCmd {
 	}
 
 	#[tracing::instrument(skip_all, name="DrawCmd::execute")]
-	pub fn execute(&self, core: &mut Core, rm: &mut ResourceManager) {
+	pub fn execute(&self, core: &mut Core, rm: &mut Resources) {
 		let vertex_shader_handle = match self.vertex_shader {
 			ShaderArgument::Handle(name) => name,
 			ShaderArgument::Common(shader) => rm.get_common_shader(shader),

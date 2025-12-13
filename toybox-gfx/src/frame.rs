@@ -8,7 +8,7 @@ use crate::arguments::*;
 
 
 // Encodes per-frame commands, organised into passes/command groups
-pub struct FrameEncoder {
+pub struct Frame {
 	pub(crate) command_groups: Vec<CommandGroup>,
 	pub(crate) backbuffer_clear_color: Color,
 
@@ -17,9 +17,9 @@ pub struct FrameEncoder {
 	pub global_bindings: BindingDescription,
 }
 
-impl FrameEncoder {
-	pub fn new(_core: &mut Core) -> FrameEncoder {
-		FrameEncoder {
+impl Frame {
+	pub fn new(_core: &mut Core) -> Frame {
+		Frame {
 			command_groups: Vec::new(),
 			backbuffer_clear_color: Color::light_magenta(),
 
@@ -44,7 +44,7 @@ impl FrameEncoder {
 }
 
 
-impl FrameEncoder {
+impl Frame {
 	pub fn backbuffer_color(&mut self, color: impl Into<Color>) {
 		self.backbuffer_clear_color = color.into();
 	}
@@ -77,7 +77,7 @@ impl FrameEncoder {
 }
 
 /// Global per-frame bindings.
-impl FrameEncoder {
+impl Frame {
 	pub fn bind_global_buffer(&mut self, target: impl Into<BufferBindTarget>, buffer: impl IntoBufferArgument) {
 		self.global_bindings.bind_buffer(target, buffer.into_buffer_argument(&mut self.upload_stage));
 	}

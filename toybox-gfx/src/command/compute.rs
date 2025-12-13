@@ -2,7 +2,7 @@ use crate::prelude::*;
 use crate::bindings::*;
 
 use crate::{
-	Core, ResourceManager,
+	Core, Resources,
 	upload_heap::UploadStage,
 	arguments::*,
 };
@@ -38,7 +38,7 @@ impl ComputeCmd {
 	}
 
 	#[tracing::instrument(skip_all, name="ComputeCmd::execute")]
-	pub fn execute(&self, core: &mut Core, rm: &mut ResourceManager) {
+	pub fn execute(&self, core: &mut Core, rm: &mut Resources) {
 		let shader_handle = match self.compute_shader {
 			ShaderArgument::Handle(handle) => handle,
 			ShaderArgument::Common(shader) => rm.get_common_shader(shader),
