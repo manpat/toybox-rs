@@ -76,7 +76,7 @@ impl ResourceRequest for CreateImageRequest {
 	}
 }
 
-impl ResourceManager {
+impl Resources {
 	pub fn create_rendertarget(&mut self, label: impl Into<String>, format: ImageFormat) -> ImageHandle {
 		self.request(CreateImageRequest::rendertarget(label, format))
 	}

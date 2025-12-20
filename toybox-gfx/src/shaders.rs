@@ -48,7 +48,7 @@ impl StandardVertex {
 		Self::new(pos, Vec2::zero(), color)
 	}
 
-	pub fn with_uv(pos: impl Into<Vec3>, uv: Vec2) -> StandardVertex {
+	pub fn with_uv(pos: impl Into<Vec3>, uv: impl Into<Vec2>) -> StandardVertex {
 		Self::new(pos, uv, Color::white())
 	}
 }
