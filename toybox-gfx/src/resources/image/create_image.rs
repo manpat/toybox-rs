@@ -75,3 +75,13 @@ impl ResourceRequest for CreateImageRequest {
 		rm.create_image_requests.request_handle(&mut rm.images, self)
 	}
 }
+
+impl ResourceManager {
+	pub fn create_rendertarget(&mut self, label: impl Into<String>, format: ImageFormat) -> ImageHandle {
+		self.request(CreateImageRequest::rendertarget(label, format))
+	}
+
+	pub fn create_fractional_rendertarget(&mut self, label: impl Into<String>, format: ImageFormat, fraction: u32) -> ImageHandle {
+		self.request(CreateImageRequest::fractional_rendertarget(label, format, fraction))
+	}
+}
