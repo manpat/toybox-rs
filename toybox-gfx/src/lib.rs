@@ -230,10 +230,9 @@ impl System {
 	fn dispatch_commands(&mut self) {
 		use command::Command::*;
 
-		let core = &mut self.core;
-		let resources = &mut self.resources;
+		let Self{ core, resources, frame } = self;
 
-		for command_group in self.frame.command_groups.iter_mut() {
+		for command_group in frame.command_groups.iter_mut() {
 			if command_group.commands.is_empty() {
 				continue
 			}
