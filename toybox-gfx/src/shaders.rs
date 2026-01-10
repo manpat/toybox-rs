@@ -6,6 +6,11 @@ pub const FULLSCREEN_VS_SHADER_SOURCE: &str = include_str!("shaders/fullscreen.v
 pub const FLAT_UNTEXTURED_FS_SHADER_SOURCE: &str = include_str!("shaders/flat_untextured.fs.glsl");
 pub const FLAT_TEXTURED_FS_SHADER_SOURCE: &str = include_str!("shaders/flat_textured.fs.glsl");
 
+#[derive(Debug, Copy, Clone)]
+#[repr(C)]
+pub struct StandardProjectionUniforms {
+	pub projection_view: Mat4,
+}
 
 
 #[derive(Debug, Copy, Clone)]

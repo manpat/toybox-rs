@@ -112,20 +112,20 @@ impl Vfs {
 	}
 
 	#[instrument(skip_all)]
-	pub fn load_json_resource<T>(&self, virtual_path: impl AsRef<Path>) -> anyhow::Result<T>
+	pub fn load_toml_resource<T>(&self, virtual_path: impl AsRef<Path>) -> anyhow::Result<T>
 		where T: for<'a> serde::Deserialize<'a>
 	{
 		let data = self.load_string(PathKind::Resource, virtual_path)?;
-		serde_json::from_str(&data).map_err(Into::into)
+		toml::from_str(&data).map_err(Into::into)
 	}
 
 	#[instrument(skip_all)]
-	pub fn save_json_resource<T>(&self, virtual_path: impl AsRef<Path>, data: &T) -> anyhow::Result<()>
+	pub fn save_toml_resource<T>(&self, virtual_path: impl AsRef<Path>, data: &T) -> anyhow::Result<()>
 		where T: serde::Serialize
 	{
 		let data = match cfg!(debug_assertions) {
-			true => serde_json::to_vec_pretty(data)?,
-			false => serde_json::to_vec(data)?,
+			true => toml::to_string_pretty(data)?,
+			false => toml::to_string(data)?,
 		};
 
 		self.save_resource_data(virtual_path, &data)
