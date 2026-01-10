@@ -315,16 +315,16 @@ extern "system" fn default_gl_error_handler(source: u32, ty: u32, msg_id: u32, s
 		_ => panic!("Unknown source {}", source),
 	};
 
-	eprintln!("GL ERROR!");
-	eprintln!("Source:   {source}");
-	eprintln!("Severity: {severity_str}");
-	eprintln!("Type:     {ty_str}");
-	eprintln!("Id:       {msg_id}");
+	log::error!("GL ERROR!");
+	log::error!("Source:   {source}");
+	log::error!("Severity: {severity_str}");
+	log::error!("Type:     {ty_str}");
+	log::error!("Id:       {msg_id}");
 
 	unsafe {
 		let msg_slice = std::slice::from_raw_parts(msg.cast(), length as usize);
 		let msg_utf8 = String::from_utf8_lossy(msg_slice);
-		eprintln!("Message: {}", msg_utf8);
+		log::error!("Message: {}", msg_utf8);
 	}
 
 	match (severity, ty) {
