@@ -130,6 +130,26 @@ impl Vfs {
 
 		self.save_resource_data(virtual_path, &data)
 	}
+
+	#[instrument(skip_all)]
+	pub fn load_json_resource<T>(&self, virtual_path: impl AsRef<Path>) -> anyhow::Result<T>
+		where T: for<'a> serde::Deserialize<'a>
+	{
+		let data = self.load_string(PathKind::Resource, virtual_path)?;
+		serde_json::from_str(&data).map_err(Into::into)
+	}
+
+	#[instrument(skip_all)]
+	pub fn save_json_resource<T>(&self, virtual_path: impl AsRef<Path>, data: &T) -> anyhow::Result<()>
+		where T: serde::Serialize
+	{
+		let data = match cfg!(debug_assertions) {
+			true => serde_json::to_string_pretty(data)?,
+			false => serde_json::to_string(data)?,
+		};
+
+		self.save_resource_data(virtual_path, &data)
+	}
 }
 
 

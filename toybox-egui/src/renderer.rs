@@ -12,13 +12,11 @@ use crate::textures::TextureManager;
 
 const VERTEX_SOURCE: &str = include_str!("egui.vs.glsl");
 const FRAGMENT_SOURCE: &str = include_str!("egui.fs.glsl");
-const TEXT_FRAGMENT_SOURCE: &str = include_str!("egui_text.fs.glsl");
 
 
 pub struct Renderer {
 	vertex_shader: ShaderHandle,
 	fragment_shader: ShaderHandle,
-	text_fragment_shader: ShaderHandle,
 
 	pub(crate) scaling: f32,
 }
@@ -29,7 +27,6 @@ impl Renderer {
 		Renderer {
 			vertex_shader: gfx.resources.request(CompileShaderRequest::vertex("egui vs", VERTEX_SOURCE)),
 			fragment_shader: gfx.resources.request(CompileShaderRequest::fragment("egui fs", FRAGMENT_SOURCE)),
-			text_fragment_shader: gfx.resources.request(CompileShaderRequest::fragment("egui text fs", TEXT_FRAGMENT_SOURCE)),
 
 			scaling: 1.0,
 		}
@@ -99,12 +96,7 @@ impl Renderer {
 
 			let image_name = texture_manager.image_from_texture_id(&gfx.resources, mesh.texture_id);
 
-			let fragment_shader = match texture_manager.is_font_image(mesh.texture_id) {
-				true => self.text_fragment_shader,
-				false => self.fragment_shader,
-			};
-
-			group.draw(self.vertex_shader, fragment_shader)
+			group.draw(self.vertex_shader, self.fragment_shader)
 				.indexed(&mesh.indices)
 				.ssbo(0, vertices)
 				.ubo(0, transforms)

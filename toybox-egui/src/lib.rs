@@ -84,13 +84,13 @@ impl Integration {
 	#[instrument(skip_all, name="egui start_frame")]
 	pub fn start_frame(&mut self) -> egui::Context {
 		let input = self.state.take_egui_input(&self.window);
-		self.ctx.begin_frame(input);
+		self.ctx.begin_pass(input);
 		self.ctx.clone()
 	}
 
 	#[instrument(skip_all, name="egui end_frame")]
 	pub fn end_frame(&mut self, gfx: &mut gfx::System) {
-		let FullOutput{platform_output, textures_delta, shapes, pixels_per_point, ..} = self.ctx.end_frame();
+		let FullOutput{platform_output, textures_delta, shapes, pixels_per_point, ..} = self.ctx.end_pass();
 		self.state.handle_platform_output(&self.window, platform_output);
 
 		let primitives = self.ctx.tessellate(shapes, pixels_per_point);

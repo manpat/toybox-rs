@@ -18,13 +18,11 @@ pub struct MenuState {
 }
 
 pub fn show_menu(ctx: &mut super::Context, app: &mut impl super::App, state: &mut MenuState) {
-	use egui::menu;
-
 	let egui_ctx = &ctx.egui.clone();
 
 	egui::TopBottomPanel::top("main_debug_menu")
 		.show_animated(egui_ctx, ctx.show_debug_menu, |ui| {
-			menu::bar(ui, |ui| {
+			egui::MenuBar::new().ui(ui, |ui| {
 				ui.menu_button("Toybox", |ui| {
 					show_submenus(ui, state);
 
@@ -48,7 +46,7 @@ pub fn show_menu(ctx: &mut super::Context, app: &mut impl super::App, state: &mu
 	egui::Window::new("Egui Style")
 		.open(&mut state.egui_style)
 		.show(egui_ctx, |ui| {
-			ctx.egui.style_ui(ui);
+			ctx.egui.style_ui(ui, egui::Theme::Dark);
 		});
 
 	egui::Window::new("Egui Memory")

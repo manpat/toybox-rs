@@ -22,9 +22,6 @@ pub struct TextureManager {
 struct ManagedImage {
 	name: ImageName,
 	allocated_size: Vec2i,
-
-	// If true, texture will be in gl::R16 format
-	holds_font: bool,
 }
 
 
@@ -80,14 +77,6 @@ impl TextureManager {
 		}
 	}
 
-	pub fn is_font_image(&self, id: TextureId) -> bool {
-		if let Some(Some(managed_image)) = self.managed_images.get(&id) {
-			managed_image.holds_font
-		} else {
-			false
-		}
-	}
-
 	pub fn apply_textures(&mut self, gfx: &mut gfx::System, deltas: &[(TextureId, ImageDelta)]) {
 		if deltas.is_empty() {
 			return
@@ -114,12 +103,7 @@ impl TextureManager {
 					panic!("egui trying to update user image")
 				};
 
-				let label = match delta.image {
-					ImageData::Color(_) => format!("egui color image #{managed_id}"),
-					ImageData::Font(_) => format!("egui font atlas #{managed_id}"),
-				};
-
-				*managed_image = Some(create_managed_image(&gfx.core, delta, label));
+				*managed_image = Some(create_managed_image(&gfx.core, delta, format!("egui image #{managed_id}")));
 			}
 
 			// By this point we must have a ready managed image, so unconditionally upload the data
@@ -143,12 +127,7 @@ impl TextureManager {
 
 fn create_managed_image(core: &gfx::Core, delta: &ImageDelta, label: impl AsRef<str>) -> ManagedImage {
 	let size = Vec2i::new(delta.image.width() as i32, delta.image.height() as i32);
-	let holds_font = matches!(&delta.image, ImageData::Font(_));
-
-	let format = match holds_font {
-		true => ImageFormat::Red(ComponentFormat::Unorm16),
-		false => ImageFormat::Srgba8,
-	};
+	let format = ImageFormat::Srgba8;
 
 	let name = core.create_image_2d(format, size);
 	core.set_debug_label(name, label);
@@ -156,7 +135,6 @@ fn create_managed_image(core: &gfx::Core, delta: &ImageDelta, label: impl AsRef<
 	ManagedImage {
 		name,
 		allocated_size: size,
-		holds_font,
 	}
 }
 
@@ -165,12 +143,7 @@ fn is_managed_image_compatible(managed_image: &ManagedImage, delta: &ImageDelta)
 	let is_full_image_update = delta.pos.is_none();
 	let is_different_size = managed_image.allocated_size != delta_size;
 
-	let is_size_compatible = !(is_full_image_update && is_different_size);
-
-	let is_delta_font = matches!(&delta.image, ImageData::Font(_));
-	let is_same_type = managed_image.holds_font == is_delta_font;
-
-	is_size_compatible && is_same_type
+	!(is_full_image_update && is_different_size)
 }
 
 fn upload_managed_image_data(core: &gfx::Core, managed_image: &mut ManagedImage, delta: &ImageDelta) {
@@ -182,16 +155,8 @@ fn upload_managed_image_data(core: &gfx::Core, managed_image: &mut ManagedImage,
 		offset: Vec3i::new(offset_x as i32, offset_y as i32, 0),
 	};
 
-	match &delta.image {
-		ImageData::Font(font_image) => {
-			core.upload_image(managed_image.name, range, ImageFormat::Red(ComponentFormat::F32), &font_image.pixels);
-		}
-
-		ImageData::Color(color_image) => {
-			core.upload_image(managed_image.name, range, ImageFormat::Srgba8, &color_image.pixels);
-		}
-	}
-
+	let ImageData::Color(color_image) = &delta.image;
+	core.upload_image(managed_image.name, range, ImageFormat::Srgba8, &color_image.pixels);
 }
 
 
